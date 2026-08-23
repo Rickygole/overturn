@@ -160,39 +160,53 @@ class TestNothingRunsInBetween:
 
 
 class TestClimbingTheLadder:
-    def test_a_silent_payer_drives_the_case_up_the_ladder(self, pipeline, store):
-        _to_submitted(pipeline)
+    def test_a_silent_payer_moves_the_case_without_waiting_for_anyone(self, pipeline, store):
+        """The first window closes and the case advances on its own.
 
-        # First window closes. Peer-to-peer needs a clinician on a call, so the
-        # correct behaviour is to stop and ask for one rather than proceed.
+        Peer-to-peer needs a clinician to take the call, so a person is told —
+        but the case still moves to that rung and still carries a deadline.
+        Needing a human is not the same as stopping, and conflating the two
+        meant the ladder climbed zero rungs unattended.
+        """
+        _to_submitted(pipeline)
         _age(pipeline, "CASE-001")
         pipeline.escalate_overdue()
+
         case = pipeline.fleet.cases.load("CASE-001")
-        assert case.status is CaseStatus.NEEDS_HUMAN_REVIEW
+        assert case.appeal_level is AppealLevel.PEER_TO_PEER
+        assert case.status is CaseStatus.ESCALATED
+        assert case.escalation_count == 1
+        assert case.response_deadline is not None, "the clock must keep running"
+        assert case.needs_human_reason, "a person should still be told to schedule the call"
 
-    def test_the_ladder_advances_through_every_rung(self, pipeline, store):
-        """Four rungs, driven only by deadlines passing."""
+    def test_the_ladder_climbs_every_rung_with_nobody_watching(self, pipeline, store):
+        """The product claim, tested without the test doing any of the work.
+
+        An earlier version of this test set `appeal_level` by hand between
+        ticks, so it passed while the system advanced nothing. Here the only
+        thing that happens between rungs is a deadline passing.
+        """
         _to_submitted(pipeline)
-        levels = [pipeline.fleet.cases.load("CASE-001").appeal_level]
+        observed = [pipeline.fleet.cases.load("CASE-001").appeal_level]
 
-        for _ in range(4):
+        for _ in range(5):
             case = pipeline.fleet.cases.load("CASE-001")
             if case.status is CaseStatus.NEEDS_HUMAN_REVIEW:
-                # A person handles the peer-to-peer call and puts the case back
-                # in flight. That hand-off is the design, not a workaround.
-                pipeline.fleet.cases.mutate(
-                    "CASE-001",
-                    lambda c: (
-                        setattr(c, "appeal_level", AppealLevel.PEER_TO_PEER),
-                        c.transition(CaseStatus.SUBMITTED, actor="clerk"),
-                    ),
-                )
+                break
             _age(pipeline, "CASE-001")
             pipeline.escalate_overdue()
-            levels.append(pipeline.fleet.cases.load("CASE-001").appeal_level)
+            observed.append(pipeline.fleet.cases.load("CASE-001").appeal_level)
 
-        assert AppealLevel.SECOND_LEVEL in levels
-        assert AppealLevel.EXTERNAL_REVIEW in levels
+        assert observed[:4] == [
+            AppealLevel.FIRST_LEVEL,
+            AppealLevel.PEER_TO_PEER,
+            AppealLevel.SECOND_LEVEL,
+            AppealLevel.EXTERNAL_REVIEW,
+        ], f"the ladder did not climb unattended: {[o.value for o in observed]}"
+
+        final = pipeline.fleet.cases.load("CASE-001")
+        assert final.status is CaseStatus.NEEDS_HUMAN_REVIEW
+        assert final.escalation_count == 3
 
     def test_each_escalation_is_recorded_once(self, pipeline, store):
         _to_submitted(pipeline)
