@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*-sa-key.json
+service-account*.json
+credentials.json
+
+# Local state
+.firestore-emulator/
+*.log
+local_state/
+.DS_Store
+
+# Build artifacts
+dist/
+build/
