@@ -44,6 +44,10 @@ from core.schemas.verification import VerificationFinding, VerificationResult
 
 FIXTURE_DIR = Path(__file__).resolve().parents[2] / "data" / "offline"
 
+# "not", "no", "without" and "unless" are deliberately NOT here. Dropping them
+# deletes negation before comparison, and a claim that says the exact opposite
+# of its source then scores a perfect match. That is not a tuning detail — it is
+# the difference between a verifier and a rubber stamp.
 STOPWORDS = frozenset(
     [
         "a",
@@ -78,8 +82,6 @@ STOPWORDS = frozenset(
         "must",
         "been",
         "being",
-        "not",
-        "no",
         "all",
         "any",
         "member",
@@ -89,15 +91,115 @@ STOPWORDS = frozenset(
     ]
 )
 
+# Words that reverse meaning. A claim and its source must agree on these or the
+# claim is unsupported, however much other vocabulary they share.
+NEGATIONS = frozenset(
+    ["not", "no", "never", "without", "unless", "except", "absent", "neither", "nor", "cannot"]
+)
+
+# Numbers, including decimals, kept as single tokens.
+_TOKEN = re.compile(r"\d+(?:\.\d+)?|[a-z]+")
+
 
 def _content_words(text: str) -> set[str]:
-    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOPWORDS and len(w) > 2}
+    """Content words, keeping negations and every number.
+
+    The length filter was once ``len(w) > 2``, which silently discarded every
+    number under three characters. An A1c of ``7.0`` tokenised to ``7`` and
+    ``0`` and then to nothing; ``54`` and ``48`` vanished entirely. A verifier
+    that cannot see the numbers in a clinical document cannot tell an A1c of
+    14.2 from one of 6.1, which is most of what these criteria turn on.
+    """
+    words = _TOKEN.findall(text.lower())
+    return {
+        w for w in words if w not in STOPWORDS and (len(w) > 2 or w in NEGATIONS or w[0].isdigit())
+    }
+
+
+def _negation_sense(text: str) -> frozenset[str]:
+    """Which meaning-reversing words appear. Compared, never dropped."""
+    return frozenset(_content_words(text) & NEGATIONS)
+
+
+def _numbers(text: str) -> frozenset[str]:
+    return frozenset(w for w in _content_words(text) if w[0].isdigit())
+
+
+# Comparators that point a threshold in one direction. Inverting one turns a
+# coverage floor into a ceiling while changing almost no vocabulary, so it is
+# invisible to plain overlap: "7.0 percent or greater" and "7.0 percent or less"
+# share every word but the last.
+_DIRECTION = {
+    "greater": "up",
+    "more": "up",
+    "above": "up",
+    "least": "up",
+    "exceeds": "up",
+    "exceeding": "up",
+    "minimum": "up",
+    "over": "up",
+    "higher": "up",
+    "less": "down",
+    "fewer": "down",
+    "below": "down",
+    "most": "down",
+    "under": "down",
+    "maximum": "down",
+    "lower": "down",
+    "within": "down",
+}
+_NUMBER_WINDOW = 5
+
+
+def _thresholds(text: str) -> frozenset[tuple[str, str]]:
+    """Pair each number with the direction word nearest to it.
+
+    Global direction counting does not work: a criterion that says "7.0 percent
+    or greater" and "below 54 mg/dL" contains both directions, so any claim
+    about either number matches on the set. The comparator has to belong to the
+    number it qualifies.
+    """
+    words = _TOKEN.findall(text.lower())
+    pairs: set[tuple[str, str]] = set()
+    for index, word in enumerate(words):
+        if not word[0].isdigit():
+            continue
+        window = words[max(0, index - _NUMBER_WINDOW) : index + _NUMBER_WINDOW + 1]
+        for neighbour in window:
+            if (direction := _DIRECTION.get(neighbour)) is not None:
+                pairs.add((word, direction))
+    return frozenset(pairs)
 
 
 def _overlap(claim: str, source: str) -> float:
-    """Fraction of the claim's content words present in the source."""
+    """How much of the claim the source actually supports.
+
+    Zero when the two disagree about negation, about their numbers, or about
+    which direction a threshold points, whatever else they share. A claim that inverts a threshold or negates a requirement
+    shares nearly all of its vocabulary with the source, so plain overlap scores
+    it near 1.0 — which is how a letter asserting the opposite of a policy
+    passed verification.
+    """
     claim_words = _content_words(claim)
     if not claim_words:
+        return 0.0
+    # Directional, not set equality. The claim may not *introduce* a negation
+    # its source does not have — that is how "coverage is not available" gets
+    # cited as though it granted coverage.
+    #
+    # Comparing the two sets for equality looked tighter and was much worse: the
+    # source here is the whole evidence corpus, so a single "not" in an
+    # unrelated quote made every plainly-supported claim mismatch, and the
+    # verifier rejected an entire honest draft.
+    #
+    # The opposite direction — a claim that drops a negation its source has — is
+    # a truncation attack, and it is caught where the comparison is against one
+    # specific span rather than a corpus: agents/mapping/validate.py.
+    if not _negation_sense(claim) <= _negation_sense(source):
+        return 0.0
+    if not _numbers(claim) <= _numbers(source):
+        return 0.0
+    if not _thresholds(claim) <= _thresholds(source):
         return 0.0
     return len(claim_words & _content_words(source)) / len(claim_words)
 
