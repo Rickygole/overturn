@@ -1,0 +1,28 @@
+{
+  "patient": "Brook779 Welch179",
+  "member_id": "NBH-4417-30512",
+  "authored_note": "Synthea produced this patient's demographic and background record. The dermatology consultation note was authored. This case never reaches the Mapping agent: no policy in the corpus governs cosmetic dermabrasion, so Retrieval declines before any chart criterion is evaluated. The chart is kept deliberately minimal because building it out further would not change what the system does with this case.",
+  "problems": [
+    {
+      "description": "Facial acne scarring (finding)",
+      "onset_date": "2019-03-10",
+      "code": "L90.5",
+      "provenance": "authored"
+    }
+  ],
+  "medications": [],
+  "labs": [],
+  "encounters": [
+    {
+      "encounter_id": "ENC-2026-07-15",
+      "date": "2026-07-15",
+      "encounter_type": "Office visit",
+      "clinician": "Dr. R. Delacroix",
+      "specialty": "Dermatology",
+      "reason": "Consultation for facial scarring",
+      "locator": "enc/2026-07-15/dermatology",
+      "provenance": "authored",
+      "note": "Thirty-eight year old woman presenting for evaluation of long-standing facial acne scarring, present since her teenage years, that she reports has bothered her appearance for years. No functional limitation, no pain, no skin breakdown or infection. She would like the scarring's appearance improved. Discussed dermabrasion as an option; counselled that this is a cosmetic procedure and is unlikely to be covered by her health plan. Plan: proceed with dermabrasion at patient's request and expense pending authorization determination."
+    }
+  ]
+}

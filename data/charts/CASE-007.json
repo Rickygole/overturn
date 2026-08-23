@@ -1,0 +1,449 @@
+{
+  "patient_id": "3621bdbe-aae3-a4e9-0b9f-d6549a5093b9",
+  "name": "Jeromy156 Upton904",
+  "date_of_birth": "1967-08-12",
+  "sex": "M",
+  "member_id": "NBH-4417-99083",
+  "problems": [
+    {
+      "description": "Type 2 diabetes mellitus with hyperglycaemia, insulin-treated",
+      "onset_date": "2017-06-14",
+      "code": "E11.65",
+      "active": true,
+      "provenance": "authored"
+    },
+    {
+      "description": "Hypoglycaemia unawareness",
+      "onset_date": "2025-11-02",
+      "code": "E16.2",
+      "active": true,
+      "provenance": "authored"
+    },
+    {
+      "description": "Chronic sinusitis (disorder)",
+      "onset_date": "1977-10-27",
+      "code": "40055000",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Received higher education (finding)",
+      "onset_date": "1985-10-05",
+      "code": "224299000",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Body mass index 30+ - obesity (finding)",
+      "onset_date": "1989-10-14",
+      "code": "162864005",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Essential hypertension (disorder)",
+      "onset_date": "1995-08-26",
+      "code": "59621000",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Metabolic syndrome X (disorder)",
+      "onset_date": "2005-10-29",
+      "code": "237602007",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Prediabetes (finding)",
+      "onset_date": "2005-10-29",
+      "code": "714628002",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Anemia (disorder)",
+      "onset_date": "2005-10-29",
+      "code": "271737000",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Atrial fibrillation (disorder)",
+      "onset_date": "2012-12-08",
+      "code": "49436004",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Chronic pain (finding)",
+      "onset_date": "2014-02-03",
+      "code": "82423001",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Chronic low back pain (finding)",
+      "onset_date": "2014-02-03",
+      "code": "278860009",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Fibromyalgia (disorder)",
+      "onset_date": "2014-02-03",
+      "code": "203082005",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Medication review due (situation)",
+      "onset_date": "2015-12-26",
+      "code": "314529007",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Ischemic heart disease (disorder)",
+      "onset_date": "2015-12-26",
+      "code": "414545008",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Full-time employment (finding)",
+      "onset_date": "2015-12-26",
+      "code": "160903007",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Stress (finding)",
+      "onset_date": "2015-12-26",
+      "code": "73595000",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Abnormal findings diagnostic imaging heart+coronary circulat (finding)",
+      "onset_date": "2016-01-05",
+      "code": "274531002",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Not in labor force (finding)",
+      "onset_date": "2016-12-31",
+      "code": "741062008",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Reports of violence in the environment (finding)",
+      "onset_date": "2016-12-31",
+      "code": "424393004",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Gingivitis (disorder)",
+      "onset_date": "2018-01-06",
+      "code": "66383009",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Primary dental caries (disorder)",
+      "onset_date": "2018-01-20",
+      "code": "109570002",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Fracture of bone (disorder)",
+      "onset_date": "2020-08-11",
+      "code": "125605004",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Fracture of forearm (disorder)",
+      "onset_date": "2020-08-11",
+      "code": "65966004",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Part-time employment (finding)",
+      "onset_date": "2021-01-23",
+      "code": "160904001",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Fractured dental filling (finding)",
+      "onset_date": "2021-02-06",
+      "code": "278588009",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Diabetes mellitus type 2 (disorder)",
+      "onset_date": "2022-01-29",
+      "code": "44054006",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Hypertriglyceridemia (disorder)",
+      "onset_date": "2023-02-04",
+      "code": "302870006",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Limited social contact (finding)",
+      "onset_date": "2023-02-04",
+      "code": "423315002",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Has a criminal record (finding)",
+      "onset_date": "2024-02-10",
+      "code": "266948004",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Social isolation (finding)",
+      "onset_date": "2025-02-15",
+      "code": "422650009",
+      "active": false,
+      "provenance": "generated"
+    }
+  ],
+  "medications": [
+    {
+      "name": "Insulin glargine",
+      "dose": "38 units",
+      "route": "subcutaneous",
+      "frequency": "once nightly",
+      "start_date": "2023-02-11",
+      "locator": "med/insulin-glargine",
+      "provenance": "authored"
+    },
+    {
+      "name": "Insulin lispro",
+      "dose": "8-14 units",
+      "route": "subcutaneous",
+      "frequency": "three times daily with meals",
+      "start_date": "2024-08-30",
+      "locator": "med/insulin-lispro",
+      "provenance": "authored"
+    },
+    {
+      "name": "Metformin",
+      "dose": "1000 mg",
+      "route": "oral",
+      "frequency": "twice daily",
+      "start_date": "2017-07-02",
+      "locator": "med/metformin",
+      "provenance": "authored"
+    },
+    {
+      "name": "verapamil hydrochloride 80 MG Oral Tablet [Calan]",
+      "start_date": "2025-02-15",
+      "stop_date": "2026-02-21",
+      "locator": "med/synthea-00",
+      "provenance": "generated"
+    },
+    {
+      "name": "Digoxin 0.125 MG Oral Tablet",
+      "start_date": "2025-02-15",
+      "stop_date": "2026-02-21",
+      "locator": "med/synthea-01",
+      "provenance": "generated"
+    },
+    {
+      "name": "Acetaminophen 325 MG Oral Tablet [Tylenol]",
+      "start_date": "2025-02-15",
+      "stop_date": "2026-02-21",
+      "locator": "med/synthea-02",
+      "provenance": "generated"
+    },
+    {
+      "name": "Warfarin Sodium 5 MG Oral Tablet",
+      "start_date": "2025-02-15",
+      "stop_date": "2026-02-21",
+      "locator": "med/synthea-03",
+      "provenance": "generated"
+    },
+    {
+      "name": "lisinopril 10 MG Oral Tablet",
+      "start_date": "2025-02-15",
+      "stop_date": "2026-02-21",
+      "locator": "med/synthea-04",
+      "provenance": "generated"
+    },
+    {
+      "name": "amLODIPine 2.5 MG Oral Tablet",
+      "start_date": "2025-02-15",
+      "stop_date": "2026-02-21",
+      "locator": "med/synthea-05",
+      "provenance": "generated"
+    }
+  ],
+  "labs": [
+    {
+      "name": "Hemoglobin A1c",
+      "value": "8.6",
+      "unit": "%",
+      "observed_date": "2026-05-19",
+      "reference_range": "4.0-5.6",
+      "abnormal": true,
+      "locator": "lab/a1c-2026-05-19",
+      "provenance": "authored"
+    },
+    {
+      "name": "Hemoglobin A1c",
+      "value": "8.1",
+      "unit": "%",
+      "observed_date": "2025-11-02",
+      "reference_range": "4.0-5.6",
+      "abnormal": true,
+      "locator": "lab/a1c-2025-11-02",
+      "provenance": "authored"
+    },
+    {
+      "name": "Capillary glucose, lowest recorded",
+      "value": "48",
+      "unit": "mg/dL",
+      "observed_date": "2026-04-06",
+      "reference_range": "70-140",
+      "abnormal": true,
+      "locator": "lab/glucose-nadir-2026-04-06",
+      "provenance": "authored"
+    },
+    {
+      "name": "Body mass index",
+      "value": "27.9",
+      "unit": "kg/m2",
+      "observed_date": "2024-02-10",
+      "abnormal": false,
+      "locator": "lab/synthea-body-mass-index-2024-02-10",
+      "provenance": "generated"
+    },
+    {
+      "name": "Systolic blood pressure",
+      "value": "99.0",
+      "unit": "mm[Hg]",
+      "observed_date": "2024-02-10",
+      "abnormal": false,
+      "locator": "lab/synthea-systolic-blood-pressure-2024-02-10",
+      "provenance": "generated"
+    },
+    {
+      "name": "Hemoglobin A1c",
+      "value": "7.0",
+      "unit": "%",
+      "observed_date": "2025-02-15",
+      "abnormal": false,
+      "locator": "lab/synthea-hemoglobin-a1c-2025-02-15",
+      "provenance": "generated"
+    },
+    {
+      "name": "Body mass index",
+      "value": "27.9",
+      "unit": "kg/m2",
+      "observed_date": "2025-02-15",
+      "abnormal": false,
+      "locator": "lab/synthea-body-mass-index-2025-02-15",
+      "provenance": "generated"
+    },
+    {
+      "name": "Systolic blood pressure",
+      "value": "96.0",
+      "unit": "mm[Hg]",
+      "observed_date": "2025-02-15",
+      "abnormal": false,
+      "locator": "lab/synthea-systolic-blood-pressure-2025-02-15",
+      "provenance": "generated"
+    },
+    {
+      "name": "Hemoglobin A1c",
+      "value": "7.0",
+      "unit": "%",
+      "observed_date": "2026-02-21",
+      "abnormal": false,
+      "locator": "lab/synthea-hemoglobin-a1c-2026-02-21",
+      "provenance": "generated"
+    },
+    {
+      "name": "Body mass index",
+      "value": "27.9",
+      "unit": "kg/m2",
+      "observed_date": "2026-02-21",
+      "abnormal": false,
+      "locator": "lab/synthea-body-mass-index-2026-02-21",
+      "provenance": "generated"
+    },
+    {
+      "name": "Systolic blood pressure",
+      "value": "92.0",
+      "unit": "mm[Hg]",
+      "observed_date": "2026-02-21",
+      "abnormal": false,
+      "locator": "lab/synthea-systolic-blood-pressure-2026-02-21",
+      "provenance": "generated"
+    }
+  ],
+  "encounters": [
+    {
+      "encounter_id": "ENC-2026-04-06",
+      "date": "2026-04-06",
+      "encounter_type": "Emergency department visit",
+      "clinician": "Dr. A. Okonjo",
+      "specialty": "Emergency Medicine",
+      "reason": "Severe hypoglycaemia",
+      "note": "Patient brought in by spouse after being found confused and diaphoretic at home. Field glucose 48 mg/dL. Treated with oral glucose gel and one ampoule of D50 with rapid resolution of symptoms. Patient reports he did not feel the usual warning symptoms before the episode and states this has happened three times since the autumn. Discharged home after two hours of observation with glucose 132 mg/dL. Endocrinology follow-up arranged. Impression: level 2 hypoglycaemia with impaired awareness on a multiple-daily-injection insulin regimen.",
+      "locator": "enc/2026-04-06/emergency",
+      "provenance": "authored"
+    },
+    {
+      "encounter_id": "ENC-2026-05-19",
+      "date": "2026-05-19",
+      "encounter_type": "Office visit",
+      "clinician": "Dr. M. Castellanos",
+      "specialty": "Endocrinology",
+      "reason": "Diabetes management, post-hypoglycaemia follow-up",
+      "note": "Fifty-nine year old man with type 2 diabetes mellitus of nine years' duration, currently on a multiple daily injection regimen: insulin glargine 38 units nightly plus insulin lispro three times daily with meals, four injections per day total, alongside metformin 1000 mg twice daily. Hemoglobin A1c today 8.6 percent, up from 8.1 percent in November. Reviewed the April emergency department visit for a glucose of 48 mg/dL. Patient confirms he no longer reliably senses hypoglycaemia and describes two further episodes since April identified only because his spouse noticed the confusion. He performs fingerstick testing but concedes he checks two to three times daily rather than the six to eight the regimen requires, citing pain in the fingertips and the demands of his work as a delivery driver, during which he cannot stop to test. Because his overnight and mid-shift excursions are going undetected, fingerstick monitoring at the frequency he is able to sustain is insufficient to guide safe titration of his mealtime insulin. Plan: prescribe a personal continuous glucose monitoring system with alerts for hypoglycaemia; refer to the diabetes education team for device training; continue current insulin doses pending sensor data; return in three months.",
+      "locator": "enc/2026-05-19/endocrinology",
+      "provenance": "authored"
+    },
+    {
+      "encounter_id": "ENC-2026-06-11",
+      "date": "2026-06-11",
+      "encounter_type": "Telehealth visit",
+      "clinician": "R. Lindqvist, RN CDCES",
+      "specialty": "Diabetes Education",
+      "reason": "Continuous glucose monitor training",
+      "note": "Completed a forty-five minute structured training session with the patient and his spouse on the use, application, calibration and interpretation of the prescribed continuous glucose monitoring system. Covered sensor insertion technique, alert threshold configuration, trend arrow interpretation, and the response protocol for a low alert. Patient demonstrated correct sensor application on a training pad and correctly interpreted four sample trend scenarios. Spouse also trained on the follower application. Training complete; patient is ready to begin monitoring once the device is dispensed.",
+      "locator": "enc/2026-06-11/diabetes-education",
+      "provenance": "authored"
+    },
+    {
+      "encounter_id": "ENC-2026-07-14",
+      "date": "2026-07-14",
+      "encounter_type": "Telehealth visit",
+      "clinician": "Dr. M. Castellanos",
+      "specialty": "Endocrinology",
+      "reason": "Interim diabetes review",
+      "note": "Interim review pending device authorisation. Patient reports one further episode of hypoglycaemia in early July, again without warning symptoms, glucose 52 mg/dL on his spouse's meter. Diabetes management discussed in full: insulin regimen unchanged, fingerstick frequency unchanged at two to three per day. Reiterated that continuous monitoring is the appropriate next step and that the request remains pending with the plan.",
+      "locator": "enc/2026-07-14/endocrinology",
+      "provenance": "authored"
+    }
+  ],
+  "generator": "synthea",
+  "authored_note": "Same patient, same authored encounters, and the same underlying denial as CASE-001. Synthea produced this patient's type 2 diabetes diagnosis, obesity, and longitudinal A1c series; the insulin regimen, the CGM training record, and the endocrinology notes that NBH-ENDO-031 section 3 turns on were authored, exactly as in CASE-001. What differs in this case is delivery: the denial letter arrived by fax rather than as a clean text export, and the demonstration corpus represents that with a .txt file carrying a fax coversheet banner rather than an actual scanned image. A genuinely scanned or photographed image variant of this same letter, for exercising Intake's OCR path end to end, is a separate artifact to be generated later and is not part of this fixture set."
+}

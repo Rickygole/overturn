@@ -1,0 +1,118 @@
+{
+  "patient": "Creola518 Heller342",
+  "member_id": "NBH-4417-20551",
+  "authored_note": "Same patient, same authored encounters, and the same unresolved criterion as CASE-003. This case represents the payer's decision on the written first-level appeal of that original denial: the appeal reviewer considered the same chart and reached the same conclusion, because nothing in the record changed between the two reviews. Criterion 3.5, absence of an MRI contraindication, is still deliberately left unresolved: the patient has a cardiac device and neither the original submission nor the first-level appeal ever established whether it is MRI-conditional. That is the entire reason this case exists at the second level rather than being resolved and closed after the first appeal.",
+  "problems": [
+    {
+      "description": "Exertional dyspnoea, progressive",
+      "onset_date": "2026-02-18",
+      "code": "R06.00",
+      "provenance": "authored"
+    },
+    {
+      "description": "Dual-chamber permanent pacemaker in situ",
+      "onset_date": "2021-09-30",
+      "code": "Z95.0",
+      "provenance": "authored"
+    }
+  ],
+  "medications": [
+    {
+      "name": "Metoprolol succinate",
+      "dose": "50 mg",
+      "route": "oral",
+      "frequency": "once daily",
+      "start_date": "2021-10-14",
+      "locator": "med/metoprolol",
+      "provenance": "authored"
+    },
+    {
+      "name": "Furosemide",
+      "dose": "20 mg",
+      "route": "oral",
+      "frequency": "once daily",
+      "start_date": "2026-03-05",
+      "locator": "med/furosemide",
+      "provenance": "authored"
+    }
+  ],
+  "labs": [
+    {
+      "name": "NT-proBNP",
+      "value": "1840",
+      "unit": "pg/mL",
+      "observed_date": "2026-03-02",
+      "reference_range": "<300",
+      "abnormal": true,
+      "locator": "lab/ntprobnp-2026-03-02",
+      "provenance": "authored"
+    },
+    {
+      "name": "High-sensitivity troponin T",
+      "value": "18",
+      "unit": "ng/L",
+      "observed_date": "2026-03-02",
+      "reference_range": "<14",
+      "abnormal": true,
+      "locator": "lab/troponin-2026-03-02",
+      "provenance": "authored"
+    }
+  ],
+  "encounters": [
+    {
+      "encounter_id": "ENC-2026-02-18",
+      "date": "2026-02-18",
+      "encounter_type": "Office visit",
+      "clinician": "Dr. P. Adeyemi",
+      "specialty": "Internal Medicine",
+      "reason": "Shortness of breath on exertion",
+      "locator": "enc/2026-02-18/internal-medicine",
+      "provenance": "authored",
+      "note": "Eighty-three year old woman reporting six weeks of increasing breathlessness on exertion. She was previously able to walk to the corner shop and back without stopping and now stops twice. No orthopnoea, no chest pain, no syncope. Dual-chamber pacemaker implanted in 2021 for sick sinus syndrome. Examination shows mild bibasal crackles and trace ankle oedema. Plan: ECG, echocardiogram, natriuretic peptide, cardiology referral."
+    },
+    {
+      "encounter_id": "ENC-2026-03-02",
+      "date": "2026-03-02",
+      "encounter_type": "Diagnostic study",
+      "clinician": "Dr. L. Bianchi",
+      "specialty": "Cardiology",
+      "reason": "Twelve-lead electrocardiogram",
+      "locator": "enc/2026-03-02/ecg",
+      "provenance": "authored",
+      "note": "Twelve-lead electrocardiogram performed 2 March 2026. Atrially paced rhythm at 70 beats per minute with intermittent ventricular pacing. Non-specific repolarisation abnormalities in the lateral leads. Paced rhythm limits assessment of ischaemic ST changes. Interpretation: paced rhythm, non-diagnostic for ischaemia."
+    },
+    {
+      "encounter_id": "ENC-2026-03-09",
+      "date": "2026-03-09",
+      "encounter_type": "Diagnostic study",
+      "clinician": "Dr. L. Bianchi",
+      "specialty": "Cardiology",
+      "reason": "Transthoracic echocardiogram",
+      "locator": "enc/2026-03-09/echocardiogram",
+      "provenance": "authored",
+      "note": "Transthoracic echocardiogram performed 9 March 2026. Image quality is poor secondary to body habitus and limited acoustic windows; the apex and the lateral wall are not adequately visualised. Left ventricular ejection fraction estimated at 45 to 50 percent by visual assessment, though endocardial border definition is inadequate for quantitative measurement. There is a suggestion of increased wall thickness in the basal septum that cannot be characterised further on this study. Diastolic assessment is limited by the paced rhythm. Conclusion: technically limited study. Left ventricular systolic function appears mildly reduced but cannot be quantified. The question of an infiltrative process raised clinically is not answered by this study and further imaging is advised."
+    },
+    {
+      "encounter_id": "ENC-2026-04-22",
+      "date": "2026-04-22",
+      "encounter_type": "Office visit",
+      "clinician": "Dr. L. Bianchi",
+      "specialty": "Cardiology",
+      "reason": "Review of investigations",
+      "locator": "enc/2026-04-22/cardiology",
+      "provenance": "authored",
+      "note": "Reviewed the electrocardiogram of 2 March and the echocardiogram of 9 March with the patient. The echocardiogram is technically inadequate for the clinical question. Her symptoms have progressed further since February; she now stops three times on the same walk and has developed mild orthopnoea. NT-proBNP 1840 and a mildly raised high-sensitivity troponin support a cardiac cause. The differential is between an infiltrative cardiomyopathy, most importantly cardiac amyloidosis given her age and the septal appearance, and ischaemic disease that the paced rhythm prevents me from excluding electrocardiographically. Cardiac magnetic resonance with late gadolinium enhancement and T1 mapping is the study that distinguishes these, and the distinction determines management directly: a positive amyloid pattern would take her to bone scintigraphy and serum free light chains and, if confirmed, to disease-modifying therapy, whereas an ischaemic pattern of enhancement would take her to invasive angiography. I am requesting cardiac magnetic resonance with contrast on that basis. She has a permanent pacemaker; the device details will need to be confirmed with the implanting centre before scheduling."
+    },
+    {
+      "encounter_id": "ENC-2026-06-25",
+      "date": "2026-06-25",
+      "encounter_type": "Office visit",
+      "clinician": "Dr. L. Bianchi",
+      "specialty": "Cardiology",
+      "reason": "First-level appeal support letter",
+      "locator": "enc/2026-06-25/cardiology-appeal-letter",
+      "provenance": "authored",
+      "note": "Prepared a letter of support for the first-level appeal of the June 2 denial. Restated the clinical picture: progressive exertional dyspnoea now with mild orthopnoea, a technically inadequate echocardiogram unable to characterise the septal thickening, and a paced rhythm that prevents electrocardiographic exclusion of ischaemia. Reiterated that cardiac magnetic resonance imaging with late gadolinium enhancement and T1 mapping is the study needed to distinguish infiltrative cardiomyopathy from ischaemic disease and that the result determines the next step directly. Did not address the pacemaker's MRI conditionality in this letter; that detail was not obtained before the appeal was filed and remains outstanding."
+    }
+  ]
+}

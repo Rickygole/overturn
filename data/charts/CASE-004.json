@@ -1,0 +1,324 @@
+{
+  "patient_id": "1bd36a30-f3de-425a-3c46-6a4cc53a4a08",
+  "name": "Brook779 Welch179",
+  "date_of_birth": "1987-09-02",
+  "sex": "F",
+  "member_id": "NBH-4417-30512",
+  "problems": [
+    {
+      "description": "Facial acne scarring (finding)",
+      "onset_date": "2019-03-10",
+      "code": "L90.5",
+      "active": true,
+      "provenance": "authored"
+    },
+    {
+      "description": "Loss of teeth (disorder)",
+      "onset_date": "2001-10-24",
+      "code": "37320007",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Educated to high school level (finding)",
+      "onset_date": "2005-10-26",
+      "code": "473461003",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Transport problem (finding)",
+      "onset_date": "2005-10-26",
+      "code": "266934004",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Lack of access to transportation (finding)",
+      "onset_date": "2009-11-04",
+      "code": "713458007",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Prediabetes (finding)",
+      "onset_date": "2012-11-06",
+      "code": "714628002",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Chronic pain (finding)",
+      "onset_date": "2014-01-30",
+      "code": "82423001",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Chronic low back pain (finding)",
+      "onset_date": "2014-01-30",
+      "code": "278860009",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Chronic neck pain (finding)",
+      "onset_date": "2014-01-30",
+      "code": "1121000119107",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Past pregnancy history of miscarriage (situation)",
+      "onset_date": "2014-05-04",
+      "code": "161744009",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Medication review due (situation)",
+      "onset_date": "2016-02-23",
+      "code": "314529007",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Unemployed (finding)",
+      "onset_date": "2016-02-24",
+      "code": "73438004",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Victim of intimate partner abuse (finding)",
+      "onset_date": "2016-02-24",
+      "code": "706893006",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Not in labor force (finding)",
+      "onset_date": "2017-03-01",
+      "code": "741062008",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Gingival disease (disorder)",
+      "onset_date": "2017-03-15",
+      "code": "18718003",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Stress (finding)",
+      "onset_date": "2018-03-07",
+      "code": "73595000",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Acute viral pharyngitis (disorder)",
+      "onset_date": "2019-05-05",
+      "code": "195662009",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Full-time employment (finding)",
+      "onset_date": "2020-03-18",
+      "code": "160903007",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Part-time employment (finding)",
+      "onset_date": "2021-03-24",
+      "code": "160904001",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Has a criminal record (finding)",
+      "onset_date": "2022-03-30",
+      "code": "266948004",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Gingivitis (disorder)",
+      "onset_date": "2022-07-13",
+      "code": "66383009",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Limited social contact (finding)",
+      "onset_date": "2024-04-10",
+      "code": "423315002",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Unhealthy alcohol drinking behavior (finding)",
+      "onset_date": "2026-04-22",
+      "code": "10939881000119105",
+      "active": true,
+      "provenance": "generated"
+    },
+    {
+      "description": "Normal pregnancy (finding)",
+      "onset_date": "2026-08-05",
+      "code": "72892002",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Miscarriage in first trimester (disorder)",
+      "onset_date": "2026-08-05",
+      "code": "19169002",
+      "active": false,
+      "provenance": "generated"
+    },
+    {
+      "description": "Blighted ovum (disorder)",
+      "onset_date": "2026-08-05",
+      "code": "35999006",
+      "active": false,
+      "provenance": "generated"
+    }
+  ],
+  "medications": [
+    {
+      "name": "72 HR Fentanyl 0.025 MG/HR Transdermal System",
+      "start_date": "2024-04-10",
+      "stop_date": "2025-04-16",
+      "locator": "med/synthea-00",
+      "provenance": "generated"
+    },
+    {
+      "name": "12 HR Hydrocodone Bitartrate 10 MG Extended Release Oral Capsule",
+      "start_date": "2024-04-10",
+      "stop_date": "2025-04-16",
+      "locator": "med/synthea-01",
+      "provenance": "generated"
+    },
+    {
+      "name": "sodium fluoride 0.0272 MG/MG Oral Gel",
+      "start_date": "2024-04-24",
+      "stop_date": "2024-04-24",
+      "locator": "med/synthea-02",
+      "provenance": "generated"
+    },
+    {
+      "name": "levonorgestrel 0.000729 MG/HR Intrauterine System [Kyleena]",
+      "start_date": "2024-10-03",
+      "stop_date": "2025-10-01",
+      "locator": "med/synthea-03",
+      "provenance": "generated"
+    },
+    {
+      "name": "Acetaminophen 325 MG / Oxycodone Hydrochloride 10 MG Oral Tablet [Percocet]",
+      "start_date": "2025-04-16",
+      "stop_date": "2026-04-22",
+      "locator": "med/synthea-04",
+      "provenance": "generated"
+    },
+    {
+      "name": "Abuse-Deterrent 12 HR Oxycodone Hydrochloride 10 MG Extended Release Oral Tablet [Oxycontin]",
+      "start_date": "2025-04-16",
+      "stop_date": "2026-04-22",
+      "locator": "med/synthea-05",
+      "provenance": "generated"
+    }
+  ],
+  "labs": [
+    {
+      "name": "Body mass index",
+      "value": "26.8",
+      "unit": "kg/m2",
+      "observed_date": "2024-04-10",
+      "abnormal": false,
+      "locator": "lab/synthea-body-mass-index-2024-04-10",
+      "provenance": "generated"
+    },
+    {
+      "name": "Systolic blood pressure",
+      "value": "145.0",
+      "unit": "mm[Hg]",
+      "observed_date": "2024-04-10",
+      "abnormal": false,
+      "locator": "lab/synthea-systolic-blood-pressure-2024-04-10",
+      "provenance": "generated"
+    },
+    {
+      "name": "Hemoglobin A1c",
+      "value": "5.9",
+      "unit": "%",
+      "observed_date": "2025-04-16",
+      "abnormal": false,
+      "locator": "lab/synthea-hemoglobin-a1c-2025-04-16",
+      "provenance": "generated"
+    },
+    {
+      "name": "Body mass index",
+      "value": "27.3",
+      "unit": "kg/m2",
+      "observed_date": "2025-04-16",
+      "abnormal": false,
+      "locator": "lab/synthea-body-mass-index-2025-04-16",
+      "provenance": "generated"
+    },
+    {
+      "name": "Systolic blood pressure",
+      "value": "148.0",
+      "unit": "mm[Hg]",
+      "observed_date": "2025-04-16",
+      "abnormal": false,
+      "locator": "lab/synthea-systolic-blood-pressure-2025-04-16",
+      "provenance": "generated"
+    },
+    {
+      "name": "Hemoglobin A1c",
+      "value": "6.0",
+      "unit": "%",
+      "observed_date": "2026-04-22",
+      "abnormal": false,
+      "locator": "lab/synthea-hemoglobin-a1c-2026-04-22",
+      "provenance": "generated"
+    },
+    {
+      "name": "Body mass index",
+      "value": "27.8",
+      "unit": "kg/m2",
+      "observed_date": "2026-04-22",
+      "abnormal": false,
+      "locator": "lab/synthea-body-mass-index-2026-04-22",
+      "provenance": "generated"
+    },
+    {
+      "name": "Systolic blood pressure",
+      "value": "142.0",
+      "unit": "mm[Hg]",
+      "observed_date": "2026-04-22",
+      "abnormal": false,
+      "locator": "lab/synthea-systolic-blood-pressure-2026-04-22",
+      "provenance": "generated"
+    }
+  ],
+  "encounters": [
+    {
+      "encounter_id": "ENC-2026-07-15",
+      "date": "2026-07-15",
+      "encounter_type": "Office visit",
+      "clinician": "Dr. R. Delacroix",
+      "specialty": "Dermatology",
+      "reason": "Consultation for facial scarring",
+      "note": "Thirty-eight year old woman presenting for evaluation of long-standing facial acne scarring, present since her teenage years, that she reports has bothered her appearance for years. No functional limitation, no pain, no skin breakdown or infection. She would like the scarring's appearance improved. Discussed dermabrasion as an option; counselled that this is a cosmetic procedure and is unlikely to be covered by her health plan. Plan: proceed with dermabrasion at patient's request and expense pending authorization determination.",
+      "locator": "enc/2026-07-15/dermatology",
+      "provenance": "authored"
+    }
+  ],
+  "generator": "synthea",
+  "authored_note": "Synthea produced this patient's demographic and background record. The dermatology consultation note was authored. This case never reaches the Mapping agent: no policy in the corpus governs cosmetic dermabrasion, so Retrieval declines before any chart criterion is evaluated. The chart is kept deliberately minimal because building it out further would not change what the system does with this case."
+}

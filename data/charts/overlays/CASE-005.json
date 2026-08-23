@@ -1,0 +1,67 @@
+{
+  "patient": "Tristan353 Kihn564",
+  "member_id": "NBH-4417-58203",
+  "authored_note": "Synthea produced this patient's background record, including obesity, which is a common comorbidity of obstructive sleep apnea but is not itself diagnostic of it. The sleep medicine workup that NBH-PULM-008 section 3 turns on — the face-to-face evaluation, the home sleep apnea test and its apnea-hypopnea index, and the device training record — was authored, because Synthea does not generate a record aligned to one fictional payer's numbered criteria. This chart is deliberately a strong case: all four coverage criteria and both documentation requirements are plainly met, so this case demonstrates retrieval correctly discriminating NBH-PULM-008 from the other five policies rather than testing any judgement call in Mapping.",
+  "problems": [
+    {
+      "description": "Obstructive sleep apnea, moderate to severe",
+      "onset_date": "2026-05-18",
+      "code": "G47.33",
+      "provenance": "authored"
+    },
+    {
+      "description": "Excessive daytime sleepiness",
+      "onset_date": "2026-05-18",
+      "code": "G47.419",
+      "provenance": "authored"
+    }
+  ],
+  "medications": [],
+  "labs": [],
+  "encounters": [
+    {
+      "encounter_id": "ENC-2026-05-18",
+      "date": "2026-05-18",
+      "encounter_type": "Office visit",
+      "clinician": "Dr. J. Okonkwo",
+      "specialty": "Pulmonology, Sleep Medicine",
+      "reason": "Snoring and daytime sleepiness",
+      "locator": "enc/2026-05-18/sleep-medicine",
+      "provenance": "authored",
+      "note": "Sixty year old man referred by primary care for a face-to-face evaluation of suspected sleep-disordered breathing. His wife reports loud snoring most nights with witnessed pauses in breathing lasting up to twenty seconds, followed by gasping. He reports waking unrefreshed and falling asleep unintentionally while watching television most evenings. Epworth Sleepiness Scale score 15 out of 24, consistent with excessive daytime sleepiness. Neck circumference 17.5 inches. Modified Mallampati class III oropharynx. No prior sleep study on file. Assessment: history and examination consistent with obstructive sleep apnea. Plan: order a home sleep apnea test to confirm the diagnosis and quantify severity before considering positive airway pressure therapy."
+    },
+    {
+      "encounter_id": "ENC-2026-06-01",
+      "date": "2026-06-01",
+      "encounter_type": "Diagnostic study",
+      "clinician": "Dr. J. Okonkwo",
+      "specialty": "Pulmonology, Sleep Medicine",
+      "reason": "Home sleep apnea test",
+      "locator": "enc/2026-06-01/sleep-study",
+      "provenance": "authored",
+      "note": "Home sleep apnea test performed the night of 1 June 2026 and interpreted by Dr. J. Okonkwo, board-certified in sleep medicine. Total recording time 6 hours 40 minutes with adequate signal quality throughout. Apnea-hypopnea index 28.4 events per hour, consistent with moderate to severe obstructive sleep apnea. Oxygen nadir 81 percent. Predominantly obstructive events with a supine predominance. Interpretation: moderate to severe obstructive sleep apnea confirmed, apnea-hypopnea index 28.4."
+    },
+    {
+      "encounter_id": "ENC-2026-06-15",
+      "date": "2026-06-15",
+      "encounter_type": "Office visit",
+      "clinician": "Dr. J. Okonkwo",
+      "specialty": "Pulmonology, Sleep Medicine",
+      "reason": "Review of sleep study results, treatment planning",
+      "locator": "enc/2026-06-15/sleep-medicine-followup",
+      "provenance": "authored",
+      "note": "Reviewed the home sleep apnea test showing an apnea-hypopnea index of 28.4 events per hour with the patient and his wife. Discussed the diagnosis of moderate to severe obstructive sleep apnea and the treatment options. Patient elects to proceed with auto-adjusting positive airway pressure therapy. Prescribing an auto-CPAP device with heated humidifier and a combination oral/nasal mask. Referring to the durable medical equipment supplier for fitting and for the required instruction session on device use and maintenance prior to dispensing."
+    },
+    {
+      "encounter_id": "ENC-2026-07-10",
+      "date": "2026-07-10",
+      "encounter_type": "Durable medical equipment setup",
+      "clinician": "K. Marsh, RRT",
+      "specialty": "Respiratory Therapy",
+      "reason": "CPAP device and mask fitting, use and maintenance instruction",
+      "locator": "enc/2026-07-10/dme-training",
+      "provenance": "authored",
+      "note": "Completed device setup and a structured instruction session on the use and maintenance of the prescribed auto-adjusting positive airway pressure device and heated humidifier. Covered mask fitting and seal check, filling and cleaning the humidifier chamber, nightly cleaning of the mask and tubing, replacement schedule for consumable parts, and how to read the device's nightly usage summary. Patient correctly demonstrated donning and doffing the mask and identified the humidifier fill line unassisted. Instruction complete; device dispensed same day."
+    }
+  ]
+}
