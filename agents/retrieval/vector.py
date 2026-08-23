@@ -113,6 +113,18 @@ class HybridRetriever:
     keeping only the ordering. A section ranked first by either retriever gets
     the same contribution regardless of whether that retriever reports 0.13 or
     0.99, so neither can dominate by scale alone.
+
+    **The assumption this rests on, stated plainly:** RRF treats agreement
+    between rankers as evidence, so it is only sound when both rankers are
+    competent. Fed a ranker that is confidently wrong, it will promote whatever
+    that ranker agrees with — a section appearing mid-list in both rankings
+    outscores a section ranked first in only one, which is the intended
+    behaviour and is exactly wrong when one of the two is noise.
+
+    That is why `build_retriever` selects this only in cloud mode with real
+    embeddings behind it, and why the vector path gets half a vote until it has
+    a calibration run of its own. A second retriever is not free; it has to earn
+    its say the same way the first one did.
     """
 
     name = "hybrid"
