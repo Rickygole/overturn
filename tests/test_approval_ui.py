@@ -368,11 +368,28 @@ def client(store: MemoryStore) -> TestClient:
     return TestClient(create_app(store))
 
 
-def _approve(client: TestClient, attempt: int = 2, reviewer: str = REVIEWER):
-    return client.post(
-        f"/case/{CASE_ID}/approve",
-        data={"decided_by": reviewer, "draft_attempt": attempt},
-    )
+def _approve(
+    client: TestClient,
+    attempt: int = 2,
+    reviewer: str = REVIEWER,
+    *,
+    checks: bool = True,
+):
+    """Approve as the UI does.
+
+    The three checks are what the clerk is actually being asked to confirm —
+    that the citations resolve, that the quoted policy text matches, and that
+    nothing is asserted without support. ``checks=False`` submits without them,
+    which the service must refuse.
+    """
+    data: dict[str, object] = {"decided_by": reviewer, "draft_attempt": attempt}
+    if checks:
+        data |= {
+            "citations_checked": "true",
+            "quotes_checked": "true",
+            "assertions_checked": "true",
+        }
+    return client.post(f"/case/{CASE_ID}/approve", data=data)
 
 
 def _audit_ops(store: MemoryStore, case_id: str = CASE_ID) -> list[str]:
@@ -608,7 +625,7 @@ class TestApprove:
         assert _audit_ops(store) == ["human_approval"], "a second audit event was written"
 
         # The guard saw both deliveries and executed once.
-        key = ActionRecord.make_key(CASE_ID, ActionType.NOTIFY_HUMAN, 2)
+        key = ActionRecord.make_key(CASE_ID, ActionType.RECORD_APPROVAL, 2)
         claim = store.get("actions", key)
         assert claim is not None
         assert claim["status"] == "completed"

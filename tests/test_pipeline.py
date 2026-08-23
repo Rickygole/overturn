@@ -278,3 +278,175 @@ class TestOrchestratorHasNoBrain:
 
         backend = pipeline.fleet.llm.backend
         assert all(call.agent != "orchestrator" for call in backend.calls)
+
+
+class TestTheGateIsActuallyReachable:
+    """Regression: a clean case must be approvable.
+
+    The approval interface's own tests seed a `CaseRecord` directly, so they
+    never exercised a case that the *pipeline* had produced. That gap hid a real
+    defect: the pipeline's "ready for review" notification and the interface's
+    approval were both keyed as the same action type, and both numbered their
+    attempt as 1 for the ordinary case — one counting notifications sent, the
+    other using the draft attempt. Same key, different payload, so the guard
+    reported a payload mismatch and refused. Permanently, on every retry.
+
+    The case that broke was every case that verifies on its first attempt, which
+    is every clean case. It only worked with fault injection turned on, because
+    that forces a second drafting attempt.
+
+    So this test runs the real pipeline and then approves through the real
+    service, which is the sequence a demo actually performs.
+    """
+
+    def _approve(self, pipeline, case_id: str):
+        from services.approval_ui.service import ApprovalService
+
+        service = ApprovalService(pipeline.fleet.store)
+        return service.approve(
+            case_id=case_id,
+            decided_by="clerk@clinic.example",
+            draft_attempt=pipeline.fleet.cases.load(case_id).latest_draft.attempt,
+            citations_checked=True,
+            quotes_checked=True,
+            assertions_checked=True,
+        )
+
+    def test_a_first_attempt_case_can_be_approved(self, pipeline):
+        case = run(pipeline, "CASE-001")
+        assert len(case.drafts) == 1, "this test is only meaningful on a clean case"
+
+        outcome = self._approve(pipeline, "CASE-001")
+
+        assert outcome.case.status is CaseStatus.APPROVED
+        assert outcome.case.human_decision is not None
+        assert outcome.case.human_decision.approved is True
+
+    def test_approving_twice_still_records_once(self, pipeline, store):
+        run(pipeline, "CASE-001")
+        self._approve(pipeline, "CASE-001")
+        self._approve(pipeline, "CASE-001")
+
+        case = pipeline.fleet.cases.load("CASE-001")
+        approvals = [t for t in case.history if t.to_status is CaseStatus.APPROVED]
+        assert len(approvals) == 1
+
+    def test_the_notification_and_the_approval_do_not_share_a_key(self, pipeline, store):
+        run(pipeline, "CASE-001")
+        self._approve(pipeline, "CASE-001")
+
+        keys = {row["action_key"] for _, row in store.query("actions")}
+        types = {row["action_type"] for _, row in store.query("actions")}
+        assert ActionType.NOTIFY_HUMAN.value in types
+        assert ActionType.RECORD_APPROVAL.value in types
+        assert len(keys) == len(
+            {(row["action_type"], row["attempt"]) for _, row in store.query("actions")}
+        )
+
+
+class TestTwoSignatureTransmission:
+    """The gate has to be reachable *and* it has to end in a transmission.
+
+    Both halves were broken. A clean case could not be approved at all, and
+    nothing in shipped code called `try_submit`, so an approved case was a
+    permanent dead end. "Nothing is transmitted without two signatures" was
+    technically unbreakable because nothing was transmitted, ever — which is
+    not the property worth claiming.
+    """
+
+    def _service(self, pipeline):
+        from services.approval_ui.service import ApprovalService
+
+        return ApprovalService(pipeline.fleet.store)
+
+    def _clerk(self, service, pipeline, case_id="CASE-001"):
+        return service.approve(
+            case_id=case_id,
+            decided_by="clerk@clinic.example",
+            draft_attempt=pipeline.fleet.cases.load(case_id).latest_draft.attempt,
+            citations_checked=True,
+            quotes_checked=True,
+            assertions_checked=True,
+        )
+
+    def _clinician(self, service, pipeline, case_id="CASE-001"):
+        return service.cosign(
+            case_id=case_id,
+            clinician_name="M. Castellanos",
+            credential="MD",
+            attests_clinical_accuracy=True,
+            draft_attempt=pipeline.fleet.cases.load(case_id).latest_draft.attempt,
+        )
+
+    def test_the_clerk_alone_does_not_transmit(self, pipeline, store):
+        run(pipeline, "CASE-001")
+        service = self._service(pipeline)
+        self._clerk(service, pipeline)
+        service.submit_if_ready("CASE-001", pipeline)
+
+        case = pipeline.fleet.cases.load("CASE-001")
+        assert case.ready_to_submit is False
+        assert case.status is not CaseStatus.SUBMITTED
+        assert not [
+            r
+            for _, r in store.query("actions")
+            if r["action_type"] == ActionType.SUBMIT_APPEAL.value
+        ]
+
+    def test_both_signatures_transmit(self, pipeline, store):
+        run(pipeline, "CASE-001")
+        service = self._service(pipeline)
+        self._clerk(service, pipeline)
+        self._clinician(service, pipeline)
+        service.submit_if_ready("CASE-001", pipeline)
+
+        case = pipeline.fleet.cases.load("CASE-001")
+        assert case.status is CaseStatus.SUBMITTED
+        assert case.response_deadline is not None
+        submissions = [
+            r
+            for _, r in store.query("actions")
+            if r["action_type"] == ActionType.SUBMIT_APPEAL.value
+        ]
+        assert len(submissions) == 1
+        assert submissions[0]["result"]["confirmation"].startswith("NBH-ACK-")
+
+    def test_either_order_works_and_transmits_once(self, pipeline, store):
+        """Whichever signature is second is what triggers submission."""
+        run(pipeline, "CASE-001")
+        service = self._service(pipeline)
+        self._clinician(service, pipeline)
+        service.submit_if_ready("CASE-001", pipeline)
+        assert pipeline.fleet.cases.load("CASE-001").status is not CaseStatus.SUBMITTED
+
+        self._clerk(service, pipeline)
+        service.submit_if_ready("CASE-001", pipeline)
+
+        case = pipeline.fleet.cases.load("CASE-001")
+        assert case.status is CaseStatus.SUBMITTED
+        assert (
+            len(
+                [
+                    r
+                    for _, r in store.query("actions")
+                    if r["action_type"] == ActionType.SUBMIT_APPEAL.value
+                ]
+            )
+            == 1
+        )
+
+    def test_approving_without_confirming_the_checks_is_refused(self, pipeline):
+        from services.approval_ui.service import ChecksNotConfirmed
+
+        run(pipeline, "CASE-001")
+        service = self._service(pipeline)
+        with pytest.raises(ChecksNotConfirmed):
+            service.approve(
+                case_id="CASE-001",
+                decided_by="clerk@clinic.example",
+                draft_attempt=1,
+                citations_checked=True,
+                quotes_checked=False,
+                assertions_checked=True,
+            )
+        assert pipeline.fleet.cases.load("CASE-001").human_decision is None
