@@ -44,7 +44,10 @@ EXPECTED: dict[str, CaseStatus] = {
     "no_applicable_policy": CaseStatus.DECLINED_NO_BASIS,
     "insufficient_documentation": CaseStatus.DECLINED_NO_BASIS,
     "scanned_fax": CaseStatus.AWAITING_APPROVAL,
-    "second_denial": CaseStatus.AWAITING_APPROVAL,
+    # The payer conceded the other criteria and rested on the one the chart
+    # cannot answer. Declining again is the right answer, and arguing the
+    # conceded points would be the wrong one.
+    "second_denial_still_undocumented": CaseStatus.DECLINED_NO_BASIS,
 }
 
 

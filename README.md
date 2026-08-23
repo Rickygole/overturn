@@ -164,7 +164,7 @@ uv run python scripts/evaluate.py
 | `CASE-005` | clean win | `awaiting_human_approval` | `awaiting_human_approval` | 0 | 0 |
 | `CASE-006` | insufficient documentation | `declined_no_basis` | `declined_no_basis` | 0 | 0 |
 | `CASE-007` | scanned fax | `awaiting_human_approval` | `awaiting_human_approval` | 0 | 0 |
-| `CASE-008` | second denial | `awaiting_human_approval` | `awaiting_human_approval` | 0 | 0 |
+| `CASE-008` | second denial still undocumented | `declined_no_basis` | `declined_no_basis` | 0 | 0 |
 
 ```
 outcomes correct              8/8
@@ -177,12 +177,23 @@ ok   transient fabrication caught, retry clean             2 attempts, ended awa
 ok   persistent fabrication stops at the cap, nothing sent  3 attempts, ended needs_human_review
 ```
 
-Three of those rows are the ones that matter. **CASE-004** is a denial no policy
-in the corpus governs, and the correct behaviour is to decline rather than
-appeal weakly. **CASE-006** has a chart that documents seven criteria beautifully
-and is silent on the one the payer actually denied on — so it declines too, and
-tells the clerk to go and get that note rather than sending a letter that argues
-around the question. **CASE-002** never reaches extraction at all.
+Four of those rows are the ones that matter, and three of them are refusals.
+
+**CASE-002** never reaches extraction at all. **CASE-004** is a denial no policy
+in the corpus governs, so there is no criterion to argue against.
+
+**CASE-006** and **CASE-008** are the interesting ones. Both have charts that
+document most criteria beautifully and are silent on the one the payer actually
+denied on. No count of satisfied criteria separates those from a real appeal —
+CASE-006 documents seven of nine — so appealability is decided by whether the
+chart answers the criterion the payer's own stated reason turns on. Both decline,
+and both tell the clerk which note to go and get:
+
+> The payer denied on NBH-CARD-014-3.5, and the chart is silent on exactly that.
+> Other criteria are well documented, but none of them answer the question that
+> was actually asked. The gap is in the documentation rather than in the
+> determination — the useful next step is to obtain that note, not to send an
+> appeal that argues around it.
 
 ## Recovery, specifically
 

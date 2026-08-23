@@ -70,8 +70,8 @@
       "synthea_patient": "Creola518 Heller342",
       "policy_id": "NBH-CARD-014",
       "service": "Cardiac MRI with contrast",
-      "scenario": "second_denial",
-      "intent": "Payer upholds on first-level appeal. Drives the lifecycle ladder to peer-to-peer and then to second-level."
+      "scenario": "second_denial_still_undocumented",
+      "intent": "Payer upholds on first-level appeal, conceding the other criteria and resting explicitly on the unresolved MRI contraindication. The chart still cannot answer that, so the correct outcome is to decline again rather than argue the points the reviewer already granted. The original intent here was awaiting_human_approval, which was wrong: it was written before anyone read what the second letter actually holds."
     }
   ]
 }
