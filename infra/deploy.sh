@@ -41,7 +41,11 @@ MAX_SCHEDULER="${MAX_SCHEDULER:-1}"
 # the scheduler job's tick endpoint is POST /tick. Both are one-line fixes
 # below (INGEST_PUSH_PATH, the --uri in the scheduler job) if the real
 # handlers land on different routes.
-INGEST_PUSH_PATH="${INGEST_PUSH_PATH:-/}"
+# Must match the route in services/ingest_handler/app.py. A wrong value here
+# fails silently in the worst possible way: the deploy succeeds, Cloud Run
+# answers the health check, and every denial letter posts to a path that 404s.
+# Nothing is broken enough to notice until nothing has been processed for a day.
+INGEST_PUSH_PATH="${INGEST_PUSH_PATH:-/pubsub/push}"
 SCHEDULER_CRON="${SCHEDULER_CRON:-*/5 * * * *}"
 
 # Empty by default: Sentinel records the Model Armor layer as deliberately
