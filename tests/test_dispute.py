@@ -156,4 +156,66 @@ class TestAnswerability:
         matrix = _matrix(**{"NBH-ENDO-031-3--1": "satisfied"})
         answerable, why = has_answerable_dispute(matrix, [])
         assert answerable is True
-        assert "too generic" in why
+        assert "could not be tied to a specific criterion" in why
+        # "We could not tell" and "we checked" are different facts, and the
+        # clerk is entitled to know which one they are looking at.
+        assert "Read the denial letter" in why
+
+
+class TestRecitationIsNotAHolding:
+    """CASE-008 is the case that motivated weighting by rarity.
+
+    That letter recites what the reviewer considered — the electrocardiogram,
+    the echocardiogram report — before stating what it actually turned on, which
+    was an unresolved MRI contraindication. Counting shared terms equally made
+    the recitation tie with the holding, one of the ties was satisfied, and the
+    case read as answerable. The system would have drafted a letter arguing
+    points the reviewer explicitly conceded and never touched the one it denied
+    on.
+    """
+
+    def test_the_holding_outranks_the_recitation(self):
+        denial = _denial("CASE-008")
+        assert primary_disputed_criteria(denial, _retrieval("CASE-008", denial)) == [
+            "NBH-CARD-014-3.5"
+        ]
+
+    def test_the_conceded_criteria_are_not_treated_as_disputed(self):
+        denial = _denial("CASE-008")
+        primary = primary_disputed_criteria(denial, _retrieval("CASE-008", denial))
+        assert "NBH-CARD-014-3.2" not in primary
+        assert "NBH-CARD-014-5.3" not in primary
+
+
+class TestClinicalAcronymsSurvive:
+    """The length filter deleted every three-letter acronym in the domain.
+
+    a1c, cgm, mri, ecg, osa, ahi, iop — the most discriminating words a denial
+    reason contains — while keeping "2026".
+    """
+
+    def test_acronyms_are_kept(self):
+        from agents.mapping.dispute import _terms
+
+        assert {"a1c", "cgm", "mri", "ecg", "osa", "ahi", "iop"} <= _terms(
+            "a1c cgm mri ecg osa ahi iop"
+        )
+
+
+class TestExclusionsAreNotDisputable:
+    """A satisfied exclusion means the service is excluded.
+
+    Asking whether one is "satisfied" inverts the sign of the whole test.
+    """
+
+    def test_an_exclusion_section_never_appears_as_disputed(self):
+        denial = _denial("CASE-005")
+        retrieval = _retrieval("CASE-005", denial)
+        exclusion_ids = {
+            criterion.criterion_id
+            for section in retrieval.sections
+            if "exclusion" in section.section_heading.lower()
+            for criterion in section.criteria
+        }
+        assert exclusion_ids, "this test needs a policy that has exclusions"
+        assert not exclusion_ids & set(primary_disputed_criteria(denial, retrieval))
