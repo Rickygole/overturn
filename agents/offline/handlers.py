@@ -143,12 +143,16 @@ def intake_extract(request: LlmRequest) -> DenialExtraction:
         return match.group(1).strip() if match else None
 
     services: list[DeniedService] = []
+    # A service description wraps onto a second line when it is long, which the
+    # cardiac MRI letter does. Matching only single-line descriptions silently
+    # produced zero services on that letter.
     for line in re.finditer(
-        r"^\s{2}([A-Z][^\n]{10,90})\n\s+(?:CPT|HCPCS)\s+(\w+)", text, re.MULTILINE
+        r"^\s{2}([A-Z][^\n]{10,90}(?:\n\s{2}[a-z][^\n]{0,90})?)\n\s+(?:CPT|HCPCS)\s+(\w+)",
+        text,
+        re.MULTILINE,
     ):
-        services.append(
-            DeniedService(description=line.group(1).strip(), procedure_code=line.group(2))
-        )
+        description = " ".join(line.group(1).split())
+        services.append(DeniedService(description=description, procedure_code=line.group(2)))
 
     reason_match = re.search(
         r"Reason for determination:\s*\n\s*\n(.*?)(?:\n\s*\n\s{2}This determination)",
