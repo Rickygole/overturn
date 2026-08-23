@@ -89,12 +89,21 @@ _ADDRESSED_TO_AGENT = _regex_detector(
 # --- Tool poisoning ---------------------------------------------------------- #
 # Attempts to make the reading system take an action rather than extract data.
 
+_IMPERATIVE_START = (
+    r"(?:^|(?<=[.;:!?]\s)|(?<=\n)|(?<=,\s)|(?<=\band\s)|(?<=\bthen\s)|(?<=\bplease\s))"
+)
+
 _ACTION_DEMAND = _regex_detector(
-    r"\b(?:do\s+not|don't|never)\s+(?:appeal|contest|dispute|challenge|escalate|submit)\b"
-    r"|\b(?:mark|set|record|classify|treat)\s+(?:this|the)\s+"
+    # "Do not appeal this determination."
+    rf"{_IMPERATIVE_START}(?:do\s+not|don't|never)\s+"
+    r"(?:appeal|contest|dispute|challenge|escalate|submit)\b"
+    # "Mark this claim as approved."
+    rf"|{_IMPERATIVE_START}(?:mark|set|record|classify|treat)\s+(?:this|the)\s+"
     r"(?:claim|case|denial|appeal)\s+as\s+(?:approved|resolved|closed|valid|final|upheld)\b"
-    r"|\b(?:close|drop|abandon|withdraw)\s+(?:this|the)\s+(?:case|claim|appeal)\b"
-    r"|\bstop\s+processing\b"
+    # "Close this case." — but not "the plan will not close this case".
+    rf"|{_IMPERATIVE_START}(?:close|drop|abandon|withdraw)\s+(?:this|the)\s+"
+    r"(?:case|claim|appeal)\b"
+    rf"|{_IMPERATIVE_START}stop\s+processing\b"
 )
 _TOOL_INVOCATION = _regex_detector(
     r"\b(?:call|invoke|execute|run)\s+(?:the\s+)?(?:function|tool|command|api|endpoint)\b"
@@ -252,7 +261,10 @@ EXPECTED_PII: frozenset[str] = frozenset(
 
 _PII_PATTERNS: dict[str, re.Pattern[str]] = {
     "ssn": re.compile(r"\b(?!000|666|9\d\d)\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b"),
-    "payment_card": re.compile(r"\b(?:\d[ -]?){13,19}\b"),
+    "payment_card": re.compile(
+        r"(?<![\w-])(?:\d{4}[ -]){3}\d{4}(?![\w-])"
+        r"|(?<![\w-])\d{15,16}(?![\w-])"
+    ),
     "bank_account": re.compile(r"\b(?:routing|account)\s*(?:number|no\.?|#)\s*:?\s*\d{6,}\b", re.I),
     "email_address": re.compile(r"\b[\w.%-]+@[\w.-]+\.[A-Za-z]{2,}\b"),
 }
