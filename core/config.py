@@ -104,6 +104,13 @@ class Settings(BaseSettings):
         "directly, which is the faster path when the ADK session layer adds nothing.",
     )
 
+    local_state_path: str = Field(
+        default="",
+        description="When set, local runs persist to this JSON file instead of "
+        "memory, so the pipeline, the CLI and the web interface can be separate "
+        "processes looking at the same cases. Empty keeps tests hermetic.",
+    )
+
     use_emulator: bool = Field(default=False)
     trace_to_console: bool = Field(
         default=False,

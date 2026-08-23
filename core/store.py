@@ -16,8 +16,10 @@ implement it with that exact semantic and there is a test that holds them to it.
 
 from __future__ import annotations
 
+import json
 import threading
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from core.config import get_settings
@@ -201,6 +203,92 @@ def _matches(actual: Any, op: str, expected: Any) -> bool:
 
 
 # --------------------------------------------------------------------------- #
+# File backend
+# --------------------------------------------------------------------------- #
+
+
+class FileStore(MemoryStore):
+    """A JSON-file store, so local processes can share state.
+
+    ``MemoryStore`` lives inside one process, which is fine for tests and wrong
+    for everything a person does. Running the pipeline in one terminal and then
+    approving the case from another — or from the web interface — needs the two
+    to be looking at the same thing, and without this they are not.
+
+    Deliberately simple: the whole store is one JSON document, rewritten on
+    every mutation under a lock. That is the wrong design for anything with
+    volume and the right one for a corpus of eight cases on a laptop. Firestore
+    is what runs where volume exists.
+
+    The write is atomic via a temporary file and a rename, because a crash
+    partway through a rewrite would otherwise leave a truncated file where the
+    case state used to be — and losing state is the one failure this project has
+    no answer for.
+    """
+
+    def __init__(self, path: Path | str | None = None) -> None:
+        super().__init__()
+        self.path = Path(path or Path.cwd() / "local_state" / "store.json")
+        self._load()
+
+    def _load(self) -> None:
+        if not self.path.exists():
+            return
+        try:
+            self._data = json.loads(self.path.read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(
+                f"{self.path} exists but could not be read: {exc}. Delete it to "
+                f"start from empty, or restore it from a copy."
+            ) from exc
+
+    def _flush(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.path.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(self._data, indent=2, default=str))
+        temporary.replace(self.path)
+
+    # Every mutation reloads first, so a change another process made is not
+    # silently overwritten, then writes the whole document back.
+    def _mutate(self, fn, *args, **kwargs):
+        with self._lock:
+            self._load()
+            result = fn(*args, **kwargs)
+            self._flush()
+            return result
+
+    def create(self, collection: str, doc_id: str, data: dict[str, Any]) -> None:
+        self._mutate(super().create, collection, doc_id, data)
+
+    def set(self, collection: str, doc_id: str, data: dict[str, Any]) -> None:
+        self._mutate(super().set, collection, doc_id, data)
+
+    def update(self, collection: str, doc_id: str, data: dict[str, Any]) -> None:
+        self._mutate(super().update, collection, doc_id, data)
+
+    def delete(self, collection: str, doc_id: str) -> None:
+        self._mutate(super().delete, collection, doc_id)
+
+    def atomic_update(
+        self,
+        collection: str,
+        doc_id: str,
+        mutate: Callable[[dict[str, Any] | None], dict[str, Any] | None],
+    ) -> dict[str, Any] | None:
+        return self._mutate(super().atomic_update, collection, doc_id, mutate)
+
+    def get(self, collection: str, doc_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            self._load()
+        return super().get(collection, doc_id)
+
+    def query(self, collection: str, where=None, limit=None, order_by=None):
+        with self._lock:
+            self._load()
+        return super().query(collection, where=where, limit=limit, order_by=order_by)
+
+
+# --------------------------------------------------------------------------- #
 # Firestore backend
 # --------------------------------------------------------------------------- #
 
@@ -299,4 +387,6 @@ def build_store() -> DocumentStore:
     settings = get_settings()
     if settings.runtime_mode == "cloud" or settings.use_emulator:
         return FirestoreStore()
+    if settings.local_state_path:
+        return FileStore(settings.local_state_path)
     return MemoryStore()
