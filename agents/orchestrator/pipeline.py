@@ -316,15 +316,32 @@ class Pipeline:
         )
 
         accel = self.settings.demo_seconds_per_day if self.settings.demo_time_acceleration else None
+
+        # Two scheduler ticks can overlap on one overdue case. The guard above
+        # already stops the external effect from happening twice, but a caller
+        # arriving after the first has completed gets a *replay* rather than an
+        # ActionInFlight — it carries on and would advance the case a second
+        # rung for a single escalation.
+        #
+        # Pinning to the count observed before the action makes the state change
+        # idempotent too, so the loser of the race finds the case already moved
+        # and leaves it alone. Ordinarily the new deadline hides this, because a
+        # freshly escalated case stops being overdue; under demo acceleration
+        # the window is seconds and it does not hide it at all.
+        observed_count = case.escalation_count
+
+        def apply(current: CaseRecord) -> None:
+            if current.escalation_count != observed_count:
+                return  # another tick already advanced this case
+            current.appeal_level = decision.next_level or current.appeal_level
+            current.escalation_count = observed_count + 1
+            current.submitted_at = utcnow()
+            current.set_response_deadline(decision.new_deadline_days or 30, accel)
+
         updated = self._advance(
             case.case_id,
             decision.next_status,
-            attach=lambda c: (
-                setattr(c, "appeal_level", decision.next_level or c.appeal_level),
-                setattr(c, "escalation_count", c.escalation_count + 1),
-                setattr(c, "submitted_at", utcnow()),
-                c.set_response_deadline(decision.new_deadline_days or 30, accel),
-            ),
+            attach=apply,
             note=decision.rationale[:200],
         )
         self._notify(case.case_id, decision.notify_message)
