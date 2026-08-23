@@ -90,10 +90,11 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-h1, h2, h3 { line-height: 1.2; margin: 0; font-weight: 640; letter-spacing: -0.011em; }
+h1, h2, h3, h4 { line-height: 1.2; margin: 0; font-weight: 640; letter-spacing: -0.011em; }
 h1 { font-size: var(--text-xl); }
 h2 { font-size: var(--text-lg); }
 h3 { font-size: var(--text-md); }
+h4 { font-size: var(--text-base); }
 p  { margin: 0 0 var(--s4); max-width: var(--measure); }
 ul, ol { margin: 0 0 var(--s4); padding-left: var(--s5); }
 li { margin-bottom: var(--s2); max-width: var(--measure); }
@@ -147,7 +148,7 @@ main { padding-block: var(--s6) var(--s8); }
   padding: var(--s4) var(--s5);
   margin-bottom: var(--s6);
 }
-.banner h2, .banner h3 { font-size: var(--text-md); margin-bottom: var(--s2); }
+.banner h2, .banner h3, .banner h4 { font-size: var(--text-md); margin-bottom: var(--s2); }
 .banner p { color: var(--ink); }
 .banner--ok { color: var(--ok); background: var(--ok-wash); }
 .banner--warn { color: var(--warn); background: var(--warn-wash); }
@@ -269,6 +270,8 @@ summary::marker { color: var(--ink-muted); }
 .decide { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: var(--s5); align-items: start; }
 .decide__panel { border: 2px solid var(--rule-strong); border-radius: var(--radius); padding: var(--s5); background: var(--surface); }
 .decide__panel--approve { border-color: var(--ok); }
+/* A panel with no sibling column still has to hold a readable measure. */
+.decide__panel--solo { max-width: 44rem; }
 .decide__panel--reject { border-color: var(--rule-strong); }
 
 label { display: block; font-weight: 600; font-size: var(--text-sm); margin-bottom: var(--s1); }
@@ -302,6 +305,67 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--
 .btn--approve:hover { background: var(--bg); color: var(--ok); }
 .btn--reject { background: transparent; border-color: var(--danger); color: var(--danger); }
 .btn--reject:hover { background: var(--danger-wash); }
+
+/* --- the clerk's three confirmations ------------------------------------
+   `required` on each box is what stops the submit in the browser, and it
+   names the box it stopped on, which a greyed-out button cannot. The rule
+   below only stops the button *looking* ready before it is. Neither is the
+   enforcement: the service refuses an approval missing any of the three, and
+   it refuses it whatever the browser did.
+------------------------------------------------------------------------- */
+
+fieldset.gate {
+  border: 2px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--sunken);
+  padding: var(--s3) var(--s4) var(--s4);
+  margin: 0 0 var(--s5);
+}
+.gate legend { font-weight: 650; font-size: var(--text-sm); padding-inline: var(--s2); }
+.gate__scope { font-size: var(--text-sm); margin-bottom: var(--s3); }
+.gate__scope strong { display: block; }
+
+.check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 var(--s3);
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--rule);
+}
+.check:first-of-type { border-top: 0; }
+.check input[type="checkbox"] {
+  width: 1.3rem;
+  height: 1.3rem;
+  margin: 0.25rem 0 0;
+  accent-color: var(--ok);
+}
+.check label { margin: 0; font-size: var(--text-base); }
+.check__finding { margin: var(--s1) 0 0; font-size: var(--text-sm); color: var(--ink-muted); }
+
+.decide__panel--approve:has(.check input[type="checkbox"]:not(:checked)) .btn--approve {
+  background: var(--sunken);
+  border-color: var(--rule-strong);
+  border-style: dashed;
+  color: var(--ink-muted);
+}
+
+/* --- signatures and readiness ------------------------------------------- */
+
+.signatures { list-style: none; margin: 0; padding: 0; }
+.signature {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) 1fr;
+  gap: var(--s2) var(--s5);
+  padding: var(--s4) 0;
+  border-top: 1px solid var(--rule);
+}
+.signature:first-child { border-top: 0; padding-top: var(--s2); }
+.signature h4 { margin-bottom: var(--s1); }
+.signature p { margin: 0; font-size: var(--text-sm); }
+.signature p + p { margin-top: var(--s1); }
+@media (max-width: 46rem) {
+  .signature { grid-template-columns: 1fr; gap: var(--s2); }
+}
 
 /* --- footer ------------------------------------------------------------- */
 

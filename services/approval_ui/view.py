@@ -15,7 +15,7 @@ from core.schemas.case import CaseRecord
 from core.schemas.criteria import CriterionVerdict
 from core.schemas.denial import DenialExtraction, DeniedService
 from core.schemas.draft import AppealDraft
-from core.schemas.enums import CriterionVerdictValue
+from core.schemas.enums import CaseStatus, CriterionVerdictValue
 from core.schemas.verification import VerificationResult
 
 NOT_STATED = "Not stated in the letter"
@@ -277,3 +277,288 @@ def reviewer_hint(headers: Mapping[str, str]) -> str:
     """
     raw = headers.get("x-goog-authenticated-user-email", "")
     return raw.split(":", 1)[-1].strip() if raw else ""
+
+
+# --------------------------------------------------------------------------- #
+# The clerk's gate
+# --------------------------------------------------------------------------- #
+
+
+def clerk_checks(result: VerificationResult | None) -> list[dict[str, object]]:
+    """The three confirmations the clerk ticks, each with what Verification found.
+
+    Separate from :func:`check_rows`, which reports the same three checks as a
+    read-only table. The wording here is addressed to the person about to sign:
+    a checkbox that says "citations resolve" without showing *which* citations
+    were resolved is a box to tick rather than a thing to confirm.
+
+    Three rows are returned even when nothing has been verified, because a form
+    that silently loses its controls leaves a clerk unable to approve with no
+    explanation. The row says so instead, and the service refuses regardless.
+    """
+    return [
+        {
+            "field": "citations_checked",
+            "id": "check-citations",
+            "label": "Every cited section id exists in the retrieved policy set",
+            "passed": None if result is None else not result.citations_nonexistent,
+            "finding": _citation_finding(result),
+        },
+        {
+            "field": "quotes_checked",
+            "id": "check-quotes",
+            "label": "Each quoted passage matches the policy text it is attributed to",
+            "passed": None if result is None else not result.citations_unsupported,
+            "finding": _quote_finding(result),
+        },
+        {
+            "field": "assertions_checked",
+            "id": "check-assertions",
+            "label": "Nothing is asserted that the criteria matrix does not support",
+            "passed": None if result is None else not result.ungrounded_assertions,
+            "finding": _assertion_finding(result),
+        },
+    ]
+
+
+NOT_VERIFIED = "Verification has not run on this draft, so there is no computed result to confirm."
+
+
+def _citation_finding(result: VerificationResult | None) -> str:
+    if result is None:
+        return NOT_VERIFIED
+    if result.citations_nonexistent:
+        return "Verification could not find: " + ", ".join(result.citations_nonexistent)
+    return (
+        f"Verification resolved {result.citations_checked} citation"
+        f"{'' if result.citations_checked == 1 else 's'} against the retrieved policy set."
+    )
+
+
+def _quote_finding(result: VerificationResult | None) -> str:
+    if result is None:
+        return NOT_VERIFIED
+    if result.citations_unsupported:
+        return "Source text does not support: " + ", ".join(result.citations_unsupported)
+    return "Verification re-read each cited section against the claim made from it."
+
+
+def _assertion_finding(result: VerificationResult | None) -> str:
+    if result is None:
+        return NOT_VERIFIED
+    if result.ungrounded_assertions:
+        return "No matrix row carries: " + "; ".join(result.ungrounded_assertions)
+    return "Verification traced every clinical assertion to a row in the criteria matrix."
+
+
+# --------------------------------------------------------------------------- #
+# Submission readiness
+# --------------------------------------------------------------------------- #
+
+CLERK_ROLE = "Billing clerk"
+CLINICIAN_ROLE = "Ordering clinician"
+
+
+@dataclass(frozen=True)
+class Signature:
+    """One of the two signatures a case needs, and whether it is on the record."""
+
+    key: str  # "clerk" | "clinician" - a template must not match on prose
+    role: str
+    scope: str  # what this signatory was asked, in one line
+    required: bool
+    present: bool
+    signed_by: str | None
+    detail: str
+    attempt: int | None
+
+
+@dataclass(frozen=True)
+class Readiness:
+    """Which signatures are present, which are missing, and what happens next.
+
+    ``ready`` is ``CaseRecord.ready_to_submit`` copied verbatim. Nothing in this
+    module re-derives it: two definitions of "enough signatures" is exactly the
+    bug this screen exists to prevent. The other fields explain the answer; they
+    never change it, which is why ``attempt_conflict`` is computed only to be
+    said out loud.
+    """
+
+    signatures: list[Signature]
+    ready: bool
+    submitted: bool
+    missing: list[str]
+    attempt_conflict: str | None
+    summary: str
+
+
+def readiness(case: CaseRecord) -> Readiness:
+    decision = case.human_decision
+    approved = bool(decision and decision.approved)
+    clerk_attempt = decision.draft_attempt_approved if decision else None
+
+    clerk = Signature(
+        key="clerk",
+        role=CLERK_ROLE,
+        scope=(
+            "Confirms the paper trail: that the cited sections exist, that the quoted "
+            "policy text matches its source, and that no claim outruns the matrix."
+        ),
+        required=True,
+        present=approved,
+        signed_by=decision.decided_by if approved and decision else None,
+        detail=(
+            f"Approved drafting attempt {clerk_attempt} on {fmt_datetime(decision.decided_at)}."
+            if approved and decision
+            else "No approval recorded yet."
+        ),
+        attempt=clerk_attempt if approved else None,
+    )
+
+    cosign = case.clinician_cosign
+    signed = bool(cosign and cosign.attests_clinical_accuracy)
+    clinician = Signature(
+        key="clinician",
+        role=CLINICIAN_ROLE,
+        scope=(
+            "Attests to the clinical argument: that the letter's account of the care "
+            "and the chart is accurate. A clerk is not in a position to judge this."
+        ),
+        required=case.requires_clinician_cosign,
+        present=signed,
+        signed_by=(f"{cosign.clinician_name}, {cosign.credential}" if signed and cosign else None),
+        detail=_cosign_detail(case, signed),
+        attempt=cosign.draft_attempt_signed if signed and cosign else None,
+    )
+
+    signatures = [clerk, clinician]
+    missing = [s.role for s in signatures if s.required and not s.present]
+    conflict = _attempt_conflict(clerk, clinician)
+    submitted = case.submitted_at is not None
+
+    return Readiness(
+        signatures=signatures,
+        ready=case.ready_to_submit,
+        submitted=submitted,
+        missing=missing,
+        attempt_conflict=conflict,
+        summary=_readiness_summary(case, missing, conflict, submitted),
+    )
+
+
+def _cosign_detail(case: CaseRecord, signed: bool) -> str:
+    cosign = case.clinician_cosign
+    if signed and cosign:
+        npi = f", NPI {cosign.npi}" if cosign.npi else ""
+        return (
+            f"Co-signed drafting attempt {cosign.draft_attempt_signed} on "
+            f"{fmt_datetime(cosign.signed_at)}{npi}."
+        )
+    if not case.requires_clinician_cosign:
+        return (
+            "Not required on this case: the draft argues documentation alone and makes "
+            "no clinical claim."
+        )
+    return "No co-sign recorded yet."
+
+
+def _attempt_conflict(clerk: Signature, clinician: Signature) -> str | None:
+    """Both signatures present, but on different drafts.
+
+    Said plainly because the alternative is a case that sits at ``approved``
+    with two signatures on it and never moves, for a reason nothing shows.
+    """
+    if not (clerk.present and clinician.present and clinician.required):
+        return None
+    if clerk.attempt is None or clinician.attempt is None:
+        return None
+    if clerk.attempt == clinician.attempt:
+        return None
+    return (
+        f"The clerk approved drafting attempt {clerk.attempt} and the clinician "
+        f"co-signed attempt {clinician.attempt}. Both signatures have to be on the "
+        f"same draft, so nothing will be transmitted until one of them is re-signed "
+        f"against the other's attempt."
+    )
+
+
+def _readiness_summary(
+    case: CaseRecord, missing: list[str], conflict: str | None, submitted: bool
+) -> str:
+    if submitted:
+        return "This appeal has been transmitted to the payer."
+    if conflict:
+        return "The two signatures are on different drafts, so nothing has been transmitted."
+    if missing:
+        joined = " and ".join(f"the {role.lower()}" for role in missing)
+        return (
+            f"Waiting on {joined}. Nothing is transmitted until every required "
+            f"signature is present."
+        )
+    if case.ready_to_submit:
+        return (
+            "Every required signature is present. Transmission was attempted; if the case "
+            "is not marked submitted below, it did not complete."
+        )
+    return (
+        "This case is not cleared for transmission. Both the clerk's approval and the "
+        "clinician's co-sign have to be on the record, on the same draft."
+    )
+
+
+@dataclass(frozen=True)
+class SubmissionView:
+    """What the payer gave back when the appeal was transmitted."""
+
+    submitted_at: datetime
+    reference: str | None
+    response_deadline: datetime | None
+
+
+CONFIRMATION_NOTE = "confirmation "
+
+
+def submission(case: CaseRecord) -> SubmissionView | None:
+    """The confirmation reference, read off the case's own transition history.
+
+    Lifecycle writes it into the note on the transition to ``submitted``. Reading
+    it here rather than querying the action record keeps this interface to the
+    one document it is allowed to see, and a reference the case itself does not
+    carry is one no reviewer could quote to the payer anyway.
+    """
+    if case.submitted_at is None:
+        return None
+
+    reference: str | None = None
+    for transition in reversed(case.history):
+        if transition.to_status != CaseStatus.SUBMITTED or not transition.note:
+            continue
+        if transition.note.startswith(CONFIRMATION_NOTE):
+            stated = transition.note[len(CONFIRMATION_NOTE) :].strip()
+            reference = stated if stated and stated != "unknown" else None
+        break
+
+    return SubmissionView(
+        submitted_at=case.submitted_at,
+        reference=reference,
+        response_deadline=case.response_deadline,
+    )
+
+
+def approved_but_not_sent(case: CaseRecord) -> str | None:
+    """The reason an approved case was pushed back to a human, if it was.
+
+    A case can reach ``needs_human_review`` *after* both signatures are on it,
+    when transmission failed or could not be safely retried. Without this the
+    screen would show an approval, a co-sign, and a status nobody can account
+    for.
+    """
+    if case.status != CaseStatus.NEEDS_HUMAN_REVIEW:
+        return None
+    if not (case.human_decision and case.human_decision.approved):
+        return None
+    return (
+        case.needs_human_reason
+        or case.last_error
+        or ("The case was returned for human review after approval, with no reason recorded.")
+    )

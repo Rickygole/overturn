@@ -18,8 +18,9 @@ from fastapi.testclient import TestClient
 
 from core.audit import read_case_trail
 from core.gateway import GatewayHandle
+from core.idempotency import ActionPreviouslyFailed, UnsafeToRetry
 from core.schemas.action import ActionRecord
-from core.schemas.case import CaseRecord, StatusTransition
+from core.schemas.case import CaseRecord, HumanDecision, StatusTransition
 from core.schemas.criteria import ChartEvidence, CriteriaMatrix, CriterionVerdict
 from core.schemas.denial import DenialExtraction, DeniedService
 from core.schemas.draft import AppealDraft, Citation
@@ -751,3 +752,407 @@ class TestReject:
         assert f"Rejected by {REVIEWER}" in html
         assert "Cites a section that was not retrieved." in html
         assert "This case is not open for a decision" in html
+
+
+# --------------------------------------------------------------------------- #
+# The split gate
+#
+# Two signatures, on two screens, asked two different questions. A clerk can
+# competently confirm that a citation resolves; only the ordering clinician can
+# say whether the clinical argument is fair. Nothing transmits until both are on
+# the record, against the same drafting attempt.
+# --------------------------------------------------------------------------- #
+
+CLINICIAN = "Dr Amara Osei"
+CREDENTIAL = "MD"
+NPI = "1740387319"
+
+
+@pytest.fixture
+def transmitting_client(store: MemoryStore) -> TestClient:
+    """A client whose second signature actually reaches the payer simulator.
+
+    The real transmitter, wired to the offline model backend so the test does
+    not depend on a network. Without a pipeline the app builds the live fleet,
+    which is right in deployment and untestable here.
+    """
+    from agents.offline.handlers import build_offline_llm
+    from agents.orchestrator.deps import build_fleet
+    from agents.orchestrator.pipeline import Pipeline
+
+    return TestClient(
+        create_app(store, Pipeline(build_fleet(store=store, llm=build_offline_llm())))
+    )
+
+
+def _cosign(
+    client: TestClient,
+    attempt: int = 2,
+    *,
+    name: str = CLINICIAN,
+    credential: str = CREDENTIAL,
+    attest: bool = True,
+    npi: str = NPI,
+    note: str = "",
+):
+    """Co-sign as the clinical screen does."""
+    data: dict[str, object] = {
+        "draft_attempt": attempt,
+        "clinician_name": name,
+        "credential": credential,
+        "npi": npi,
+        "note": note,
+    }
+    if attest:
+        data["attests_clinical_accuracy"] = "true"
+    return client.post(f"/case/{CASE_ID}/cosign", data=data)
+
+
+def _submissions(store: MemoryStore, case_id: str = CASE_ID) -> list[dict]:
+    """Every SUBMIT_APPEAL action recorded against a case."""
+    rows = store.query("actions", where=[("case_id", "==", case_id)])
+    return [row for _, row in rows if row.get("action_type") == ActionType.SUBMIT_APPEAL.value]
+
+
+class TestClerkChecks:
+    def test_the_three_boxes_are_on_the_screen_immediately_above_approve(self, client, seeded):
+        html = client.get(f"/case/{CASE_ID}").text
+
+        for field in ("citations_checked", "quotes_checked", "assertions_checked"):
+            assert f'name="{field}"' in html
+
+        gate = html.index("Confirm all three, then approve")
+        assert gate < html.index("Approve attempt 2"), "the checks sit below the button"
+
+    def test_the_section_says_what_is_and_is_not_being_asked(self, client, seeded):
+        html = client.get(f"/case/{CASE_ID}").text
+
+        assert "You are confirming the citations check out." in html
+        assert "You are not being asked whether this care was appropriate." in html
+
+    def test_each_box_shows_what_verification_found_for_it(self, client, seeded):
+        html = client.get(f"/case/{CASE_ID}").text
+
+        # Attempt 2 passed: one citation resolved, nothing unsupported, nothing ungrounded.
+        assert "Verification resolved 1 citation against the retrieved policy set." in html
+        assert "Verification re-read each cited section against the claim made from it." in html
+        assert (
+            "Verification traced every clinical assertion to a row in the criteria matrix." in html
+        )
+
+    def test_a_draft_with_no_verification_still_gets_three_boxes_and_says_why(self, client, repo):
+        unverified = _case()
+        unverified.verifications = []
+        repo.create(unverified)
+
+        html = client.get(f"/case/{CASE_ID}").text
+        assert html.count('type="checkbox"') >= 3
+        assert "Verification has not run on this draft" in html
+
+    def test_the_boxes_are_required_so_the_browser_stops_a_bare_submit(self, client, seeded):
+        """A courtesy, not the enforcement. `required` names the box it stopped on."""
+        html = client.get(f"/case/{CASE_ID}").text
+        marked = html[html.index('id="check-citations"') :]
+        assert "required" in marked[: marked.index(">")]
+
+    @pytest.mark.parametrize(
+        "omitted", ["citations_checked", "quotes_checked", "assertions_checked"]
+    )
+    def test_approving_without_all_three_is_refused_and_records_nothing(
+        self, client, repo, store, seeded, omitted
+    ):
+        data = {
+            "decided_by": REVIEWER,
+            "draft_attempt": 2,
+            "citations_checked": "true",
+            "quotes_checked": "true",
+            "assertions_checked": "true",
+        }
+        del data[omitted]
+
+        response = client.post(f"/case/{CASE_ID}/approve", data=data)
+
+        assert response.status_code == 400
+        assert "All three checks have to be confirmed" in response.text
+
+        case = repo.load(CASE_ID)
+        assert case.status == CaseStatus.AWAITING_APPROVAL
+        assert case.human_decision is None
+        assert _audit_ops(store) == []
+        assert (
+            store.get("actions", ActionRecord.make_key(CASE_ID, ActionType.RECORD_APPROVAL, 2))
+            is None
+        )
+
+    def test_the_refusal_marks_the_group_rather_than_only_the_banner(self, client, seeded):
+        response = client.post(
+            f"/case/{CASE_ID}/approve", data={"decided_by": REVIEWER, "draft_attempt": 2}
+        )
+        assert 'id="gate-error"' in response.text
+        assert 'aria-describedby="gate-scope gate-error"' in response.text
+
+    def test_a_confirmed_approval_records_all_three_on_the_decision(self, client, repo, seeded):
+        _approve(client)
+
+        decision = repo.load(CASE_ID).human_decision
+        assert decision.citations_checked is True
+        assert decision.quotes_checked is True
+        assert decision.assertions_checked is True
+
+
+class TestClinicalScreen:
+    def test_shows_the_clinical_argument_and_the_letter(self, client, seeded):
+        html = client.get(f"/case/{CASE_ID}/clinical").text
+
+        assert "The clinical argument, criterion by criterion" in html
+        assert "left ventricular apex is not adequately visualised" in html
+        assert "Insufficient documentation" in html
+        assert "We are appealing the denial of cardiac magnetic resonance imaging" in html
+        assert "The echocardiogram of 9 March 2026 was limited by poor acoustic windows." in html
+
+    def test_does_not_carry_the_audit_trail_or_the_retry_history(self, client, seeded):
+        html = client.get(f"/case/{CASE_ID}/clinical").text
+
+        assert "Audit trail" not in html
+        assert "Retry history" not in html
+        assert "Sentinel screening" not in html
+
+    def test_says_which_question_the_clinician_is_being_asked(self, client, seeded):
+        html = client.get(f"/case/{CASE_ID}/clinical").text
+
+        assert "is the clinical argument below accurate?" in html
+        assert "You are attesting to the medicine, not to the paperwork." in html
+        assert 'name="attests_clinical_accuracy"' in html
+        assert 'name="draft_attempt" value="2"' in html
+
+    def test_unknown_case_gets_a_page_not_a_stack_trace(self, client):
+        response = client.get("/case/CASE-NOPE/clinical")
+        assert response.status_code == 404
+
+    def test_renders_with_no_scripts_and_no_external_assets(self, client, seeded):
+        html = client.get(f"/case/{CASE_ID}/clinical").text
+        assert "<script" not in html.lower()
+        assert "http://" not in html
+        assert "https://" not in html
+
+
+class TestCosign:
+    def test_records_the_signature_pinned_to_the_attempt(self, client, repo, store, seeded):
+        response = _cosign(client, note="Ordered the study myself.")
+        assert response.status_code == 200
+
+        signature = repo.load(CASE_ID).clinician_cosign
+        assert signature is not None
+        assert signature.clinician_name == CLINICIAN
+        assert signature.credential == CREDENTIAL
+        assert signature.npi == NPI
+        assert signature.note == "Ordered the study myself."
+        assert signature.attests_clinical_accuracy is True
+        assert signature.draft_attempt_signed == 2
+        assert "clinician_cosign" in _audit_ops(store)
+
+    def test_without_the_attestation_nothing_is_recorded(self, client, repo, store, seeded):
+        response = _cosign(client, attest=False)
+
+        assert response.status_code == 400
+        assert "A co-sign needs the attestation" in response.text
+        assert repo.load(CASE_ID).clinician_cosign is None
+        assert _audit_ops(store) == []
+
+        marked = response.text[response.text.index('id="cosign-attest"') :]
+        assert "autofocus" in marked[:400]
+
+    def test_nothing_is_co_signed_anonymously(self, client, repo, store, seeded):
+        response = _cosign(client, name="   ")
+
+        assert response.status_code == 400
+        assert repo.load(CASE_ID).clinician_cosign is None
+        assert _audit_ops(store) == []
+
+        marked = response.text[response.text.index('id="cosign-name"') :]
+        assert 'aria-invalid="true"' in marked[:400]
+        assert "autofocus" in marked[:400]
+
+    def test_a_co_sign_without_a_credential_is_refused(self, client, repo, seeded):
+        response = _cosign(client, credential=" ")
+
+        assert response.status_code == 400
+        assert repo.load(CASE_ID).clinician_cosign is None
+        marked = response.text[response.text.index('id="cosign-credential"') :]
+        assert 'aria-invalid="true"' in marked[:400]
+
+    def test_the_recorded_signature_is_shown_back(self, client, seeded):
+        _cosign(client)
+        html = client.get(f"/case/{CASE_ID}/clinical").text
+
+        assert f"Co-signed by {CLINICIAN}, {CREDENTIAL}" in html
+        assert f"NPI {NPI}" in html
+        assert "This case is not open for a co-sign" not in html
+        assert 'name="attests_clinical_accuracy"' not in html
+
+    def test_co_signing_twice_records_once(self, client, repo, store, seeded):
+        assert _cosign(client).status_code == 200
+        second = _cosign(client)
+
+        assert second.status_code == 200
+        assert "Already co-signed" in second.text
+        assert [op for op in _audit_ops(store) if op == "clinician_cosign"] == ["clinician_cosign"]
+
+
+class TestSubmissionGate:
+    def test_the_clerk_alone_does_not_transmit(self, transmitting_client, repo, store, seeded):
+        _approve(transmitting_client)
+
+        case = repo.load(CASE_ID)
+        assert case.status == CaseStatus.APPROVED
+        assert case.ready_to_submit is False
+        assert _submissions(store) == []
+
+        html = transmitting_client.get(f"/case/{CASE_ID}").text
+        assert "Waiting on the ordering clinician." in html
+        assert "Nothing is transmitted until every required signature is present" in html
+
+    def test_the_clinician_alone_does_not_transmit(self, transmitting_client, repo, store, seeded):
+        _cosign(transmitting_client)
+
+        case = repo.load(CASE_ID)
+        assert case.status == CaseStatus.AWAITING_APPROVAL
+        assert case.ready_to_submit is False
+        assert _submissions(store) == []
+
+        html = transmitting_client.get(f"/case/{CASE_ID}").text
+        assert "Waiting on the billing clerk." in html
+
+    def test_clerk_then_clinician_transmits_exactly_once(
+        self, transmitting_client, repo, store, seeded
+    ):
+        _approve(transmitting_client)
+        _cosign(transmitting_client)
+
+        case = repo.load(CASE_ID)
+        assert case.status == CaseStatus.SUBMITTED
+        assert case.submitted_at is not None
+        assert len(_submissions(store)) == 1
+
+    def test_clinician_then_clerk_transmits_exactly_once(
+        self, transmitting_client, repo, store, seeded
+    ):
+        _cosign(transmitting_client)
+        _approve(transmitting_client)
+
+        case = repo.load(CASE_ID)
+        assert case.status == CaseStatus.SUBMITTED
+        assert case.submitted_at is not None
+        assert len(_submissions(store)) == 1
+
+    def test_a_co_sign_on_a_different_attempt_does_not_make_the_case_ready(
+        self, transmitting_client, repo, store, seeded
+    ):
+        _approve(transmitting_client, attempt=2)
+        response = _cosign(transmitting_client, attempt=1)
+        assert response.status_code == 200
+
+        case = repo.load(CASE_ID)
+        assert case.human_decision.draft_attempt_approved == 2
+        assert case.clinician_cosign.draft_attempt_signed == 1
+        assert case.ready_to_submit is False
+        assert case.status == CaseStatus.APPROVED
+        assert _submissions(store) == []
+
+        html = transmitting_client.get(f"/case/{CASE_ID}").text
+        assert "The two signatures are on different drafts" in html
+        assert "The clerk approved drafting attempt 2 and the clinician co-signed attempt 1" in html
+
+    def test_both_signatures_are_named_on_the_case_screen(self, transmitting_client, seeded):
+        _approve(transmitting_client)
+        html = transmitting_client.get(f"/case/{CASE_ID}").text
+
+        assert "Submission status" in html
+        assert "Billing clerk" in html
+        assert "Ordering clinician" in html
+        assert "Signed" in html
+        assert "Not signed" in html
+        assert f"/case/{CASE_ID}/clinical" in html
+
+    def test_the_confirmation_and_the_response_deadline_are_shown_once_submitted(
+        self, transmitting_client, repo, seeded
+    ):
+        _approve(transmitting_client)
+        _cosign(transmitting_client)
+
+        html = transmitting_client.get(f"/case/{CASE_ID}").text
+        case = repo.load(CASE_ID)
+
+        assert "Confirmation reference" in html
+        assert "Payer response due by" in html
+        assert case.response_deadline is not None
+        reference = next(
+            t.note for t in reversed(case.history) if t.to_status == CaseStatus.SUBMITTED
+        ).removeprefix("confirmation ")
+        assert reference in html
+
+    def test_the_queue_lists_a_case_waiting_on_its_clinician(self, transmitting_client, seeded):
+        _approve(transmitting_client)
+
+        html = transmitting_client.get("/").text
+        assert "Approved — awaiting the clinician's co-sign" in html
+        assert f'href="/case/{CASE_ID}/clinical"' in html
+
+    def test_the_queue_says_so_when_no_case_is_waiting_on_a_signature(self, client):
+        assert "No case is waiting on a signature" in client.get("/").text
+
+
+class TestTransmissionFailure:
+    """A signature that lands and a send that does not are two different events."""
+
+    def test_an_unsafe_retry_is_reported_without_losing_the_signature(self, store, repo, seeded):
+        class Stuck:
+            def try_submit(self, case_id: str):
+                raise UnsafeToRetry(f"action {case_id}:submit_appeal:1 was claimed by a worker")
+
+        client = TestClient(create_app(store, Stuck()))
+        _approve(client)
+        response = _cosign(client)
+
+        assert response.status_code == 200
+        assert "Signature recorded — the appeal was not transmitted" in response.text
+
+        case = repo.load(CASE_ID)
+        assert case.clinician_cosign is not None, "the co-sign was lost with the failed send"
+        assert case.human_decision.approved is True
+
+    def test_a_previously_failed_action_is_reported_the_same_way(self, store, repo, seeded):
+        class Burned:
+            def try_submit(self, case_id: str):
+                raise ActionPreviouslyFailed(f"{case_id}:submit_appeal:1", "payer returned 503")
+
+        client = TestClient(create_app(store, Burned()))
+        _approve(client)
+        response = _cosign(client)
+
+        assert response.status_code == 200
+        assert "Signature recorded — the appeal was not transmitted" in response.text
+        assert repo.load(CASE_ID).clinician_cosign is not None
+
+    def test_a_case_sent_back_after_approval_says_why_rather_than_looking_mysterious(
+        self, client, repo
+    ):
+        stalled = _case(status=CaseStatus.NEEDS_HUMAN_REVIEW)
+        stalled.human_decision = HumanDecision(
+            decided_by=REVIEWER,
+            approved=True,
+            draft_attempt_approved=2,
+            citations_checked=True,
+            quotes_checked=True,
+            assertions_checked=True,
+        )
+        stalled.needs_human_reason = (
+            "action CASE-003:submit_appeal:1 was claimed by a worker that died before "
+            "recording the outcome. It may or may not have reached the payer."
+        )
+        repo.create(stalled)
+
+        html = client.get(f"/case/{CASE_ID}").text
+        assert "Approved, but not transmitted" in html
+        assert "died before recording the outcome" in html
+        assert "Nothing has reached Northbeck Health Plan" in html

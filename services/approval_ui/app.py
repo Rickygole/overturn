@@ -13,6 +13,7 @@ without a web client.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import quote
@@ -21,17 +22,36 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from core.idempotency import ActionInFlight, PayloadMismatch
+from core.idempotency import (
+    ActionInFlight,
+    ActionPreviouslyFailed,
+    PayloadMismatch,
+    UnsafeToRetry,
+)
+from core.schemas.enums import CaseStatus
 from core.state import CaseNotFound
 from core.store import DocumentStore, build_store
 from services.approval_ui import view
-from services.approval_ui.service import REVIEWABLE_STATUS, ApprovalError, ApprovalService
+from services.approval_ui.service import (
+    REVIEWABLE_STATUS,
+    ApprovalError,
+    ApprovalService,
+    ChecksNotConfirmed,
+)
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
+logger = logging.getLogger(__name__)
 
-def create_app(store: DocumentStore | None = None) -> FastAPI:
-    """Build the application. Pass a store to test it; leave it out in deployment."""
+
+def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) -> FastAPI:
+    """Build the application. Pass a store to test it; leave it out in deployment.
+
+    ``pipeline`` is the transmitter used once both signatures are present. Left
+    as ``None`` the service builds the real fleet on demand, which is what
+    deployment wants and what a test does not: a test that had to reach a real
+    model to prove the second signature transmits would not be run.
+    """
     # /docs and /redoc are switched off on purpose: both fetch Swagger assets
     # from a CDN, and this service has to render with no network at all.
     app = FastAPI(title="Overturn — appeal review", docs_url=None, redoc_url=None)
@@ -52,7 +72,8 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
         error: ApprovalError | Exception | None = None,
         error_heading: str | None = None,
         error_form: str | None = None,
-        notice: str | None = None,
+        error_field: str | None = None,
+        notice: dict[str, str] | None = None,
         form: dict[str, Any] | None = None,
         status_code: int = 200,
     ) -> Response:
@@ -69,11 +90,15 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
             "verification": verification,
             "history": view.attempt_history(case),
             "checks": view.check_rows(verification),
+            "clerk_checks": view.clerk_checks(verification),
+            "readiness": view.readiness(case),
+            "submission": view.submission(case),
+            "stalled": view.approved_but_not_sent(case),
             "deadline": view.deadline_view(case.denial.appeal_deadline if case.denial else None),
             "trail": service.trail(case.case_id),
             "decidable": case.status == REVIEWABLE_STATUS,
             "error": str(error) if error else None,
-            "error_field": getattr(error, "field", None),
+            "error_field": error_field or getattr(error, "field", None),
             "error_form": error_form,
             "error_heading": error_heading
             or getattr(error, "heading", None)
@@ -84,15 +109,91 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
         }
         return templates.TemplateResponse(request, "case.html", context, status_code=status_code)
 
+    def render_clinical(
+        request: Request,
+        case_id: str,
+        *,
+        error: Exception | None = None,
+        error_heading: str | None = None,
+        error_field: str | None = None,
+        notice: dict[str, str] | None = None,
+        form: dict[str, Any] | None = None,
+        status_code: int = 200,
+    ) -> Response:
+        """The clinician's screen: the argument, and nothing but the argument.
+
+        A separate page rather than a panel on the review screen, for two
+        reasons. The clinician is being asked a different question from the
+        clerk and needs a different half of the record to answer it — the
+        criteria matrix and the letter, not the audit trail or the screening
+        report — and a page that puts both attestations side by side invites one
+        person to tick both, which is the failure the split gate exists to
+        prevent.
+        """
+        case = service.load(case_id)
+        draft = view.draft_under_review(case)
+        context: dict[str, Any] = {
+            "case": case,
+            "denial": case.denial,
+            "matrix": case.criteria,
+            "draft": draft,
+            "readiness": view.readiness(case),
+            "submission": view.submission(case),
+            "stalled": view.approved_but_not_sent(case),
+            "deadline": view.deadline_view(case.denial.appeal_deadline if case.denial else None),
+            "signable": (
+                case.clinician_cosign is None and draft is not None and not case.is_terminal
+            ),
+            "error": str(error) if error else None,
+            "error_field": error_field,
+            "error_heading": error_heading
+            or getattr(error, "heading", None)
+            or "This co-sign was not recorded",
+            "notice": notice,
+            "form": form or {},
+        }
+        return templates.TemplateResponse(
+            request, "clinical.html", context, status_code=status_code
+        )
+
+    def transmit(case_id: str) -> bool:
+        """Submit if both signatures are in. True when the send failed.
+
+        Every path out of this is a case whose signature was recorded, so the
+        failure reported to the reviewer says exactly that. Telling a clerk
+        their approval failed, when the approval is on the record and only the
+        sending failed, sends them back to press the button again.
+
+        The transmitter puts the reason on the case before it raises, and the
+        screen renders it; nothing is swallowed here beyond the traceback, which
+        goes to the log.
+        """
+        try:
+            service.submit_if_ready(case_id, pipeline)
+        except (ActionPreviouslyFailed, UnsafeToRetry) as exc:
+            logger.error("transmission for %s was not safe to retry: %s", case_id, exc)
+            return True
+        except Exception:
+            logger.exception("transmission for %s failed", case_id)
+            return True
+        return False
+
     # -- routes ------------------------------------------------------------- #
 
     @app.get("/", response_class=HTMLResponse)
     def queue(request: Request) -> Response:
+        # Approved-and-waiting is its own list. Without it a case the clerk has
+        # signed sits in `approved`, which appears in neither of the other two
+        # queues, and the clinician whose signature it is waiting for has no way
+        # to find it.
         return templates.TemplateResponse(
             request,
             "queue.html",
             {
                 "awaiting": [view.queue_row(c) for c in service.awaiting_approval()],
+                "awaiting_cosign": [
+                    view.queue_row(c) for c in service.cases.find_by_status(CaseStatus.APPROVED)
+                ],
                 "needs_review": [view.queue_row(c) for c in service.needs_human_review()],
             },
         )
@@ -103,8 +204,19 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
         case_id: str,
         decided: str | None = None,
         replay: int = 0,
+        transmit_failed: int = 0,
     ) -> Response:
-        return render_case(request, case_id, notice=_notice(decided, replay))
+        return render_case(request, case_id, notice=_notice(decided, replay, transmit_failed))
+
+    @app.get("/case/{case_id}/clinical", response_class=HTMLResponse)
+    def clinical(
+        request: Request,
+        case_id: str,
+        decided: str | None = None,
+        replay: int = 0,
+        transmit_failed: int = 0,
+    ) -> Response:
+        return render_clinical(request, case_id, notice=_notice(decided, replay, transmit_failed))
 
     @app.post("/case/{case_id}/approve")
     def approve(
@@ -129,10 +241,19 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
                 quotes_checked=quotes_checked,
                 assertions_checked=assertions_checked,
             )
-            # Whichever signature lands second is what transmits. Without this
-            # the interface is a dead end: the case reaches `approved` and
-            # nothing moves it on.
-            service.submit_if_ready(case_id)
+        except ChecksNotConfirmed as exc:
+            # Not an ApprovalError: it carries no status of its own, and the
+            # control at fault is the checkbox group rather than a text field.
+            return render_case(
+                request,
+                case_id,
+                error=exc,
+                error_heading="All three checks have to be confirmed",
+                error_form="approve",
+                error_field="checks",
+                form={"decided_by": decided_by},
+                status_code=400,
+            )
         except ApprovalError as exc:
             return render_case(
                 request,
@@ -152,7 +273,15 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
                 form={"decided_by": decided_by},
                 status_code=409,
             )
-        return _see_other(case_id, "approved", replay=not outcome.recorded)
+        # Whichever signature lands second is what transmits. Without this the
+        # interface is a dead end: the case reaches `approved` and nothing moves
+        # it on.
+        return _see_other(
+            case_id,
+            "approved",
+            replay=not outcome.recorded,
+            transmit_failed=transmit(case_id),
+        )
 
     @app.post("/case/{case_id}/reject")
     def reject(
@@ -173,6 +302,71 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
                 status_code=exc.status_code,
             )
         return _see_other(case_id, "rejected")
+
+    @app.post("/case/{case_id}/cosign")
+    def cosign(
+        request: Request,
+        case_id: str,
+        # Pinned like the approval is: a signature that cannot say which draft it
+        # read cannot authorise one written afterwards.
+        draft_attempt: Annotated[int, Form()],
+        clinician_name: Annotated[str, Form()] = "",
+        credential: Annotated[str, Form()] = "",
+        npi: Annotated[str, Form()] = "",
+        note: Annotated[str, Form()] = "",
+        attests_clinical_accuracy: Annotated[bool, Form()] = False,
+    ) -> Response:
+        entered = {
+            "clinician_name": clinician_name,
+            "credential": credential,
+            "npi": npi,
+            "note": note,
+        }
+        try:
+            outcome = service.cosign(
+                case_id,
+                clinician_name=clinician_name,
+                credential=credential,
+                attests_clinical_accuracy=attests_clinical_accuracy,
+                npi=npi or None,
+                note=note.strip() or None,
+                draft_attempt=draft_attempt,
+            )
+        except ChecksNotConfirmed as exc:
+            return render_clinical(
+                request,
+                case_id,
+                error=exc,
+                error_heading="A co-sign needs the attestation",
+                error_field="attests_clinical_accuracy",
+                form=entered,
+                status_code=400,
+            )
+        except ApprovalError as exc:
+            return render_clinical(
+                request,
+                case_id,
+                error=exc,
+                error_field=_cosign_field(exc, clinician_name),
+                form=entered,
+                status_code=exc.status_code,
+            )
+        except (ActionInFlight, PayloadMismatch) as exc:
+            return render_clinical(
+                request,
+                case_id,
+                error=exc,
+                error_heading="Another signature is being recorded right now",
+                form=entered,
+                status_code=409,
+            )
+        return _see_other(
+            case_id,
+            "cosigned",
+            replay=not outcome.recorded,
+            transmit_failed=transmit(case_id),
+            path="/clinical",
+        )
 
     @app.get("/health")
     def health() -> JSONResponse:
@@ -200,21 +394,70 @@ def _verification_for(case: Any, draft: Any) -> Any:
     return match or case.latest_verification
 
 
-def _see_other(case_id: str, decided: str, replay: bool = False) -> RedirectResponse:
+def _cosign_field(exc: ApprovalError, clinician_name: str) -> str | None:
+    """Which control on the co-sign form the refusal belongs to.
+
+    ``MissingReviewer`` names ``decided_by``, which is the clerk's field and does
+    not exist on this form. Pointing at a control that is not on screen is worse
+    than pointing at none, so the two candidates are told apart here.
+    """
+    if not isinstance(exc, ApprovalError) or exc.field != "decided_by":
+        return None
+    return "clinician_name" if not clinician_name.strip() else "credential"
+
+
+def _see_other(
+    case_id: str,
+    decided: str,
+    replay: bool = False,
+    transmit_failed: bool = False,
+    path: str = "",
+) -> RedirectResponse:
     """303 after a decision, so a refresh cannot resubmit it."""
     suffix = "&replay=1" if replay else ""
+    suffix += "&transmit_failed=1" if transmit_failed else ""
     return RedirectResponse(
-        f"/case/{quote(case_id, safe='')}?decided={decided}{suffix}", status_code=303
+        f"/case/{quote(case_id, safe='')}{path}?decided={decided}{suffix}", status_code=303
     )
 
 
-def _notice(decided: str | None, replay: int) -> dict[str, str] | None:
+def _notice(decided: str | None, replay: int, transmit_failed: int = 0) -> dict[str, str] | None:
     """The banner shown after a decision.
 
     The replayed case gets its own heading. Telling a reviewer "Decision
     recorded" when nothing was recorded is the kind of small lie that makes
     someone press the button a third time.
+
+    A failed transmission gets its own too, and it is careful to say that the
+    signature *was* recorded. A reviewer told only "that did not work" will sign
+    again, and the thing that did not work was the sending.
     """
+    if decided in {"approved", "cosigned"} and transmit_failed:
+        return {
+            "tone": "danger",
+            "heading": "Signature recorded — the appeal was not transmitted",
+            "body": (
+                "The decision is on the record. Sending it to the payer failed, so the "
+                "case has been put in front of a person with the reason attached. "
+                "Nothing reached the payer that is not shown below."
+            ),
+        }
+    if decided == "cosigned" and replay:
+        return {
+            "heading": "Already co-signed",
+            "body": (
+                "This draft already carries a clinician's signature. Nothing further "
+                "was recorded — the earlier one stands."
+            ),
+        }
+    if decided == "cosigned":
+        return {
+            "heading": "Co-sign recorded",
+            "body": (
+                "The clinical attestation is on the case. If the clerk's approval is "
+                "also present, the appeal has been transmitted."
+            ),
+        }
     if decided == "approved" and replay:
         return {
             "heading": "Already approved",
@@ -226,7 +469,11 @@ def _notice(decided: str | None, replay: int) -> dict[str, str] | None:
     if decided == "approved":
         return {
             "heading": "Approval recorded",
-            "body": "This appeal may now be transmitted to the payer.",
+            "body": (
+                "Your approval of the paper trail is on the record. Nothing is "
+                "transmitted until every required signature is present — the "
+                "submission status below says which are."
+            ),
         }
     if decided == "rejected":
         return {

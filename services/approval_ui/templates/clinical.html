@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% block title %}{{ case.case_id }} — clinical co-sign{% endblock %}
+{% block masthead %}Clinical co-sign — <span class="mono">{{ case.case_id }}</span>{% endblock %}
+{% block nav %}
+<a href="/">Review queue</a> &nbsp;·&nbsp;
+<a href="/case/{{ case.case_id }}">Full case record</a>
+{% endblock %}
+
+{% block content %}
+
+{% if notice %}
+<div class="banner banner--{{ notice.tone or 'ok' }}" role="status">
+  <h2>{{ notice.heading }}</h2>
+  <p>{{ notice.body }}</p>
+</div>
+{% endif %}
+
+{% if stalled %}
+<div class="banner banner--danger" role="alert">
+  <h2>Signed off, but not transmitted</h2>
+  <p>This case was returned for human review after it was approved.
+  Nothing has reached {{ denial.payer_name if denial else "the payer" }}.</p>
+  <p><strong>Reason recorded:</strong> {{ stalled }}</p>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="banner banner--danger" role="alert">
+  <h2>{{ error_heading }}</h2>
+  <p>{{ error }}</p>
+  <p><a href="#c4">Jump to the co-sign</a></p>
+</div>
+{% endif %}
+
+<p class="prose">
+  You are being asked one question: is the clinical argument below accurate? A billing clerk
+  confirms separately that the citations and quotations hold up, which is a different question
+  and not one you have to re-check here.
+</p>
+
+<p class="muted meta">
+  Status <span class="chip chip--neutral">{{ case.status.value }}</span>
+  &nbsp;·&nbsp; Appeal deadline: {{ deadline.stated }}
+  <span class="chip chip--{{ deadline.tone }}">{{ deadline.label }}</span>
+</p>
+
+{# ---------------------------------------------------------------- 1 of 4 #}
+<section class="section" aria-labelledby="c1">
+  <span class="section__step">Section 1 of 4</span>
+  <h2 id="c1">What the payer refused, and why</h2>
+  <div class="section__body">
+    {% if denial %}
+    <dl class="facts">
+      <dt>Patient</dt><dd>{{ denial.patient_name or "Not stated in the letter" }}</dd>
+      <dt>Payer</dt><dd>{{ denial.payer_name }}</dd>
+      <dt>Service denied</dt>
+      <dd>
+        <ul>
+          {% for service in denial.services %}
+          <li>{{ service.description }} <span class="muted">{{ service | service_detail }}</span></li>
+          {% else %}
+          <li class="muted">No line items were itemised in the letter.</li>
+          {% endfor %}
+        </ul>
+      </dd>
+      <dt>Payer's stated reason</dt>
+      <dd><blockquote class="evidence">{{ denial.denial_reason_text }}</blockquote></dd>
+    </dl>
+    {% else %}
+    <div class="card prose">
+      <h3>No denial has been extracted for this case</h3>
+      <p class="muted">There is nothing here to appeal against yet, and nothing to co-sign.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{# ---------------------------------------------------------------- 2 of 4 #}
+<section class="section" aria-labelledby="c2">
+  <span class="section__step">Section 2 of 4</span>
+  <h2 id="c2">The clinical argument, criterion by criterion</h2>
+  <div class="section__body">
+    {% if not matrix or not matrix.verdicts %}
+    <div class="card prose">
+      <h3>No criteria were mapped</h3>
+      <p class="muted">Nothing has been matched against the payer's policy, so there is no
+      documented argument to attest to. Do not co-sign a letter that rests on nothing.</p>
+    </div>
+    {% else %}
+    {% if matrix.chart_summary %}
+    <p class="prose">{{ matrix.chart_summary }}</p>
+    {% endif %}
+    <div class="table-scroll">
+      <table>
+        <caption>
+          Each row is a requirement in the payer's own policy, the verdict reached on it, and the
+          chart text that verdict rests on. {{ matrix.satisfied_count }} of
+          {{ matrix.verdicts | length }} are satisfied with evidence. Read the quotations against
+          what you remember of the care.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Criterion</th>
+            <th scope="col">Verdict</th>
+            <th scope="col">Chart evidence</th>
+            <th scope="col">Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in matrix.verdicts %}
+          <tr>
+            <th scope="row">
+              <span class="mono">{{ row.criterion_id }}</span><br>
+              <span class="normal">{{ row.criterion_text }}</span>
+            </th>
+            <td>
+              <span class="chip chip--{{ row.verdict | verdict_key }}">{{ row.verdict | verdict_label }}</span>
+              <p class="note">{{ row.reasoning }}</p>
+            </td>
+            <td>
+              {% for item in row.evidence %}
+              <blockquote class="evidence">{{ item.quote }}</blockquote>
+              <p class="locator">
+                {{ item.locator }}
+                {% if item.observed_date %} · {{ item.observed_date }}{% endif %}
+              </p>
+              {% else %}
+              <span class="muted">No chart evidence cited</span>
+              {% endfor %}
+            </td>
+            <td>
+              {{ row.confidence | pct }}<br>
+              <span class="muted">{{ row.confidence | confidence_band }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if matrix.unmapped_criteria %}
+    <div class="banner banner--warn stack-5">
+      <h3>{{ matrix.unmapped_criteria | length }} {{ "criterion" if matrix.unmapped_criteria|length == 1 else "criteria" }} could not be evaluated at all</h3>
+      <p class="mono">{{ matrix.unmapped_criteria | join(", ") }}</p>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+</section>
+
+{# ---------------------------------------------------------------- 3 of 4 #}
+<section class="section" aria-labelledby="c3">
+  <span class="section__step">Section 3 of 4</span>
+  <h2 id="c3">The letter that goes out over your name{% if draft %} — attempt {{ draft.attempt }}{% endif %}</h2>
+  <div class="section__body">
+    {% if not draft %}
+    <div class="card prose">
+      <h3>No letter has been drafted</h3>
+      <p class="muted">There is nothing to co-sign on this case yet.</p>
+    </div>
+    {% else %}
+    <div class="card">
+      <p><strong>Subject:</strong> {{ draft.subject_line }}</p>
+      <hr class="divider">
+      <div class="letter">{{ draft.body }}</div>
+      <hr class="divider">
+      <p><strong>Requested action:</strong> {{ draft.requested_action }}</p>
+    </div>
+
+    {% if draft.clinical_assertions %}
+    <h3 class="stack-6">Every factual claim the letter makes about the patient</h3>
+    <p class="prose muted">These are the sentences you are attesting to. If one of them is not
+    true of this patient, reject the draft rather than co-signing it.</p>
+    <ul class="stack-4">
+      {% for assertion in draft.clinical_assertions %}
+      <li>{{ assertion }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% endif %}
+  </div>
+</section>
+
+{# ---------------------------------------------------------------- 4 of 4 #}
+<section class="section" aria-labelledby="c4">
+  <span class="section__step">Section 4 of 4</span>
+  <h2 id="c4">Your co-sign</h2>
+  <div class="section__body">
+
+    <p class="prose">{{ readiness.summary }}</p>
+    {% if readiness.attempt_conflict %}
+    <div class="banner banner--warn">
+      <h3>The two signatures are on different drafts</h3>
+      <p>{{ readiness.attempt_conflict }}</p>
+    </div>
+    {% endif %}
+
+    <div class="card stack-4">
+      <ol class="signatures">
+        {% for signature in readiness.signatures %}
+        <li class="signature">
+          <span>
+            {% if signature.present %}
+            <span class="chip chip--satisfied">Signed</span>
+            {% elif signature.required %}
+            <span class="chip chip--not_satisfied">Not signed</span>
+            {% else %}
+            <span class="chip chip--not_applicable">Not required</span>
+            {% endif %}
+          </span>
+          <div>
+            <h4>{{ signature.role }}{% if signature.signed_by %} — {{ signature.signed_by }}{% endif %}</h4>
+            <p class="muted">{{ signature.scope }}</p>
+            <p>{{ signature.detail }}</p>
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+
+    {% if submission %}
+    <div class="banner banner--ok stack-5">
+      <h3>Transmitted to {{ denial.payer_name if denial else "the payer" }}</h3>
+      <dl class="facts">
+        <dt>Confirmation reference</dt>
+        <dd class="mono">{{ submission.reference or "The payer returned no reference." }}</dd>
+        <dt>Sent</dt><dd>{{ submission.submitted_at | fmt_datetime }}</dd>
+        <dt>Payer response due by</dt>
+        <dd>{{ submission.response_deadline | fmt_datetime }}</dd>
+      </dl>
+    </div>
+    {% endif %}
+
+    {% if case.clinician_cosign %}
+    <div class="banner banner--ok stack-5">
+      <h3>Co-signed by {{ case.clinician_cosign.clinician_name }}, {{ case.clinician_cosign.credential }}</h3>
+      <p>
+        {{ case.clinician_cosign.signed_at | fmt_datetime }}. This signature is against drafting
+        attempt {{ case.clinician_cosign.draft_attempt_signed }} and no other.
+        {% if case.clinician_cosign.npi %}<br>NPI {{ case.clinician_cosign.npi }}{% endif %}
+        {% if case.clinician_cosign.note %}<br>{{ case.clinician_cosign.note }}{% endif %}
+      </p>
+    </div>
+    {% elif signable %}
+    {% set name_bad = error_field == "clinician_name" %}
+    {% set credential_bad = error_field == "credential" %}
+    {% set attest_bad = error_field == "attests_clinical_accuracy" %}
+    <form class="decide__panel decide__panel--approve decide__panel--solo stack-5" method="post"
+          action="/case/{{ case.case_id }}/cosign">
+      <h3>Sign the clinical argument in attempt {{ draft.attempt }}</h3>
+      <p class="muted">Your signature is pinned to this drafting attempt. If the letter is
+      rewritten afterwards, it does not carry your name until you sign the new one.</p>
+      <input type="hidden" name="draft_attempt" value="{{ draft.attempt }}">
+
+      <div class="field">
+        <label for="cosign-name">Your name</label>
+        <span class="hint" id="cosign-name-hint">Recorded on the case and in the audit log. Required.</span>
+        <input type="text" id="cosign-name" name="clinician_name" required autocomplete="name"
+               aria-invalid="{{ "true" if name_bad else "false" }}"
+               aria-describedby="cosign-name-hint{{ " cosign-name-error" if name_bad }}"
+               {{ "autofocus" if name_bad }}
+               value="{{ form.clinician_name or "" }}">
+        {% if name_bad %}
+        <p class="field-error" id="cosign-name-error">{{ error }}</p>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        <label for="cosign-credential">Credential</label>
+        <span class="hint" id="cosign-credential-hint">MD, DO, NP, PA, and so on. Required.</span>
+        <input type="text" id="cosign-credential" name="credential" required
+               aria-invalid="{{ "true" if credential_bad else "false" }}"
+               aria-describedby="cosign-credential-hint{{ " cosign-credential-error" if credential_bad }}"
+               {{ "autofocus" if credential_bad }}
+               value="{{ form.credential or "" }}">
+        {% if credential_bad %}
+        <p class="field-error" id="cosign-credential-error">{{ error }}</p>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        <label for="cosign-npi">NPI <span class="normal muted">(optional)</span></label>
+        <span class="hint" id="cosign-npi-hint">Ten digits. Some payers reject an appeal signed without one.</span>
+        <input type="text" id="cosign-npi" name="npi" inputmode="numeric"
+               aria-describedby="cosign-npi-hint" value="{{ form.npi or "" }}">
+      </div>
+
+      <div class="field">
+        <label for="cosign-note">Anything to add <span class="normal muted">(optional)</span></label>
+        <span class="hint" id="cosign-note-hint">Stored on the case. Not sent to the payer.</span>
+        <textarea id="cosign-note" name="note" aria-describedby="cosign-note-hint">{{ form.note or "" }}</textarea>
+      </div>
+
+      <fieldset class="gate" aria-describedby="attest-scope{{ " attest-error" if attest_bad }}">
+        <legend>Attestation</legend>
+        <p class="gate__scope" id="attest-scope">
+          <strong>You are attesting to the medicine, not to the paperwork.</strong>
+          Whether every citation resolves and every quotation matches its source is the clerk's
+          confirmation, recorded separately.
+        </p>
+        {% if attest_bad %}
+        <p class="field-error" id="attest-error">{{ error }}</p>
+        {% endif %}
+        <div class="check">
+          <input type="checkbox" id="cosign-attest" name="attests_clinical_accuracy" value="true"
+                 required aria-describedby="cosign-attest-detail"
+                 {{ "autofocus" if attest_bad }}>
+          <div>
+            <label for="cosign-attest">I ordered this care, or I am authorised to sign for the
+            clinician who did, and the clinical argument in this letter is accurate.</label>
+            <p class="check__finding" id="cosign-attest-detail">Recorded with your name, credential
+            and the time, against drafting attempt {{ draft.attempt }}.</p>
+          </div>
+        </div>
+      </fieldset>
+
+      <button class="btn btn--approve" type="submit">Co-sign attempt {{ draft.attempt }}</button>
+      <p class="note">If the clinical argument is wrong, do not co-sign it. Say so on the
+      <a href="/case/{{ case.case_id }}">full case record</a>, where the draft can be rejected and
+      rewritten.</p>
+    </form>
+    {% else %}
+    <div class="card prose stack-5">
+      <h3>This case is not open for a co-sign</h3>
+      <p class="muted">Its status is <span class="mono">{{ case.status.value }}</span>
+      {% if not draft %}and no appeal has been drafted for it{% endif %}.</p>
+      <p><a href="/case/{{ case.case_id }}">Open the full case record</a></p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

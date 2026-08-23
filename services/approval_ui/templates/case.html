@@ -5,9 +5,20 @@
 {% block content %}
 
 {% if notice %}
-<div class="banner banner--ok" role="status">
+<div class="banner banner--{{ notice.tone or 'ok' }}" role="status">
   <h2>{{ notice.heading }}</h2>
   <p>{{ notice.body }}</p>
+</div>
+{% endif %}
+
+{% if stalled %}
+<div class="banner banner--danger" role="alert">
+  <h2>Approved, but not transmitted</h2>
+  <p>This case was signed off and then returned for human review.
+  Nothing has reached {{ denial.payer_name if denial else "the payer" }}.</p>
+  <p><strong>Reason recorded:</strong> {{ stalled }}</p>
+  <p>Retrying is a decision for a person: a send that failed partway through cannot be told
+  apart from one that never started, and a duplicate appeal can reset the payer's own clock.</p>
 </div>
 {% endif %}
 
@@ -408,16 +419,108 @@
     </div>
     {% endif %}
 
+    {# --- who has signed, and what is still missing ----------------------- #}
+    <h3 class="stack-5">Submission status</h3>
+    <p class="prose">{{ readiness.summary }}</p>
+    {% if readiness.attempt_conflict %}
+    <div class="banner banner--warn">
+      <h4>The two signatures are on different drafts</h4>
+      <p>{{ readiness.attempt_conflict }}</p>
+    </div>
+    {% endif %}
+
+    <div class="card stack-4">
+      <ol class="signatures">
+        {% for signature in readiness.signatures %}
+        <li class="signature">
+          <span>
+            {% if signature.present %}
+            <span class="chip chip--satisfied">Signed</span>
+            {% elif signature.required %}
+            <span class="chip chip--not_satisfied">Not signed</span>
+            {% else %}
+            <span class="chip chip--not_applicable">Not required</span>
+            {% endif %}
+          </span>
+          <div>
+            <h4>{{ signature.role }}{% if signature.signed_by %} — {{ signature.signed_by }}{% endif %}</h4>
+            <p class="muted">{{ signature.scope }}</p>
+            <p>{{ signature.detail }}</p>
+            {% if signature.key == "clinician" and signature.required and not signature.present %}
+            <p><a href="/case/{{ case.case_id }}/clinical">Open the clinical review screen for the ordering clinician</a></p>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+
+    {% if submission %}
+    <div class="banner banner--ok stack-4">
+      <h3>Transmitted to {{ denial.payer_name if denial else "the payer" }}</h3>
+      <dl class="facts">
+        <dt>Confirmation reference</dt>
+        <dd class="mono">{{ submission.reference or "The payer returned no reference." }}</dd>
+        <dt>Sent</dt><dd>{{ submission.submitted_at | fmt_datetime }}</dd>
+        <dt>Payer response due by</dt>
+        <dd>
+          {% if submission.response_deadline %}
+          {{ submission.response_deadline | fmt_datetime }} — the scheduler escalates on its own
+          if nothing has come back by then.
+          {% else %}
+          No response window was recorded, so nothing is watching this case for a reply.
+          {% endif %}
+        </dd>
+      </dl>
+    </div>
+    {% endif %}
+
     {% if decidable and draft %}
     {% set approve_by_bad = error_field == "decided_by" and error_form == "approve" %}
     {% set reject_by_bad = error_field == "decided_by" and error_form == "reject" %}
     {% set reason_bad = error_field == "reason" %}
     <div class="decide">
       <form class="decide__panel decide__panel--approve" method="post" action="/case/{{ case.case_id }}/approve">
-        <h3>Approve for transmission</h3>
+        <h3>Approve the paper trail</h3>
         <p class="muted">This authorises the letter above — attempt {{ draft.attempt }} and no other —
-        to be sent to {{ denial.payer_name if denial else "the payer" }}.</p>
+        to be sent to {{ denial.payer_name if denial else "the payer" }} once the ordering clinician
+        has co-signed the clinical argument.</p>
         <input type="hidden" name="draft_attempt" value="{{ draft.attempt }}">
+
+        {% set checks_bad = error_field == "checks" %}
+        <fieldset class="gate" aria-describedby="gate-scope{{ " gate-error" if checks_bad }}">
+          <legend>Confirm all three, then approve</legend>
+          <p class="gate__scope" id="gate-scope">
+            <strong>You are confirming the citations check out.</strong>
+            You are not being asked whether this care was appropriate. That question goes to the
+            ordering clinician, who signs it separately on the
+            <a href="/case/{{ case.case_id }}/clinical">clinical review screen</a>.
+          </p>
+          {% if checks_bad %}
+          <p class="field-error" id="gate-error">{{ error }}</p>
+          {% endif %}
+          {% for check in clerk_checks %}
+          <div class="check">
+            <input type="checkbox" id="{{ check.id }}" name="{{ check.field }}" value="true" required
+                   aria-describedby="{{ check.id }}-finding"
+                   {{ "autofocus" if checks_bad and loop.first }}>
+            <div>
+              <label for="{{ check.id }}">{{ check.label }}</label>
+              <p class="check__finding" id="{{ check.id }}-finding">
+                {% if check.passed %}
+                <span class="chip chip--satisfied">Verification passed this</span>
+                {% elif check.passed is false %}
+                <span class="chip chip--not_satisfied">Verification failed this</span>
+                {% else %}
+                <span class="chip chip--not_applicable">Nothing computed</span>
+                {% endif %}
+                {{ check.finding }}
+              </p>
+            </div>
+          </div>
+          {% endfor %}
+        </fieldset>
+
         <div class="field">
           <label for="approve-by">Your name or email</label>
           <span class="hint" id="approve-by-hint">Recorded on the case and in the audit log. Required.</span>
@@ -431,6 +534,8 @@
           {% endif %}
         </div>
         <button class="btn btn--approve" type="submit">Approve attempt {{ draft.attempt }}</button>
+        <p class="note">All three boxes have to be ticked. If any is missing the approval is
+        refused and nothing is recorded.</p>
       </form>
 
       <form class="decide__panel decide__panel--reject" method="post" action="/case/{{ case.case_id }}/reject">
@@ -468,7 +573,7 @@
       <h3>There is nothing to decide yet</h3>
       <p class="muted">No appeal has been drafted for this case.</p>
     </div>
-    {% else %}
+    {% elif not submission %}
     <div class="card prose">
       <h3>This case is not open for a decision</h3>
       <p class="muted">Its status is <span class="mono">{{ case.status.value }}</span>. Only a case in

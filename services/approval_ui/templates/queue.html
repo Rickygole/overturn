@@ -3,7 +3,7 @@
 {% block masthead %}Review queue{% endblock %}
 {% block nav %}<span class="muted" aria-current="page">Review queue</span>{% endblock %}
 
-{% macro queue_table(rows, caption, show_reason=False) %}
+{% macro queue_table(rows, caption, show_reason=False, link_suffix="") %}
 <div class="table-scroll">
   <table>
     <caption>{{ caption }}</caption>
@@ -21,7 +21,7 @@
     <tbody>
       {% for row in rows %}
       <tr>
-        <th scope="row"><a class="mono" href="/case/{{ row.case_id }}">{{ row.case_id }}</a></th>
+        <th scope="row"><a class="mono" href="/case/{{ row.case_id }}{{ link_suffix }}">{{ row.case_id }}</a></th>
         <td>{{ row.patient }}</td>
         <td>{{ row.payer }}</td>
         <td>{{ row.service }}</td>
@@ -56,6 +56,24 @@
         <h3>Nothing is waiting for a decision</h3>
         <p class="muted">Cases appear here once Drafting has produced a letter and Verification has
         passed it. There is nothing for you to approve right now.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="section" aria-labelledby="cosign-h">
+  <span class="section__step">Waiting on a clinician</span>
+  <h2 id="cosign-h">Approved — awaiting the clinician's co-sign</h2>
+  <div class="section__body">
+    {% if awaiting_cosign %}
+      {{ queue_table(awaiting_cosign, "A clerk has confirmed the paper trail on these. Nothing is
+      transmitted until the ordering clinician signs the clinical argument. The link opens the
+      clinical review screen.", link_suffix="/clinical") }}
+    {% else %}
+      <div class="card prose">
+        <h3>No case is waiting on a signature</h3>
+        <p class="muted">A case appears here after a clerk approves it and before the ordering
+        clinician co-signs. Both signatures have to be on the same draft before anything is sent.</p>
       </div>
     {% endif %}
   </div>
