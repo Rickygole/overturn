@@ -46,6 +46,13 @@ class Settings(BaseSettings):
         "alongside Model Armor and a deterministic rule layer.",
     )
     embedding_model: str = Field(default="gemini-embedding-001")
+    model_armor_template: str = Field(
+        default="",
+        description="Model Armor template id backing Sentinel's second layer. Empty "
+        "disables it, and the audit log then records the layer as skipped rather "
+        "than clean — 'we did not look' and 'we looked and found nothing' are "
+        "different facts.",
+    )
 
     # --- Storage ----------------------------------------------------------------
     intake_bucket: str = Field(default="overturn-intake")
