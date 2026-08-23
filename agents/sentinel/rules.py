@@ -29,6 +29,7 @@ import unicodedata
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
+from agents.sentinel.discourse import FATAL_DISCOURSE_DETECTORS, scan_discourse
 from core.schemas.enums import ThreatCategory
 from core.schemas.sentinel import ThreatFinding
 
@@ -48,7 +49,11 @@ class Rule:
 
 
 def _regex_detector(pattern: str) -> Callable[[str], Iterator[str]]:
-    compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
+    # DOTALL matters more than it looks. These documents are hard-wrapped faxes,
+    # so a payload routinely spans a line break — and a gap pattern written as
+    # ``[^.\n]`` silently stops matching the moment it does. A red team walked a
+    # working payload past several of these rules on nothing but line wrapping.
+    compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE | re.DOTALL)
 
     def detect(text: str) -> Iterator[str]:
         for match in compiled.finditer(text):
@@ -65,8 +70,8 @@ def _regex_detector(pattern: str) -> Callable[[str], Iterator[str]]:
 # instructions, rules, or the reader's behaviour.
 
 _OVERRIDE = _regex_detector(
-    r"\b(?:ignore|disregard|forget|override|discard)\b[^.\n]{0,40}"
-    r"\b(?:previous|prior|above|earlier|all|any|system|initial)\b[^.\n]{0,30}"
+    r"\b(?:ignore|disregard|forget|override|discard)\b[^.]{0,40}"
+    r"\b(?:previous|prior|above|earlier|all|any|system|initial)\b[^.]{0,30}"
     r"\b(?:instruction|instructions|prompt|prompts|rule|rules|direction|directive|context)\b"
 )
 _ROLE_CHANGE = _regex_detector(
@@ -110,7 +115,7 @@ _TOOL_INVOCATION = _regex_detector(
     r"|\b(?:tool_code|function_call|tool_call)\b"
 )
 _EXFILTRATION = _regex_detector(
-    r"\b(?:send|email|forward|post|transmit|upload)\b[^.\n]{0,30}"
+    r"\b(?:send|email|forward|post|transmit|upload)\b[^.]{0,30}"
     r"\b(?:chart|record|records|patient\s+data|phi|credentials|api\s+key|token)\b"
     r"|\breveal\s+(?:your|the)\s+(?:prompt|instructions|system)\b"
 )
@@ -332,12 +337,22 @@ def scan(text: str) -> list[ThreatFinding]:
             break  # one finding per rule; the excerpt shows the first instance
 
     findings.extend(scan_encoding(text))
+
+    # Detectors that do not depend on the attacker choosing an imperative. The
+    # rules above match commands; a payload delivered in passive voice and
+    # nominalisation walked past all of them, and adding more command patterns
+    # would not have helped because the next one would be phrased differently
+    # again. See agents/sentinel/discourse.py.
+    findings.extend(scan_discourse(text))
+
     _, pii_findings = detect_pii(text)
     findings.extend(pii_findings)
     return findings
 
 
-FATAL_RULES: frozenset[str] = frozenset(f"rule:{r.name}" for r in RULES if r.fatal)
+FATAL_RULES: frozenset[str] = (
+    frozenset(f"rule:{r.name}" for r in RULES if r.fatal) | FATAL_DISCOURSE_DETECTORS
+)
 
 
 def decide_quarantine(findings: list[ThreatFinding]) -> bool:
