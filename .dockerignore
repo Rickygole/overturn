@@ -1,0 +1,35 @@
+# Keep the build context (and therefore the image) small. Only what
+# core/agents/services actually import at runtime, plus the metadata files
+# hatchling needs to build the project, belong in here.
+
+.git
+.gitignore
+.venv
+venv
+
+__pycache__
+*.py[cod]
+.mypy_cache
+.pytest_cache
+.ruff_cache
+
+# Humans and CI need these; the running container does not.
+tests
+infra
+docs
+scripts
+
+# Secrets never belong in an image layer.
+.env
+.env.*
+!.env.example
+*-sa-key.json
+service-account*.json
+credentials.json
+
+.DS_Store
+*.log
+local_state/
+.firestore-emulator/
+dist
+build

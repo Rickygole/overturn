@@ -1,0 +1,29 @@
+# Controls what `gcloud builds submit` / `gcloud run deploy --source` uploads
+# as build context. Mirrors .dockerignore: the Dockerfile only needs
+# core/agents/services/data plus the project metadata files.
+#
+# For more information, run: gcloud topic gcloudignore
+.gcloudignore
+#!include:.gitignore
+
+.git
+.venv
+venv
+
+__pycache__
+*.py[cod]
+.mypy_cache
+.pytest_cache
+.ruff_cache
+
+tests
+infra
+docs
+scripts
+
+.DS_Store
+*.log
+local_state/
+.firestore-emulator/
+dist
+build

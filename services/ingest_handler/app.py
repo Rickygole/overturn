@@ -130,8 +130,10 @@ def _document_from_envelope(body: dict[str, Any]) -> tuple[SourceDocument, str |
     if not isinstance(bucket, str) or not bucket or not isinstance(name, str) or not name:
         raise EnvelopeError("the notification is missing 'bucket' or 'name'")
 
-    mime_type = notification.get("contentType") or notification.get("mime_type") or (
-        "application/octet-stream"
+    mime_type = (
+        notification.get("contentType")
+        or notification.get("mime_type")
+        or ("application/octet-stream")
     )
 
     inline = notification.get("content_base64")
