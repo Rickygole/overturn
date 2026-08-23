@@ -246,3 +246,91 @@ class TestPayerResponses:
         )
         case = pipeline.fleet.cases.load("CASE-001")
         assert case.payer_responses[0].outcome == "upheld"
+
+
+class TestConcurrentTicks:
+    """Two scheduler instances waking on the same overdue case.
+
+    Cloud Scheduler can overlap, and a Cloud Run service can be running two
+    revisions during a deploy. The idempotency guard stops the external effect
+    from happening twice, but the losing caller replays the stored result and
+    carries on — so the state change has to be idempotent as well, or one
+    escalation advances the case two rungs.
+    """
+
+    def test_overlapping_ticks_escalate_once(self, store):
+        import threading
+
+        pipeline = Pipeline(build_fleet(store=store, llm=build_offline_llm()))
+        _to_submitted(pipeline)
+        pipeline.fleet.cases.mutate(
+            "CASE-001", lambda c: setattr(c, "appeal_level", AppealLevel.PEER_TO_PEER)
+        )
+        _age(pipeline, "CASE-001")
+
+        barrier = threading.Barrier(4)
+        errors: list[Exception] = []
+
+        def tick() -> None:
+            worker = Pipeline(build_fleet(store=store, llm=build_offline_llm()))
+            barrier.wait()
+            try:
+                worker.escalate_overdue()
+            except Exception as exc:  # ActionInFlight is a legitimate outcome
+                errors.append(exc)
+
+        threads = [threading.Thread(target=tick) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        case = pipeline.fleet.cases.load("CASE-001")
+        assert case.escalation_count == 1, (
+            f"one escalation became {case.escalation_count}; the state change is "
+            f"not idempotent under concurrent ticks"
+        )
+        assert case.appeal_level is AppealLevel.SECOND_LEVEL
+
+    def test_a_replayed_action_does_not_advance_the_case_twice(self, store):
+        """The case the deadline normally hides.
+
+        After a real escalation the new window is weeks long, so a second tick
+        finds nothing overdue and the double-advance never surfaces. Under demo
+        acceleration the window is under a second, so the case is still overdue
+        when the second tick arrives — and the guard replays the completed
+        action rather than blocking, which means the tick carries on to the
+        state change. Without an idempotent apply, one escalation becomes two.
+        """
+        pipeline = Pipeline(build_fleet(store=store, llm=build_offline_llm()))
+        _to_submitted(pipeline)
+        pipeline.fleet.cases.mutate(
+            "CASE-001", lambda c: setattr(c, "appeal_level", AppealLevel.PEER_TO_PEER)
+        )
+        _age(pipeline, "CASE-001")
+
+        case = pipeline.fleet.cases.load("CASE-001")
+        pipeline._escalate_one(case)
+        # Re-run the identical decision from the same pre-escalation snapshot,
+        # which is exactly what an overlapping tick holds.
+        pipeline._escalate_one(case)
+
+        final = pipeline.fleet.cases.load("CASE-001")
+        assert final.escalation_count == 1
+        assert final.appeal_level is AppealLevel.SECOND_LEVEL
+
+    def test_a_sequential_repeat_tick_is_also_a_no_op(self, store):
+        pipeline = Pipeline(build_fleet(store=store, llm=build_offline_llm()))
+        _to_submitted(pipeline)
+        pipeline.fleet.cases.mutate(
+            "CASE-001", lambda c: setattr(c, "appeal_level", AppealLevel.PEER_TO_PEER)
+        )
+        _age(pipeline, "CASE-001")
+
+        pipeline.escalate_overdue()
+        level_after_first = pipeline.fleet.cases.load("CASE-001").appeal_level
+        pipeline.escalate_overdue()
+
+        case = pipeline.fleet.cases.load("CASE-001")
+        assert case.escalation_count == 1
+        assert case.appeal_level is level_after_first
