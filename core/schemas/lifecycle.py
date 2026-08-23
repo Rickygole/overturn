@@ -32,7 +32,18 @@ class EscalationDecision(OverturnModel):
     )
     requires_human: bool = Field(
         default=False,
-        description="True when the ladder is exhausted or the next step needs a person.",
+        description="A person has something to do at this rung — scheduling the "
+        "peer-to-peer call, for instance. It does NOT stop the clock: the case "
+        "still advances and still carries a deadline, so if nobody acts the "
+        "ladder keeps climbing on its own.",
+    )
+    halts_ladder: bool = Field(
+        default=False,
+        description="No rung remains. This is the only thing that stops a case "
+        "advancing, and it is why it is a separate field from requires_human. "
+        "Conflating the two meant a case that needed a human at the peer-to-peer "
+        "rung stopped dead there and never escalated again — which is the exact "
+        "failure the unattended lifecycle exists to prevent.",
     )
     notify_message: str = Field(description="One line the billing clerk will actually read.")
 

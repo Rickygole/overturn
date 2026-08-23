@@ -297,7 +297,7 @@ class Pipeline:
             case.case_id, LifecycleRequest(case=case), attempt=case.escalation_count + 1
         )
 
-        if decision.requires_human:
+        if decision.halts_ladder:
             updated = self._advance(
                 case.case_id,
                 CaseStatus.NEEDS_HUMAN_REVIEW,
@@ -337,6 +337,10 @@ class Pipeline:
             current.escalation_count = observed_count + 1
             current.submitted_at = utcnow()
             current.set_response_deadline(decision.new_deadline_days or 30, accel)
+            if decision.requires_human:
+                # Someone has to schedule the call. The clock keeps running so
+                # that not scheduling it is not the same as the case dying.
+                current.needs_human_reason = decision.rationale
 
         updated = self._advance(
             case.case_id,

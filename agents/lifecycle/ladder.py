@@ -48,6 +48,7 @@ def constrain(proposal: EscalationDecision, case: CaseRecord) -> EscalationDecis
             ),
             new_deadline_days=None,
             requires_human=True,
+            halts_ladder=True,
             notify_message=(
                 proposal.notify_message
                 or f"Case {case.case_id} has exhausted every level of appeal and "
@@ -63,9 +64,21 @@ def constrain(proposal: EscalationDecision, case: CaseRecord) -> EscalationDecis
         action=current_rung(case).action,
         rationale=proposal.rationale or rung.description,
         new_deadline_days=rung.response_window_days,
-        # A rung that needs a clinician on a call is not something to do
-        # unattended, whatever the model proposed.
+        # A peer-to-peer review needs a clinician to actually take the call, so
+        # a person is told. That is not the same as stopping.
+        #
+        # These were once one flag, and the consequence was that the ladder
+        # climbed exactly zero rungs unattended: from the first level the next
+        # rung is always peer-to-peer, so every escalation took the human branch,
+        # and the human branch did not advance the case. A case sat at the first
+        # level forever with a deadline nothing was watching — the precise
+        # failure the multi-week lifecycle is supposed to prevent.
+        #
+        # The case now advances and keeps its clock. If nobody schedules the
+        # call within the window, it escalates again on its own, which is what
+        # a clinic without spare staff actually needs.
         requires_human=rung.level == AppealLevel.PEER_TO_PEER,
+        halts_ladder=False,
         notify_message=(
             proposal.notify_message
             or f"Case {case.case_id}: no response from the payer within the "
