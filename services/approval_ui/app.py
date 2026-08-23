@@ -114,9 +114,25 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
         # cannot say which attempt the reviewer read is not an approval.
         draft_attempt: Annotated[int, Form()],
         decided_by: Annotated[str, Form()] = "",
+        # The three things a clerk is competent to confirm. Verification has
+        # already computed all three; these record that a person looked.
+        citations_checked: Annotated[bool, Form()] = False,
+        quotes_checked: Annotated[bool, Form()] = False,
+        assertions_checked: Annotated[bool, Form()] = False,
     ) -> Response:
         try:
-            outcome = service.approve(case_id, decided_by=decided_by, draft_attempt=draft_attempt)
+            outcome = service.approve(
+                case_id,
+                decided_by=decided_by,
+                draft_attempt=draft_attempt,
+                citations_checked=citations_checked,
+                quotes_checked=quotes_checked,
+                assertions_checked=assertions_checked,
+            )
+            # Whichever signature lands second is what transmits. Without this
+            # the interface is a dead end: the case reaches `approved` and
+            # nothing moves it on.
+            service.submit_if_ready(case_id)
         except ApprovalError as exc:
             return render_case(
                 request,

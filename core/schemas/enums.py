@@ -76,6 +76,20 @@ class ActionType(StrEnum):
     CREATE_CASE = "create_case"
     QUARANTINE_DOCUMENT = "quarantine_document"
     NOTIFY_HUMAN = "notify_human"
+    # Recording a human decision is its own action, not a notification.
+    #
+    # These were once both NOTIFY_HUMAN, and the two callers numbered their
+    # attempts on different things: the pipeline counted notifications sent, the
+    # approval interface used the draft attempt being approved. Both produced
+    # "notify_human:1" for the ordinary case, with different payloads, so the
+    # guard correctly reported a payload mismatch and refused — permanently, on
+    # every retry. A clerk could never approve a case that verified on its first
+    # attempt, which is every clean case.
+    #
+    # Two counters that mean different things must never share a namespace.
+    RECORD_APPROVAL = "record_approval"
+    RECORD_REJECTION = "record_rejection"
+    RECORD_COSIGN = "record_cosign"
     SUBMIT_APPEAL = "submit_appeal"
     ESCALATE = "escalate"
     REQUEST_PEER_REVIEW = "request_peer_review"

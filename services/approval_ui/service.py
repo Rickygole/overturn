@@ -13,7 +13,7 @@ Three rules shape the file:
     not what the human agreed to.
   * **Approval routes through the idempotency guard.** A double-clicked button
     and a retried request are the same event; the second one must replay rather
-    than record a second decision. The action type is ``NOTIFY_HUMAN``: this is
+    than record a second decision. The action type is ``RECORD_APPROVAL``: this is
     the human-gate action, and deliberately *not* ``SUBMIT_APPEAL``, which
     belongs to Lifecycle. Claiming that key here would block the real submission.
   * **Rejection does not route through the guard.** It has no effect outside
@@ -31,7 +31,7 @@ from typing import Any
 from core.audit import AuditLog
 from core.gateway import GatewayHandle
 from core.idempotency import IdempotencyGuard
-from core.schemas.case import CaseRecord, HumanDecision
+from core.schemas.case import CaseRecord, ClinicianCosign, HumanDecision
 from core.schemas.enums import ActionType, AgentName, CaseStatus
 from core.state import CaseRepository
 from core.store import DocumentStore
@@ -50,6 +50,10 @@ class ApprovalError(Exception):
     status_code = 409
     heading = "This decision was not recorded"
     field: str | None = None  # the form control at fault, when there is one
+
+
+class ChecksNotConfirmed(ValueError):
+    """The clerk submitted an approval without confirming all three checks."""
 
 
 class NotApprovable(ApprovalError):
@@ -130,13 +134,36 @@ class ApprovalService:
 
     # -- decisions ------------------------------------------------------------ #
 
-    def approve(self, case_id: str, decided_by: str, draft_attempt: int | None) -> DecisionOutcome:
-        """Record approval of one specific drafting attempt.
+    def approve(
+        self,
+        case_id: str,
+        decided_by: str,
+        draft_attempt: int | None,
+        citations_checked: bool = False,
+        quotes_checked: bool = False,
+        assertions_checked: bool = False,
+    ) -> DecisionOutcome:
+        """Record the clerk's approval of one specific drafting attempt.
+
+        The clerk is asked about the paper trail, not the medicine: that every
+        cited section resolves, that the quoted policy text matches its source,
+        and that nothing is asserted the criteria matrix does not support.
+        Verification has already computed all three; the clerk is confirming
+        them, which is a thing a non-clinician can competently do.
+
+        Whether the care was appropriate is a different question and it is put
+        to a clinician in :meth:`cosign`.
 
         Called twice with the same arguments, this writes once. The second call
         is replayed by the guard and reported with ``recorded=False``.
         """
         reviewer = _require_reviewer(decided_by)
+        if not (citations_checked and quotes_checked and assertions_checked):
+            raise ChecksNotConfirmed(
+                "All three verification checks must be confirmed before approving. "
+                "The clerk is attesting that the citations resolve, that the quoted "
+                "policy text matches, and that nothing is asserted without support."
+            )
         case = self.cases.load(case_id)
         attempt = self._pin_attempt(case, draft_attempt)
 
@@ -154,6 +181,9 @@ class ApprovalService:
             approved=True,
             draft_attempt_approved=attempt,
             note=f"Approved drafting attempt {attempt} for transmission.",
+            citations_checked=citations_checked,
+            quotes_checked=quotes_checked,
+            assertions_checked=assertions_checked,
         )
         payload = {
             "case_id": case_id,
@@ -184,7 +214,7 @@ class ApprovalService:
 
         outcome = self.guard.execute(
             case_id=case_id,
-            action_type=ActionType.NOTIFY_HUMAN,
+            action_type=ActionType.RECORD_APPROVAL,
             payload=payload,
             fn=record,
             attempt=attempt,
@@ -195,6 +225,106 @@ class ApprovalService:
             action_key=outcome.action_key,
             delivery_count=outcome.delivery_count,
         )
+
+    def cosign(
+        self,
+        case_id: str,
+        clinician_name: str,
+        credential: str,
+        attests_clinical_accuracy: bool,
+        npi: str | None = None,
+        note: str | None = None,
+        draft_attempt: int | None = None,
+    ) -> DecisionOutcome:
+        """Record the ordering clinician's signature on the clinical argument.
+
+        Medical-necessity appeals are signed by the clinician who ordered the
+        care. Modelling that is not ceremony: it is the difference between a
+        system that drafts a letter for a qualified signatory and one that
+        quietly asks an administrator to vouch for a clinical claim they are not
+        in a position to evaluate.
+
+        The signature is pinned to a specific drafting attempt, so a co-sign
+        cannot authorise a draft written after it was given.
+        """
+        if not clinician_name.strip():
+            raise MissingReviewer("A clinician co-sign requires a name.")
+        if not credential.strip():
+            raise MissingReviewer("A clinician co-sign requires a credential.")
+        if not attests_clinical_accuracy:
+            raise ChecksNotConfirmed(
+                "A co-sign without an attestation records nothing. Reject the draft "
+                "instead if the clinical argument is wrong."
+            )
+
+        case = self.cases.load(case_id)
+        attempt = self._pin_attempt(case, draft_attempt)
+
+        signature = ClinicianCosign(
+            clinician_name=clinician_name.strip(),
+            credential=credential.strip(),
+            npi=(npi or "").strip() or None,
+            attests_clinical_accuracy=True,
+            note=note,
+            draft_attempt_signed=attempt,
+        )
+        payload = {
+            "case_id": case_id,
+            "decision": "cosign",
+            "draft_attempt": attempt,
+            "clinician": signature.clinician_name,
+        }
+
+        def record() -> dict[str, Any]:
+            with self.audit.record(case_id, "clinician_cosign", payload) as recording:
+
+                def apply(current: CaseRecord) -> None:
+                    current.clinician_cosign = signature
+                    current.revision += 1
+
+                self.cases.mutate(case_id, apply)
+                recording.input_summary = (
+                    f"clinician co-signed drafting attempt {attempt} of case {case_id}"
+                )
+                recording.decision = f"co-signed: attempt {attempt} clinical argument attested"
+                recording.output = {"draft_attempt_signed": attempt}
+            return {"cosigned": True, "draft_attempt_signed": attempt}
+
+        outcome = self.guard.execute(
+            case_id=case_id,
+            action_type=ActionType.RECORD_COSIGN,
+            payload=payload,
+            fn=record,
+            attempt=attempt,
+        )
+        return DecisionOutcome(
+            case=self.cases.load(case_id),
+            recorded=outcome.executed,
+            action_key=outcome.action_key,
+            delivery_count=outcome.delivery_count,
+        )
+
+    def submit_if_ready(self, case_id: str, pipeline: Any | None = None) -> CaseRecord:
+        """Transmit, but only once every required signature is present.
+
+        Called after either signature lands, so the order the clerk and the
+        clinician sign in does not matter — whichever is second triggers the
+        submission. ``CaseRecord.ready_to_submit`` is read and never recomputed
+        here, so there is exactly one definition of what counts as enough.
+
+        Without this call the approval interface is a dead end: a case reaches
+        ``approved`` and nothing on earth moves it to ``submitted``.
+        """
+        case = self.cases.load(case_id)
+        if not case.ready_to_submit:
+            return case
+
+        if pipeline is None:
+            from agents.orchestrator.deps import build_fleet
+            from agents.orchestrator.pipeline import Pipeline
+
+            pipeline = Pipeline(build_fleet(store=self._store))
+        return pipeline.try_submit(case_id)
 
     def reject(self, case_id: str, decided_by: str, reason: str) -> DecisionOutcome:
         """Send a draft back, with the reason attached to the case."""
