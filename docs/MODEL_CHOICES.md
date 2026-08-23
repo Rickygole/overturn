@@ -53,3 +53,51 @@ and also a disqualification.
 ## Recorded escalations
 
 None yet. This section stays empty until an agent earns a move.
+
+## Retrieval calibration
+
+Retrieval has two thresholds and they answer different questions. Both are set
+from measurement, not intuition. Reproduce with:
+
+```bash
+uv run python scripts/calibrate_retrieval.py
+```
+
+Measured 2026-08-22 against the six-policy corpus, TF-IDF with unigram and
+bigram features, cosine similarity:
+
+| Case | Expected policy | Retrieved | Top score | Runner-up | Margin |
+|---|---|---|---|---|---|
+| CASE-001 | NBH-ENDO-031 | NBH-ENDO-031 | 0.166 | 0.043 | 0.123 |
+| CASE-002 | NBH-MSK-022 | NBH-MSK-022 | 0.231 | 0.069 | 0.162 |
+| CASE-003 | NBH-CARD-014 | NBH-CARD-014 | 0.148 | 0.086 | 0.061 |
+| CASE-004 | *(none)* | — | 0.052 | 0.027 | 0.025 |
+| CASE-005 | NBH-PULM-008 | NBH-PULM-008 | 0.284 | 0.022 | 0.262 |
+| CASE-006 | NBH-BEHV-045 | NBH-BEHV-045 | 0.197 | 0.017 | 0.180 |
+| CASE-007 | NBH-ENDO-031 | NBH-ENDO-031 | 0.200 | 0.060 | 0.140 |
+| CASE-008 | NBH-CARD-014 | NBH-CARD-014 | 0.139 | 0.093 | 0.045 |
+
+Weakest correct match 0.139; strongest no-policy match 0.052. Separation 0.087.
+
+| Threshold | Value | Why |
+|---|---|---|
+| `retrieval_no_policy_floor` | 0.08 | Above every no-policy case, below every real one. Below this, the system declines to appeal. |
+| `retrieval_score_floor` | 0.16 | Just above the weakest correct matches, so CASE-003 and CASE-008 reformulate. A reformulation path that never fires is untested code. |
+
+### What this measurement changed
+
+The first version of the retriever used unigrams only and **retrieved the wrong
+policy for CASE-008** — a cardiac MRI denial matched the lumbar spine MRI
+policy, because "magnetic", "resonance" and "imaging" appear in both and carry
+almost no inverse document frequency across six documents.
+
+The two available responses were to lower the threshold until the wrong answer
+counted as acceptable, or to fix the scorer. Adding bigram features fixed it:
+"cardiac magnetic" appears in exactly one policy. All eight cases now retrieve
+correctly.
+
+This is the reason the calibration script prints the separation between the two
+populations and **fails when they overlap** rather than emitting a suggested
+threshold. A threshold can only be chosen once the retrieval is right; choosing
+one while they overlap is how you get a system that works on the cases someone
+happened to try.

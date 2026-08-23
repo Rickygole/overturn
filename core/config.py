@@ -66,9 +66,20 @@ class Settings(BaseSettings):
         default=3,
         description="Drafting retries permitted before a case is escalated to a human.",
     )
+    # Both thresholds are measured, not guessed. See the calibration table in
+    # docs/MODEL_CHOICES.md and re-run scripts/calibrate_retrieval.py after any
+    # change to the corpus or the scorer.
     retrieval_score_floor: float = Field(
-        default=0.55,
-        description="Below this similarity the Retrieval agent reformulates its query once.",
+        default=0.16,
+        description="Below this similarity the Retrieval agent reformulates its query once. "
+        "Set just above the weakest correct match so the reformulation path is "
+        "genuinely exercised rather than being dead code.",
+    )
+    retrieval_no_policy_floor: float = Field(
+        default=0.08,
+        description="Below this, nothing in the corpus governs the denial and the correct "
+        "action is to decline to appeal. Set above every no-policy case and below "
+        "every real one, with the margin recorded in docs/MODEL_CHOICES.md.",
     )
 
     # Demo acceleration compresses payer response windows from days to seconds so a
