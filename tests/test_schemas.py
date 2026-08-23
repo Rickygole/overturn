@@ -256,7 +256,6 @@ class TestFirestoreRoundTrip:
 
     def test_case_record_with_every_section_populated(self):
         from core.schemas import (
-            AuditEvent,
             HumanDecision,
             PayerResponse,
             ScreeningResult,
@@ -282,9 +281,7 @@ class TestFirestoreRoundTrip:
             payer_name="Meridian Health Plan",
             denial_reason_text="Not medically necessary",
         )
-        case.retrieval = RetrievalResult(
-            query="q", sections=[_section()], top_similarity=0.83
-        )
+        case.retrieval = RetrievalResult(query="q", sections=[_section()], top_similarity=0.83)
         case.criteria = CriteriaMatrix(
             case_id="c1",
             verdicts=[

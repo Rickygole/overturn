@@ -149,9 +149,7 @@ class TestConcurrency:
 
             def add_note(case: CaseRecord) -> None:
                 case.history.append(
-                    StatusTransition(
-                        to_status=case.status, actor=f"worker-{n}", note=f"append {n}"
-                    )
+                    StatusTransition(to_status=case.status, actor=f"worker-{n}", note=f"append {n}")
                 )
 
             barrier.wait()

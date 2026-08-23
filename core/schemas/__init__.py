@@ -14,8 +14,16 @@ from core.schemas.case import (
     PayerResponse,
     StatusTransition,
 )
+from core.schemas.chart import (
+    ChartMedication,
+    ChartProblem,
+    Encounter,
+    LabResult,
+    PatientChart,
+    Provenance,
+)
 from core.schemas.criteria import ChartEvidence, CriteriaMatrix, CriterionVerdict
-from core.schemas.denial import DeniedService, DenialExtraction
+from core.schemas.denial import DenialExtraction, DeniedService
 from core.schemas.draft import AppealDraft, Citation
 from core.schemas.enums import (
     TERMINAL_STATUSES,
@@ -48,19 +56,25 @@ __all__ = [
     "CaseRecord",
     "CaseStatus",
     "ChartEvidence",
+    "ChartMedication",
+    "ChartProblem",
     "Citation",
     "CriteriaMatrix",
     "CriterionVerdict",
     "CriterionVerdictValue",
     "DenialExtraction",
     "DeniedService",
+    "Encounter",
     "EscalationDecision",
     "HumanDecision",
+    "LabResult",
     "LadderRung",
     "OverturnModel",
+    "PatientChart",
     "PayerResponse",
     "PolicyCriterion",
     "PolicySection",
+    "Provenance",
     "RetrievalResult",
     "RetrievedSection",
     "ScreeningResult",

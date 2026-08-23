@@ -162,9 +162,7 @@ class IdempotencyGuard:
         except AlreadyExists:
             return False
 
-    def _resolve_existing(
-        self, collection: str, key: str, digest: str
-    ) -> ActionOutcome | None:
+    def _resolve_existing(self, collection: str, key: str, digest: str) -> ActionOutcome | None:
         """Interpret an existing claim.
 
         Returns an outcome to replay, or ``None`` if the caller should proceed
@@ -236,9 +234,7 @@ class IdempotencyGuard:
             return True
         return utcnow() - claimed_at > self._lease
 
-    def _run_and_record(
-        self, collection: str, key: str, fn: Callable[[], Any]
-    ) -> ActionOutcome:
+    def _run_and_record(self, collection: str, key: str, fn: Callable[[], Any]) -> ActionOutcome:
         try:
             result = fn()
         except Exception as exc:
@@ -262,9 +258,7 @@ class IdempotencyGuard:
                 "completed_at": utcnow().isoformat(),
             },
         )
-        return ActionOutcome(
-            result=result, replayed=False, delivery_count=1, action_key=key
-        )
+        return ActionOutcome(result=result, replayed=False, delivery_count=1, action_key=key)
 
 
 def _jsonable(value: Any) -> Any:

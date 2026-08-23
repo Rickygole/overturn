@@ -204,9 +204,7 @@ class VertexBackend:
 
         contents: list[Any] = [request.prompt]
         for part in request.parts:
-            contents.append(
-                types.Part.from_bytes(data=part["data"], mime_type=part["mime_type"])
-            )
+            contents.append(types.Part.from_bytes(data=part["data"], mime_type=part["mime_type"]))
 
         try:
             response = self._client.models.generate_content(
@@ -279,9 +277,7 @@ class LlmClient:
         )
         response = self.backend.invoke(request)
         if response.parsed is None:
-            raise ModelUnavailable(
-                f"{agent}.{operation} returned no parsable {schema.__name__}"
-            )
+            raise ModelUnavailable(f"{agent}.{operation} returned no parsable {schema.__name__}")
         if not isinstance(response.parsed, schema):
             raise ModelUnavailable(
                 f"{agent}.{operation} returned {type(response.parsed).__name__}, "

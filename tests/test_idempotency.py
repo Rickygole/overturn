@@ -78,9 +78,7 @@ class TestExactlyOnce:
     def test_different_cases_do_not_collide(self, guard):
         calls: list[str] = []
         for case in ("case-a", "case-b", "case-c"):
-            guard.execute(
-                case, ActionType.SUBMIT_APPEAL, {}, lambda c=case: calls.append(c)
-            )
+            guard.execute(case, ActionType.SUBMIT_APPEAL, {}, lambda c=case: calls.append(c))
         assert calls == ["case-a", "case-b", "case-c"]
 
 
@@ -155,9 +153,7 @@ class TestFailureHandling:
 class TestClaimLeases:
     def test_expired_claim_is_taken_over(self, store):
         """A worker that crashed mid-action must not block the action forever."""
-        guard = IdempotencyGuard(
-            store, GatewayHandle(AgentName.ORCHESTRATOR), lease_seconds=0
-        )
+        guard = IdempotencyGuard(store, GatewayHandle(AgentName.ORCHESTRATOR), lease_seconds=0)
         key = "case-1:submit_appeal:1"
         store.create(
             "actions",
@@ -181,9 +177,7 @@ class TestClaimLeases:
         assert outcome.result == "recovered"
 
     def test_live_claim_blocks_and_asks_for_redelivery(self, store):
-        guard = IdempotencyGuard(
-            store, GatewayHandle(AgentName.ORCHESTRATOR), lease_seconds=3600
-        )
+        guard = IdempotencyGuard(store, GatewayHandle(AgentName.ORCHESTRATOR), lease_seconds=3600)
         key = "case-1:submit_appeal:1"
         store.create(
             "actions",

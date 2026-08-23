@@ -154,8 +154,6 @@ class CaseRecord(OverturnModel):
         """
         base = self.submitted_at or utcnow()
         if accelerated_seconds_per_day is not None:
-            self.response_deadline = base + timedelta(
-                seconds=days * accelerated_seconds_per_day
-            )
+            self.response_deadline = base + timedelta(seconds=days * accelerated_seconds_per_day)
         else:
             self.response_deadline = base + timedelta(days=days)

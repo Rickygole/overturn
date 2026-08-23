@@ -31,9 +31,7 @@ class ActionRecord(OverturnModel):
     claimed_at: datetime = Field(default_factory=utcnow)
     completed_at: datetime | None = None
 
-    status: str = Field(
-        default="claimed", description="'claimed', 'completed', or 'failed'."
-    )
+    status: str = Field(default="claimed", description="'claimed', 'completed', or 'failed'.")
     payload_sha256: str | None = Field(
         default=None,
         description="Hash of the action input. A mismatch on replay means the caller "

@@ -21,8 +21,7 @@ class VerificationFinding(OverturnModel):
     """One specific problem with a draft."""
 
     check: str = Field(
-        description="Which check failed: citation_exists, citation_accurate, "
-        "or assertion_grounded."
+        description="Which check failed: citation_exists, citation_accurate, or assertion_grounded."
     )
     severity: str = Field(description="'fatal' rejects the draft; 'advisory' is noted only.")
     locus: str = Field(description="The citation id or the asserted sentence at fault.")

@@ -26,7 +26,7 @@ class Access(StrEnum):
     NONE = "none"
     READ = "read"
     APPEND = "append"  # create new documents, never modify existing ones
-    WRITE = "write"    # create and update
+    WRITE = "write"  # create and update
 
 
 class PolicyViolation(PermissionError):
@@ -149,9 +149,7 @@ class GatewayHandle:
 
     def writable(self) -> set[str]:
         return {
-            c
-            for c, a in POLICY.get(self.agent, {}).items()
-            if a in (Access.APPEND, Access.WRITE)
+            c for c, a in POLICY.get(self.agent, {}).items() if a in (Access.APPEND, Access.WRITE)
         }
 
 

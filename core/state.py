@@ -62,13 +62,9 @@ class CaseRepository:
         except CaseNotFound:
             return None
 
-    def find_by_status(
-        self, status: CaseStatus, limit: int | None = None
-    ) -> list[CaseRecord]:
+    def find_by_status(self, status: CaseStatus, limit: int | None = None) -> list[CaseRecord]:
         collection = self._gateway.authorize(CASES_COLLECTION, Access.READ)
-        rows = self._store.query(
-            collection, where=[("status", "==", status.value)], limit=limit
-        )
+        rows = self._store.query(collection, where=[("status", "==", status.value)], limit=limit)
         return [CaseRecord.model_validate(data) for _, data in rows]
 
     def find_overdue(self, limit: int | None = None) -> list[CaseRecord]:
@@ -127,9 +123,7 @@ class CaseRepository:
         self._store.set(collection, case.case_id, case.to_firestore())
         return case
 
-    def mutate(
-        self, case_id: str, change: Callable[[CaseRecord], None]
-    ) -> CaseRecord:
+    def mutate(self, case_id: str, change: Callable[[CaseRecord], None]) -> CaseRecord:
         """Read-modify-write with retry on conflict.
 
         ``change`` may be called more than once, so it must be a pure mutation of

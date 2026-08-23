@@ -40,11 +40,7 @@ class TestSeparationOfConcerns:
         assert not allows(AgentName.SENTINEL, "policy_sections", Access.READ)
 
     def test_only_lifecycle_and_orchestrator_may_claim_actions(self):
-        permitted = {
-            agent
-            for agent in AgentName
-            if allows(agent, "actions", Access.WRITE)
-        }
+        permitted = {agent for agent in AgentName if allows(agent, "actions", Access.WRITE)}
         assert permitted == {AgentName.LIFECYCLE, AgentName.ORCHESTRATOR}
 
     def test_intake_cannot_see_policy_sections(self):

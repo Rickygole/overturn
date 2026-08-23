@@ -87,9 +87,7 @@ class CriteriaMatrix(OverturnModel):
         rows outnumber the outright failures, otherwise the honest action is to
         decline and tell the clerk why.
         """
-        failed = sum(
-            1 for v in self.verdicts if v.verdict == CriterionVerdictValue.NOT_SATISFIED
-        )
+        failed = sum(1 for v in self.verdicts if v.verdict == CriterionVerdictValue.NOT_SATISFIED)
         return self.satisfied_count > 0 and self.satisfied_count >= failed
 
     def appealable_verdicts(self) -> list[CriterionVerdict]:

@@ -31,7 +31,9 @@ from core.schemas.policy import PolicyCriterion, PolicySection
 POLICY_DIR = Path(__file__).resolve().parents[2] / "data" / "policies"
 
 _TITLE = re.compile(r"^#\s+(?P<policy_id>[A-Z]{3}-[A-Z]{3,5}-\d{3})\s+[—-]\s+(?P<title>.+)$")
-_SECTION = re.compile(r"^##\s+(?P<section_id>[A-Z]{3}-[A-Z]{3,5}-\d{3}-\d+)\s+[—-]\s+(?P<heading>.+)$")
+_SECTION = re.compile(
+    r"^##\s+(?P<section_id>[A-Z]{3}-[A-Z]{3,5}-\d{3}-\d+)\s+[—-]\s+(?P<heading>.+)$"
+)
 _CRITERION = re.compile(r"^###\s+(?P<criterion_id>[A-Z]{3}-[A-Z]{3,5}-\d{3}-\d+(?:\.\d+)+)\s*$")
 _META = re.compile(r"Effective:\s*(?P<effective>[\d-]+)\s*\|\s*Version:\s*(?P<version>[\w.]+)")
 
