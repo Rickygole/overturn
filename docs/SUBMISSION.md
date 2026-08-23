@@ -61,7 +61,10 @@ in the draft.
 
 ## Before recording the video
 
-- [ ] `bash infra/provision.sh && bash infra/deploy.sh` — see `docs/RUNBOOK.md`
+- [ ] `bash infra/provision.sh && INGEST_PUSH_PATH=/pubsub/push bash infra/deploy.sh`
+      — enable_apis.sh, iam_setup.sh and iam_audit.sh must already have run once;
+      see `docs/RUNBOOK.md` for the full order and why `INGEST_PUSH_PATH` has to
+      be overridden on every `deploy.sh` run
 - [ ] Seed the agent registry: `uv run python scripts/seed_registry.py --publish`
 - [ ] Confirm every frame shows **Northbeck Health Plan** and no real insurer's
       name. Grep before uploading: `grep -ric "meridian" data/ docs/`
@@ -71,6 +74,13 @@ in the draft.
 - [ ] Have the Cloud Run console, a `.run.app` URL and a Cloud Trace view ready
       to show — the rules require visible proof of Google Cloud deployment
 - [ ] Terminal font large enough to read at 1080p
+- [ ] **Decide how the 3:45–4:00 beat handles the clinician co-sign before
+      recording it.** The human gate is now two signatures (clerk approval plus
+      `ApprovalService.cosign()`), but `services/approval_ui` has no route or
+      form for the clinician's side yet, so clicking "Approve" in the browser
+      takes a case to `approved`, not `submitted`. See the note at the top of
+      `VIDEO_SCRIPT.md` and "Known gaps" in `RUNBOOK.md` — this is a blocker,
+      not a documentation nit.
 
 Shot list and narration timings are in [`VIDEO_SCRIPT.md`](VIDEO_SCRIPT.md).
 

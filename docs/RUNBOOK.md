@@ -46,18 +46,27 @@ bash infra/iam_audit.sh            # prints what each identity can actually do �
 bash infra/model_armor_setup.sh
 
 bash infra/provision.sh            # buckets, Pub/Sub, Firestore, uploads the policy corpus
-bash infra/deploy.sh               # builds the image once, deploys all three Cloud Run services
+
+# infra/deploy.sh's default INGEST_PUSH_PATH is "/", a leftover assumption from
+# before services/ingest_handler landed. The real route is POST /pubsub/push —
+# override it every time, or the push subscription will point at a path that
+# 404s and everything lands in the dead-letter topic. See "Known gaps" below.
+INGEST_PUSH_PATH=/pubsub/push bash infra/deploy.sh   # builds the image once, deploys all three Cloud Run services
 ```
 
 `infra/deploy.sh` is also what you re-run for every subsequent code change —
 it always builds a fresh image and rolls a new revision of each service.
+Remember `INGEST_PUSH_PATH=/pubsub/push` on every re-run too; it is not
+persisted anywhere between invocations.
 
 If you ran `infra/model_armor_setup.sh`, re-run `infra/deploy.sh` with
 `MODEL_ARMOR_TEMPLATE=overturn-inbound` (the id the setup script creates) so
-the Cloud Run services actually pick it up:
+the Cloud Run services actually pick it up — and keep `INGEST_PUSH_PATH` set
+alongside it, since any `deploy.sh` invocation that omits it resets the push
+subscription back to the broken default:
 
 ```bash
-MODEL_ARMOR_TEMPLATE=overturn-inbound bash infra/deploy.sh
+INGEST_PUSH_PATH=/pubsub/push MODEL_ARMOR_TEMPLATE=overturn-inbound bash infra/deploy.sh
 ```
 
 ## What it costs to run for a day
@@ -174,7 +183,8 @@ for the proxy command) once the case reaches `awaiting_human_approval`.
 
 - [ ] `infra/deploy.sh` has been run against a **clean** state — redeploy right
       before recording so the URLs on screen are from the current build, not a
-      stale revision.
+      stale revision: `INGEST_PUSH_PATH=/pubsub/push bash infra/deploy.sh` (see
+      "One-time setup" above for why `INGEST_PUSH_PATH` is not optional).
 - [ ] Decide whether to set demo time acceleration for the lifecycle segment,
       then set it and remember to unset it afterward:
       ```bash
@@ -226,21 +236,27 @@ and deleting Firestore data is a one-way door this script doesn't open for you.
 |---|---|---|
 | `404 NOT_FOUND` on a Gemini model id | ADC has no quota project set | `gcloud auth application-default set-quota-project "$PROJECT_ID"` |
 | `infra/deploy.sh` fails at the build step | Cloud Build or Artifact Registry API not enabled | Re-run `infra/enable_apis.sh` |
-| Pub/Sub messages piling up in the dead-letter topic | `overturn-ingest`'s route doesn't match `INGEST_PUSH_PATH` (default `/`) | Check `services/ingest_handler`'s actual push route, then re-run `INGEST_PUSH_PATH=/whatever bash infra/deploy.sh` |
+| Pub/Sub messages piling up in the dead-letter topic | `infra/deploy.sh`'s `INGEST_PUSH_PATH` default (`/`) does not match `services/ingest_handler`'s real route (`POST /pubsub/push`) | Re-run `INGEST_PUSH_PATH=/pubsub/push bash infra/deploy.sh` |
 | Push subscription delivers nothing, no error visible | Pub/Sub's service agent lacks `roles/iam.serviceAccountTokenCreator` on the orchestrator SA | `infra/deploy.sh` grants this every run; re-run it |
 | Cloud Scheduler job fires but `overturn-scheduler` returns 403 | Scheduler's service agent lacks token-creator on the lifecycle SA, or the lifecycle SA lacks `run.invoker` on the service | `infra/deploy.sh` grants both every run; re-run it |
 | `overturn-approval` returns 403 in a browser | It requires Cloud Run IAM auth by design (see below) | `gcloud run services proxy overturn-approval --region="$REGION"`, or grant your account `roles/run.invoker` |
 | `infra/provision.sh` errors instead of skipping an existing resource | The existence check for that resource returned a false negative (permissions, wrong project, transient API error) | Re-run with `set -x` to see which `describe` call failed, or check the resource by hand with the matching command in "Verifying" above |
-| Sentinel's audit log shows `model_armor:skipped_no_text` or `unavailable` | `OVERTURN_MODEL_ARMOR_TEMPLATE` isn't set, or `infra/model_armor_setup.sh` was never run | Run `infra/model_armor_setup.sh`, then redeploy with `MODEL_ARMOR_TEMPLATE=overturn-inbound bash infra/deploy.sh` |
+| Sentinel's audit log shows `model_armor:skipped_no_text` or `unavailable` | `OVERTURN_MODEL_ARMOR_TEMPLATE` isn't set, or `infra/model_armor_setup.sh` was never run | Run `infra/model_armor_setup.sh`, then redeploy with `INGEST_PUSH_PATH=/pubsub/push MODEL_ARMOR_TEMPLATE=overturn-inbound bash infra/deploy.sh` |
 
 ## Known gaps and assumptions, stated plainly
 
-- **`services/ingest_handler` and `services/scheduler_job` were being built in
-  parallel with these scripts.** Both were assumed to expose
-  `services.<name>.main:app` with a `/healthz` route, per the brief. The
-  Pub/Sub push path (`INGEST_PUSH_PATH`, default `/`) and the scheduler's tick
-  route (`/tick`) are the two places to correct if the real handlers land
-  differently — both are a one-line rerun, not a redesign.
+- **`services/ingest_handler` and `services/scheduler_job` now exist, and their
+  real routes are only a partial match for what `infra/deploy.sh` assumed.**
+  Both expose `services.<name>.main:app` with a `GET /healthz` route, as
+  assumed. The scheduler's tick route is `POST /tick`, also as assumed — no
+  correction needed there. The ingest handler's push route is
+  `POST /pubsub/push`, **not** `/`, which is what `INGEST_PUSH_PATH` defaults
+  to in `infra/deploy.sh`. That default was never updated once the handler
+  landed, and this repo's remit doesn't include editing `infra/`, so the fix
+  lives here instead: always pass `INGEST_PUSH_PATH=/pubsub/push` when running
+  `infra/deploy.sh` (see "One-time setup" and the troubleshooting table
+  above). Skipping it means the push subscription points at a route that
+  doesn't exist and every message ends up in the dead-letter topic.
 - **`overturn-approval`'s "public but authenticated" is Cloud Run's own IAM
   check, not a login page.** There is no auth code in `services/approval_ui`
   today. The service gets a real, internet-resolvable `.run.app` URL (the
@@ -259,6 +275,16 @@ and deleting Firestore data is a one-way door this script doesn't open for you.
   agents") covers ingest and approval; Lifecycle's ("escalates overdue cases
   on a schedule") is scheduler_job's whole purpose. No new service account was
   invented for this.
-- **`docs/PLATFORM_PROBE.md` references `docs/ARCHITECTURE.md`, which does not
-  exist in this repository yet.** Not something this pass could fix without
-  writing content that isn't there — flagged here so it isn't silently lost.
+- **The human gate now requires two signatures — clerk approval plus a
+  clinician co-sign (`CaseRecord.ready_to_submit`) — but `services/approval_ui`
+  only exposes an HTTP route for the clerk's approval.** `ApprovalService.cosign()`
+  exists and is exercised in the test suite, but there is no
+  `/case/{case_id}/cosign` route in `services/approval_ui/app.py` and no form
+  for it in the templates. A case with `requires_clinician_cosign=True` (the
+  default, and nothing in this codebase ever sets it `False`) will sit at
+  `approved` after the clerk clicks approve and will not reach `submitted`
+  until something calls `ApprovalService.cosign()` directly — there is
+  currently no way to do that from the deployed web UI. Flagged here because
+  it affects the demo: don't script a beat that shows a clinician co-signing
+  through the browser, because that button does not exist yet. This is outside
+  this pass's remit (`services/` is not one of the four files it may touch).
