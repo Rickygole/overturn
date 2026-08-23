@@ -450,3 +450,83 @@ class TestTwoSignatureTransmission:
                 assertions_checked=True,
             )
         assert pipeline.fleet.cases.load("CASE-001").human_decision is None
+
+
+class TestTransmissionFailure:
+    """A payer endpoint that flaps must not produce a phantom submission.
+
+    The failure mode this guards: the first submit raises, the action is
+    recorded as failed, and a retry replays that failed record as though it were
+    a result. The caller sees a successful-looking outcome carrying no
+    confirmation, marks the case submitted with a thirty-day payer deadline, and
+    in thirty days the scheduler escalates it for payer silence — on an appeal
+    that was never sent. The only trace was the word "unknown" in a note.
+    """
+
+    def _sign_and_try(self, pipeline, monkeypatch, behaviour: str):
+        from services.approval_ui.service import ApprovalService
+
+        run(pipeline, "CASE-001")
+        service = ApprovalService(pipeline.fleet.store)
+        attempt = pipeline.fleet.cases.load("CASE-001").latest_draft.attempt
+        service.approve(
+            case_id="CASE-001",
+            decided_by="clerk@clinic.example",
+            draft_attempt=attempt,
+            citations_checked=True,
+            quotes_checked=True,
+            assertions_checked=True,
+        )
+        service.cosign(
+            case_id="CASE-001",
+            clinician_name="M. Castellanos",
+            credential="MD",
+            attests_clinical_accuracy=True,
+            draft_attempt=attempt,
+        )
+        monkeypatch.setenv("OVERTURN_PAYER_BEHAVIOUR", behaviour)
+        return pipeline
+
+    def test_a_failed_transmission_never_looks_submitted(self, pipeline, store, monkeypatch):
+        from services.payer_sim import PayerUnavailable
+
+        self._sign_and_try(pipeline, monkeypatch, "error")
+        with pytest.raises(PayerUnavailable):
+            pipeline.try_submit("CASE-001")
+
+        case = pipeline.fleet.cases.load("CASE-001")
+        assert case.status is not CaseStatus.SUBMITTED
+        assert case.response_deadline is None, (
+            "a payer deadline was set for an appeal that was never sent"
+        )
+
+    def test_a_failed_transmission_reaches_a_person(self, pipeline, monkeypatch):
+        """`approved` is in no queue. A case must not be left there."""
+        from services.payer_sim import PayerUnavailable
+
+        self._sign_and_try(pipeline, monkeypatch, "error")
+        with pytest.raises(PayerUnavailable):
+            pipeline.try_submit("CASE-001")
+
+        case = pipeline.fleet.cases.load("CASE-001")
+        assert case.status is CaseStatus.NEEDS_HUMAN_REVIEW
+        assert case.needs_human_reason
+        assert "Nothing reached the payer" in case.needs_human_reason
+
+    def test_the_payer_is_not_contacted_again_by_a_bare_retry(self, pipeline, store, monkeypatch):
+        from services.payer_sim import PayerUnavailable
+
+        self._sign_and_try(pipeline, monkeypatch, "error")
+        with pytest.raises(PayerUnavailable):
+            pipeline.try_submit("CASE-001")
+
+        monkeypatch.setenv("OVERTURN_PAYER_BEHAVIOUR", "accept")
+        pipeline.try_submit("CASE-001")
+
+        case = pipeline.fleet.cases.load("CASE-001")
+        assert case.status is CaseStatus.NEEDS_HUMAN_REVIEW
+        assert not [
+            r
+            for _, r in store.query("actions")
+            if r["action_type"] == ActionType.SUBMIT_APPEAL.value and r["status"] == "completed"
+        ]

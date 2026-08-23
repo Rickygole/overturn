@@ -16,8 +16,10 @@ import pytest
 from core.gateway import GatewayHandle, PolicyViolation
 from core.idempotency import (
     ActionInFlight,
+    ActionPreviouslyFailed,
     IdempotencyGuard,
     PayloadMismatch,
+    UnsafeToRetry,
     payload_digest,
 )
 from core.schemas.base import utcnow
@@ -131,29 +133,89 @@ class TestFailureHandling:
         assert record["status"] == "failed"
         assert "payer endpoint" in record["error"]
 
-    def test_failed_action_is_not_silently_retried_under_the_same_key(self, guard):
-        """A failure is a decision, not an invitation to loop.
+    def test_a_failed_action_raises_rather_than_replaying_as_success(self, guard):
+        """A failure is a decision, not an invitation to loop — and not a result.
 
-        Retrying the same key would re-run a side effect that may have partially
-        landed. A genuine retry is a new attempt number, made deliberately.
+        Replaying a failed record the same way a completed one is replayed hands
+        the caller a successful-looking outcome carrying ``result=None``. For a
+        submission that means the case gets marked submitted, with a payer
+        deadline, for an appeal that was never sent — and in thirty days the
+        scheduler escalates it for payer silence.
+
+        Retrying the same key would also re-run a side effect that may have
+        partially landed. A genuine retry is a new attempt number, chosen by
+        something that has decided the failure was safe to repeat.
         """
         calls: list[int] = []
 
         def boom() -> None:
             calls.append(1)
-            raise RuntimeError("nope")
+            raise RuntimeError("payer endpoint refused the connection")
 
         with pytest.raises(RuntimeError):
             guard.execute("case-1", ActionType.SUBMIT_APPEAL, {}, boom)
 
-        outcome = guard.execute("case-1", ActionType.SUBMIT_APPEAL, {}, boom)
-        assert len(calls) == 1
-        assert outcome.replayed is True
+        with pytest.raises(ActionPreviouslyFailed) as exc:
+            guard.execute("case-1", ActionType.SUBMIT_APPEAL, {}, boom)
+
+        assert len(calls) == 1, "the failed action was silently re-run"
+        assert "payer endpoint" in str(exc.value)
+
+    def test_a_deliberate_retry_uses_a_new_attempt(self, guard):
+        calls: list[int] = []
+
+        def flaky() -> str:
+            calls.append(1)
+            if len(calls) == 1:
+                raise RuntimeError("transient")
+            return "sent"
+
+        with pytest.raises(RuntimeError):
+            guard.execute("case-1", ActionType.SUBMIT_APPEAL, {}, flaky, attempt=1)
+
+        outcome = guard.execute("case-1", ActionType.SUBMIT_APPEAL, {}, flaky, attempt=2)
+        assert outcome.executed is True
+        assert outcome.result == "sent"
 
 
 class TestClaimLeases:
     def test_expired_claim_is_taken_over(self, store):
-        """A worker that crashed mid-action must not block the action forever."""
+        """A worker that crashed mid-action must not block the action forever.
+
+        Uses a repeatable action. A second notification is noise; a second
+        appeal is not, and those are handled differently on purpose.
+        """
+        guard = IdempotencyGuard(store, GatewayHandle(AgentName.ORCHESTRATOR), lease_seconds=0)
+        key = "case-1:notify_human:1"
+        store.create(
+            "actions",
+            key,
+            {
+                "action_key": key,
+                "case_id": "case-1",
+                "action_type": "notify_human",
+                "attempt": 1,
+                "status": "claimed",
+                "claimed_at": utcnow().isoformat(),
+                "payload_sha256": payload_digest({"draft": 1}),
+                "delivery_count": 1,
+            },
+        )
+
+        outcome = guard.execute(
+            "case-1", ActionType.NOTIFY_HUMAN, {"draft": 1}, lambda: "recovered"
+        )
+        assert outcome.executed is True
+        assert outcome.result == "recovered"
+
+    def test_a_dead_claim_on_a_non_repeatable_action_is_never_retried(self, store):
+        """The duplicate-appeal window, closed by refusing to guess.
+
+        A worker died somewhere between the payer accepting the appeal and the
+        completion write landing. Re-running risks a second appeal on one claim;
+        not running risks none going out. Nothing can tell which side of that
+        line the worker fell on, so neither is chosen automatically.
+        """
         guard = IdempotencyGuard(store, GatewayHandle(AgentName.ORCHESTRATOR), lease_seconds=0)
         key = "case-1:submit_appeal:1"
         store.create(
@@ -165,17 +227,21 @@ class TestClaimLeases:
                 "action_type": "submit_appeal",
                 "attempt": 1,
                 "status": "claimed",
-                "claimed_at": utcnow().isoformat(),
+                "claimed_at": (utcnow() - timedelta(hours=1)).isoformat(),
                 "payload_sha256": payload_digest({"draft": 1}),
                 "delivery_count": 1,
             },
         )
 
-        outcome = guard.execute(
-            "case-1", ActionType.SUBMIT_APPEAL, {"draft": 1}, lambda: "recovered"
-        )
-        assert outcome.executed is True
-        assert outcome.result == "recovered"
+        calls: list[int] = []
+        with pytest.raises(UnsafeToRetry):
+            guard.execute(
+                "case-1",
+                ActionType.SUBMIT_APPEAL,
+                {"draft": 1},
+                lambda: calls.append(1),
+            )
+        assert calls == [], "a possibly-sent appeal was sent again"
 
     def test_live_claim_blocks_and_asks_for_redelivery(self, store):
         guard = IdempotencyGuard(store, GatewayHandle(AgentName.ORCHESTRATOR), lease_seconds=3600)
@@ -253,14 +319,14 @@ class TestExpiredClaimRace:
         is generous relative to how long an appeal submission takes.
         """
         guard = IdempotencyGuard(store, GatewayHandle(AgentName.ORCHESTRATOR), lease_seconds=300)
-        key = "case-1:submit_appeal:1"
+        key = "case-1:notify_human:1"
         store.create(
             "actions",
             key,
             {
                 "action_key": key,
                 "case_id": "case-1",
-                "action_type": "submit_appeal",
+                "action_type": "notify_human",
                 "attempt": 1,
                 "status": "claimed",
                 "claimed_at": (utcnow() - timedelta(minutes=10)).isoformat(),
@@ -277,7 +343,7 @@ class TestExpiredClaimRace:
             try:
                 guard.execute(
                     "case-1",
-                    ActionType.SUBMIT_APPEAL,
+                    ActionType.NOTIFY_HUMAN,
                     {"draft": 1},
                     lambda: executions.append(1),
                 )
