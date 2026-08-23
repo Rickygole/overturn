@@ -155,17 +155,13 @@ def load_synthea(csv_dir: Path) -> dict[str, dict[str, Any]]:
 def apply_overlay(base: dict[str, Any], overlay: dict[str, Any]) -> PatientChart:
     """Layer authored records on top of a generated patient."""
     problems = list(base["problems"])
-    problems = [
-        ChartProblem.model_validate(p) for p in overlay.get("problems", [])
-    ] + problems
+    problems = [ChartProblem.model_validate(p) for p in overlay.get("problems", [])] + problems
 
     medications = [
         ChartMedication.model_validate(m) for m in overlay.get("medications", [])
     ] + list(base["medications"])
 
-    labs = [LabResult.model_validate(x) for x in overlay.get("labs", [])] + list(
-        base["labs"]
-    )
+    labs = [LabResult.model_validate(x) for x in overlay.get("labs", [])] + list(base["labs"])
 
     encounters = [Encounter.model_validate(e) for e in overlay.get("encounters", [])]
 
@@ -217,9 +213,7 @@ def main() -> int:
     for case_id, chart in build(args.synthea):
         out = OUTPUT_DIR / f"{case_id}.json"
         out.write_text(json.dumps(chart.to_firestore(), indent=2) + "\n")
-        authored = sum(
-            1 for e in chart.encounters if e.provenance == Provenance.AUTHORED
-        )
+        authored = sum(1 for e in chart.encounters if e.provenance == Provenance.AUTHORED)
         print(
             f"{case_id}  {chart.name:26} {len(chart.problems):>2} problems  "
             f"{len(chart.labs):>2} labs  {len(chart.encounters):>2} encounters "

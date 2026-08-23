@@ -1,4 +1,4 @@
-"""Parse the Meridian policy corpus into retrievable sections.
+"""Parse the Northbeck policy corpus into retrievable sections.
 
 The markdown files in ``data/policies`` are the source of truth, not a rendering
 of some other source. The document a judge sees on screen when the video cuts to
@@ -7,13 +7,13 @@ the point.
 
 Format::
 
-    # MHP-ENDO-031 — Continuous Glucose Monitoring Systems
+    # NBH-ENDO-031 — Continuous Glucose Monitoring Systems
     Effective: 2026-01-01 | Version: 3.1 | ...
 
-    ## MHP-ENDO-031-3 — Coverage Criteria
+    ## NBH-ENDO-031-3 — Coverage Criteria
     Prose introducing the criteria.
 
-    ### MHP-ENDO-031-3.1
+    ### NBH-ENDO-031-3.1
     The text of one numbered criterion.
 
 Section text is stored verbatim, criteria included. Verification quotes from it
@@ -133,7 +133,7 @@ def load_corpus(directory: Path | None = None) -> list[PolicySection]:
     """Every section in the corpus, sorted by identifier."""
     directory = directory or POLICY_DIR
     sections: list[PolicySection] = []
-    for path in sorted(directory.glob("MHP-*.md")):
+    for path in sorted(directory.glob("NBH-*.md")):
         sections.extend(parse_policy_file(path))
 
     seen: dict[str, str] = {}

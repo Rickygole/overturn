@@ -198,7 +198,7 @@ consulted.**
   credentialed data use agreement prohibits redistribution, and this project's
   demonstration video is public. Using it would breach that agreement regardless
   of intent.
-- **Payer policies.** "Meridian Health Plan" is a fictional insurer invented for
+- **Payer policies.** "Northbeck Health Plan" is a fictional insurer invented for
   this project. No real insurer's name, logo, or policy text appears anywhere.
   The documents are authored, modelled on the *structure* that real payers
   publish openly — a scope statement, numbered coverage criteria, documentation

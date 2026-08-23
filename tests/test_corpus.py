@@ -99,7 +99,7 @@ class TestIndexing:
     def test_index_covers_every_section(self):
         index = corpus_index(CORPUS)
         assert len(index) == len(CORPUS)
-        assert index["MHP-ENDO-031-3"].section_heading == "Coverage Criteria"
+        assert index["NBH-ENDO-031-3"].section_heading == "Coverage Criteria"
 
     def test_citable_identifier_count_is_stable(self):
         """A guard against silently losing criteria to a parser change."""
@@ -108,14 +108,14 @@ class TestIndexing:
 
 class TestParserRejectsBadInput:
     def test_file_without_a_title_line_raises(self, tmp_path):
-        bad = tmp_path / "MHP-BAD-001.md"
-        bad.write_text("## MHP-BAD-001-1 — Scope\nSome text that is long enough.\n")
+        bad = tmp_path / "NBH-BAD-001.md"
+        bad.write_text("## NBH-BAD-001-1 — Scope\nSome text that is long enough.\n")
         with pytest.raises(Exception, match="no policy title"):
             parse_policy_file(bad)
 
     def test_file_with_no_sections_raises(self, tmp_path):
-        bad = tmp_path / "MHP-BAD-002.md"
-        bad.write_text("# MHP-BAD-002 — Nothing\nEffective: 2026-01-01 | Version: 1.0\n")
+        bad = tmp_path / "NBH-BAD-002.md"
+        bad.write_text("# NBH-BAD-002 — Nothing\nEffective: 2026-01-01 | Version: 1.0\n")
         with pytest.raises(Exception, match="zero sections"):
             parse_policy_file(bad)
 

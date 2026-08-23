@@ -11,16 +11,16 @@ from pydantic import Field, field_validator
 
 from core.schemas.base import OverturnModel
 
-# Section identifiers look like MHP-CARD-014-3.2 and are stable across the
+# Section identifiers look like NBH-CARD-014-3.2 and are stable across the
 # corpus. Verification does an exact match on them, so the format is enforced
 # at ingest rather than trusted at citation time.
-SECTION_ID_PATTERN = r"^MHP-[A-Z]{3,5}-\d{3}(-\d+(\.\d+)*)?$"
+SECTION_ID_PATTERN = r"^NBH-[A-Z]{3,5}-\d{3}(-\d+(\.\d+)*)?$"
 
 
 class PolicyCriterion(OverturnModel):
     """A single numbered requirement inside a policy section."""
 
-    criterion_id: str = Field(description="Stable id, e.g. MHP-CARD-014-3.2.")
+    criterion_id: str = Field(description="Stable id, e.g. NBH-CARD-014-3.2.")
     text: str = Field(description="Verbatim criterion text from the policy.")
     requires_all_of: list[str] = Field(
         default_factory=list,
@@ -33,10 +33,10 @@ class PolicyCriterion(OverturnModel):
 
 
 class PolicySection(OverturnModel):
-    """One retrievable chunk of a Meridian Health Plan medical policy."""
+    """One retrievable chunk of a Northbeck Health Plan medical policy."""
 
     section_id: str = Field(description="Stable identifier, cited verbatim in appeals.")
-    policy_id: str = Field(description="Parent policy, e.g. MHP-CARD-014.")
+    policy_id: str = Field(description="Parent policy, e.g. NBH-CARD-014.")
     policy_title: str
     section_heading: str
     text: str = Field(description="Verbatim section text. Never paraphrased in storage.")

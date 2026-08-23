@@ -28,10 +28,10 @@ from core.schemas import (
 )
 
 
-def _section(section_id: str = "MHP-CARD-014-3") -> RetrievedSection:
+def _section(section_id: str = "NBH-CARD-014-3") -> RetrievedSection:
     return RetrievedSection(
         section_id=section_id,
-        policy_id="MHP-CARD-014",
+        policy_id="NBH-CARD-014",
         policy_title="Advanced Cardiac Imaging",
         section_heading="Coverage Criteria",
         text="Coverage is provided when all of the following criteria are documented.",
@@ -55,7 +55,7 @@ class TestStrictness:
         """A drifted contract must fail at the boundary, not downstream."""
         with pytest.raises(ValidationError):
             DenialExtraction(
-                payer_name="Meridian Health Plan",
+                payer_name="Northbeck Health Plan",
                 denial_reason_text="Not medically necessary",
                 totally_new_field="surprise",
             )
@@ -63,8 +63,8 @@ class TestStrictness:
     def test_short_policy_text_is_rejected(self):
         with pytest.raises(ValidationError):
             RetrievedSection(
-                section_id="MHP-CARD-014-3",
-                policy_id="MHP-CARD-014",
+                section_id="NBH-CARD-014-3",
+                policy_id="NBH-CARD-014",
                 policy_title="t",
                 section_heading="h",
                 text="too short",
@@ -84,9 +84,9 @@ class TestRetrievalClosedWorld:
         """Drafting may cite a criterion id, not only its parent section."""
         result = RetrievalResult(query="q", sections=[_section()], top_similarity=0.83)
         assert result.section_ids() == {
-            "MHP-CARD-014-3",
-            "MHP-CARD-014-3.1",
-            "MHP-CARD-014-3.2",
+            "NBH-CARD-014-3",
+            "NBH-CARD-014-3.1",
+            "NBH-CARD-014-3.2",
         }
 
     def test_empty_retrieval_reports_no_applicable_policy(self):
@@ -99,9 +99,9 @@ class TestCriteriaMatrix:
     def test_satisfied_without_evidence_is_not_usable(self):
         """A satisfied verdict with no chart citation is an unsupported claim."""
         verdict = CriterionVerdict(
-            criterion_id="MHP-CARD-014-3.1",
+            criterion_id="NBH-CARD-014-3.1",
             criterion_text="t",
-            section_id="MHP-CARD-014-3",
+            section_id="NBH-CARD-014-3",
             verdict=CriterionVerdictValue.SATISFIED,
             evidence=[],
             reasoning="asserted without a chart pointer",
@@ -114,7 +114,7 @@ class TestCriteriaMatrix:
             return CriterionVerdict(
                 criterion_id=cid,
                 criterion_text="t",
-                section_id="MHP-CARD-014-3",
+                section_id="NBH-CARD-014-3",
                 verdict=v,
                 evidence=(
                     [ChartEvidence(locator="note 2026-03-14", quote="documented")]
@@ -153,12 +153,12 @@ class TestVerification:
             case_id="c1",
             attempt=1,
             citations_checked=2,
-            citations_nonexistent=["MHP-CARD-099-9.9"],
+            citations_nonexistent=["NBH-CARD-099-9.9"],
         )
         assert result.passed is False
         instructions = result.revision_instructions()
         assert len(instructions) == 1
-        assert "MHP-CARD-099-9.9" in instructions[0]
+        assert "NBH-CARD-099-9.9" in instructions[0]
 
     def test_clean_result_passes(self):
         assert VerificationResult(case_id="c1", attempt=2, citations_checked=3).passed
@@ -238,11 +238,11 @@ class TestDraft:
             subject_line="Appeal",
             body="body text long enough to be real",
             citations=[
-                Citation(section_id="MHP-CARD-014-3.1", claim="requires six weeks of symptoms"),
-                Citation(section_id="MHP-CARD-014-3.2", claim="requires a prior stress test"),
+                Citation(section_id="NBH-CARD-014-3.1", claim="requires six weeks of symptoms"),
+                Citation(section_id="NBH-CARD-014-3.2", claim="requires a prior stress test"),
             ],
         )
-        assert draft.cited_ids() == {"MHP-CARD-014-3.1", "MHP-CARD-014-3.2"}
+        assert draft.cited_ids() == {"NBH-CARD-014-3.1", "NBH-CARD-014-3.2"}
 
 
 class TestFirestoreRoundTrip:
@@ -278,7 +278,7 @@ class TestFirestoreRoundTrip:
             ],
         )
         case.denial = DenialExtraction(
-            payer_name="Meridian Health Plan",
+            payer_name="Northbeck Health Plan",
             denial_reason_text="Not medically necessary",
         )
         case.retrieval = RetrievalResult(query="q", sections=[_section()], top_similarity=0.83)
@@ -286,9 +286,9 @@ class TestFirestoreRoundTrip:
             case_id="c1",
             verdicts=[
                 CriterionVerdict(
-                    criterion_id="MHP-CARD-014-3.1",
+                    criterion_id="NBH-CARD-014-3.1",
                     criterion_text="t",
-                    section_id="MHP-CARD-014-3",
+                    section_id="NBH-CARD-014-3",
                     verdict=CriterionVerdictValue.SATISFIED,
                     evidence=[ChartEvidence(locator="note 2026-03-14", quote="documented")],
                     reasoning="r",
@@ -302,7 +302,7 @@ class TestFirestoreRoundTrip:
                 attempt=1,
                 subject_line="Appeal",
                 body="body long enough to be a real letter",
-                citations=[Citation(section_id="MHP-CARD-014-3.1", claim="requires x")],
+                citations=[Citation(section_id="NBH-CARD-014-3.1", claim="requires x")],
             )
         ]
         case.verifications = [VerificationResult(case_id="c1", attempt=1, citations_checked=1)]
@@ -315,7 +315,7 @@ class TestFirestoreRoundTrip:
 
         assert restored.status == CaseStatus.SUBMITTED
         assert restored.criteria.satisfied_count == 1
-        assert restored.drafts[0].cited_ids() == {"MHP-CARD-014-3.1"}
+        assert restored.drafts[0].cited_ids() == {"NBH-CARD-014-3.1"}
         assert restored.screening.highest_confidence == 0.94
         assert restored.verifications[0].passed is True
         assert restored.revision == case.revision
@@ -335,7 +335,7 @@ class TestFirestoreRoundTrip:
     @pytest.mark.parametrize(
         "model",
         [
-            DenialExtraction(payer_name="Meridian Health Plan", denial_reason_text="r"),
+            DenialExtraction(payer_name="Northbeck Health Plan", denial_reason_text="r"),
             RetrievalResult(query="q", sections=[_section()], top_similarity=0.83),
             VerificationResult(case_id="c1", attempt=1),
             AppealDraft(case_id="c1", attempt=1, subject_line="s", body="b" * 40),

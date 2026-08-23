@@ -3,7 +3,7 @@
   "name": "Jeromy156 Upton904",
   "date_of_birth": "1967-08-12",
   "sex": "M",
-  "member_id": "MHP-4417-99083",
+  "member_id": "NBH-4417-99083",
   "problems": [
     {
       "description": "Type 2 diabetes mellitus with hyperglycaemia, insulin-treated",
@@ -445,5 +445,5 @@
     }
   ],
   "generator": "synthea",
-  "authored_note": "Synthea produced this patient's type 2 diabetes diagnosis, obesity, and longitudinal A1c series. The insulin regimen, the CGM training record, and the endocrinology notes that MHP-ENDO-031 section 3 turns on were authored, because Synthea does not generate records aligned to one fictional payer's numbered criteria."
+  "authored_note": "Synthea produced this patient's type 2 diabetes diagnosis, obesity, and longitudinal A1c series. The insulin regimen, the CGM training record, and the endocrinology notes that NBH-ENDO-031 section 3 turns on were authored, because Synthea does not generate records aligned to one fictional payer's numbered criteria."
 }

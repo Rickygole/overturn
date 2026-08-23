@@ -87,7 +87,7 @@ class PatientChart(OverturnModel):
     name: str
     date_of_birth: date
     sex: str
-    member_id: str = Field(description="Meridian Health Plan member identifier.")
+    member_id: str = Field(description="Northbeck Health Plan member identifier.")
 
     problems: list[ChartProblem] = Field(default_factory=list)
     medications: list[ChartMedication] = Field(default_factory=list)

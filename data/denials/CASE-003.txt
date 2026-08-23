@@ -8,7 +8,7 @@ Phone 1-800-555-0142  |  Fax 1-800-555-0198
 NOTICE OF ADVERSE BENEFIT DETERMINATION
 
 Member Name:          Creola518 Heller342
-Member ID:            MHP-4417-20551
+Member ID:            NBH-4417-20551
 Group Number:         GRP-11276
 Claim Number:         CLM-2026-0519-71144
 Date of Service:      Requested, not yet performed
@@ -29,7 +29,7 @@ DETERMINATION
 
 Coverage for the service listed above has been DENIED.
 
-Denial reason code: MHP-NMN-11
+Denial reason code: NBH-NMN-11
 
 Reason for determination:
 
@@ -49,7 +49,7 @@ Reason for determination:
 
 APPLICABLE POLICY
 
-  Meridian Health Plan Medical Policy MHP-CARD-014, Advanced Cardiac Imaging,
+  Northbeck Health Plan Medical Policy NBH-CARD-014, Advanced Cardiac Imaging,
   version 4.2, effective January 1, 2026.
 
 YOUR RIGHT TO APPEAL
@@ -60,11 +60,11 @@ YOUR RIGHT TO APPEAL
   response within 30 calendar days of receipt.
 
   Send written appeals to:
-      Meridian Health Plan
+      Northbeck Health Plan
       Appeals and Grievances
       P.O. Box 44205, Worcester, MA 01601
 
-  A peer-to-peer discussion with a Meridian medical director may be requested
+  A peer-to-peer discussion with a Northbeck medical director may be requested
   by the treating provider at any point during the appeal period.
 
 This notice is not a bill.

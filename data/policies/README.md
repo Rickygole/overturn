@@ -1,6 +1,6 @@
-# Meridian Health Plan medical policies
+# Northbeck Health Plan medical policies
 
-**These documents are synthetic.** Meridian Health Plan is a fictional payer
+**These documents are synthetic.** Northbeck Health Plan is a fictional payer
 invented for this project. No real insurer's name, logo, or copyrighted policy
 text appears anywhere in this corpus.
 
@@ -12,10 +12,10 @@ clinical content is written for this project.
 
 ## Why the identifiers matter
 
-Every section carries a stable identifier, `MHP-<SERVICE>-<NUMBER>-<SECTION>`:
+Every section carries a stable identifier, `NBH-<SERVICE>-<NUMBER>-<SECTION>`:
 
 ```
-MHP-CARD-014-3.2
+NBH-CARD-014-3.2
     │    │   │
     │    │   └── section and sub-criterion
     │    └────── policy number within the service line

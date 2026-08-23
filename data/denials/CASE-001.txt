@@ -8,7 +8,7 @@ Phone 1-800-555-0142  |  Fax 1-800-555-0198
 NOTICE OF ADVERSE BENEFIT DETERMINATION
 
 Member Name:          Jeromy156 Upton904
-Member ID:            MHP-4417-99083
+Member ID:            NBH-4417-99083
 Group Number:         GRP-88014
 Claim Number:         CLM-2026-0714-33902
 Date of Service:      July 6, 2026
@@ -29,7 +29,7 @@ DETERMINATION
 
 Coverage for the service listed above has been DENIED.
 
-Denial reason code: MHP-NMN-04
+Denial reason code: NBH-NMN-04
 
 Reason for determination:
 
@@ -45,7 +45,7 @@ Reason for determination:
 
 APPLICABLE POLICY
 
-  Meridian Health Plan Medical Policy MHP-ENDO-031, Continuous Glucose
+  Northbeck Health Plan Medical Policy NBH-ENDO-031, Continuous Glucose
   Monitoring Systems, version 3.1, effective January 1, 2026. A copy of the
   policy is available on request at no charge and is published at the address
   on the reverse of this notice.
@@ -61,11 +61,11 @@ YOUR RIGHT TO APPEAL
   should include any additional clinical documentation supporting the request.
 
   Send written appeals to:
-      Meridian Health Plan
+      Northbeck Health Plan
       Appeals and Grievances
       P.O. Box 44205, Worcester, MA 01601
 
-  The treating provider may request a peer-to-peer discussion with a Meridian
+  The treating provider may request a peer-to-peer discussion with a Northbeck
   medical director by calling 1-800-555-0142 during the appeal period.
 
   If your appeal is denied, you may have the right to request an independent

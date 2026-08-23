@@ -1,11 +1,11 @@
 {
-  "_comment": "Demo case manifest. Each entry binds a Synthea patient to a Meridian policy and states what the case is meant to demonstrate. The three cases marked demo:true are the ones that appear in the video.",
+  "_comment": "Demo case manifest. Each entry binds a Synthea patient to a Northbeck policy and states what the case is meant to demonstrate. The three cases marked demo:true are the ones that appear in the video.",
   "cases": [
     {
       "case_id": "CASE-001",
       "demo": true,
       "synthea_patient": "Jeromy156 Upton904",
-      "policy_id": "MHP-ENDO-031",
+      "policy_id": "NBH-ENDO-031",
       "service": "Continuous glucose monitoring system",
       "scenario": "clean_win",
       "intent": "Chart plainly satisfies every criterion. Establishes what a normal run looks like before anything is shown failing."
@@ -14,7 +14,7 @@
       "case_id": "CASE-002",
       "demo": true,
       "synthea_patient": "Vincent299 Mertz280",
-      "policy_id": "MHP-MSK-022",
+      "policy_id": "NBH-MSK-022",
       "service": "MRI lumbar spine without contrast",
       "scenario": "prompt_injection",
       "intent": "Denial letter carries an embedded instruction aimed at the reading agent. Sentinel must quarantine before Intake ever sees the text."
@@ -23,7 +23,7 @@
       "case_id": "CASE-003",
       "demo": true,
       "synthea_patient": "Creola518 Heller342",
-      "policy_id": "MHP-CARD-014",
+      "policy_id": "NBH-CARD-014",
       "service": "Cardiac MRI with contrast",
       "scenario": "verification_catch",
       "intent": "Most criteria are met, one is not, and the unmet one is the tempting overclaim. Gives Verification something real to reject rather than a manufactured error."
@@ -41,7 +41,7 @@
       "case_id": "CASE-005",
       "demo": false,
       "synthea_patient": "Tristan353 Kihn564",
-      "policy_id": "MHP-PULM-008",
+      "policy_id": "NBH-PULM-008",
       "service": "CPAP device and supplies",
       "scenario": "clean_win",
       "intent": "Second clean case, different service line, to show retrieval discriminating between policies."
@@ -50,7 +50,7 @@
       "case_id": "CASE-006",
       "demo": false,
       "synthea_patient": "Johnsie484 Rippin620",
-      "policy_id": "MHP-BEHV-045",
+      "policy_id": "NBH-BEHV-045",
       "service": "Intensive outpatient programme",
       "scenario": "insufficient_documentation",
       "intent": "Criteria are probably met in reality but the chart does not document one of them. Mapping must return insufficient_documentation rather than guessing."
@@ -59,7 +59,7 @@
       "case_id": "CASE-007",
       "demo": false,
       "synthea_patient": "Jeromy156 Upton904",
-      "policy_id": "MHP-ENDO-031",
+      "policy_id": "NBH-ENDO-031",
       "service": "Continuous glucose monitoring system",
       "scenario": "scanned_fax",
       "intent": "Same denial as CASE-001 delivered as a scanned image. Fax is the reality of this domain and handling it is part of the credibility."
@@ -68,7 +68,7 @@
       "case_id": "CASE-008",
       "demo": false,
       "synthea_patient": "Creola518 Heller342",
-      "policy_id": "MHP-CARD-014",
+      "policy_id": "NBH-CARD-014",
       "service": "Cardiac MRI with contrast",
       "scenario": "second_denial",
       "intent": "Payer upholds on first-level appeal. Drives the lifecycle ladder to peer-to-peer and then to second-level."

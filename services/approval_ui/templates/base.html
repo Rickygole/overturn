@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{% block title %}Appeal review — Overturn{% endblock %}</title>
+<style>
+/* ---------------------------------------------------------------------------
+   One stylesheet, inlined. No CDN, no build step: this screen has to render
+   with the network unplugged.
+
+   Type scale (ratio ~1.22, anchored at 17px so it stays legible in a 1080p
+   screen recording) and an 8px-based spacing scale are the only two systems
+   here. Nothing uses a size or a gap that is not on one of them.
+--------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light dark;
+
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --text-xs:  0.8125rem;
+  --text-sm:  0.9375rem;
+  --text-base: 1.0625rem;
+  --text-md:  1.1875rem;
+  --text-lg:  1.4375rem;
+  --text-xl:  1.75rem;
+  --text-2xl: 2.125rem;
+
+  --s1: 0.25rem;
+  --s2: 0.5rem;
+  --s3: 0.75rem;
+  --s4: 1rem;
+  --s5: 1.5rem;
+  --s6: 2rem;
+  --s7: 3rem;
+  --s8: 4.5rem;
+
+  --measure: 68ch;
+  --radius: 6px;
+
+  --bg: #fbfaf8;
+  --surface: #ffffff;
+  --sunken: #f2efea;
+  --ink: #14171a;
+  --ink-muted: #565c63;
+  --rule: #d8d2c8;
+  --rule-strong: #767b82;
+  --accent: #0b5fcc;
+  --ok: #14672f;
+  --warn: #7a4a00;
+  --danger: #b3261e;
+  --ok-wash: #eef6f0;
+  --warn-wash: #fdf4e6;
+  --danger-wash: #fdf0ee;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --surface: #1b1e24;
+    --sunken: #22262d;
+    --ink: #e9e6e1;
+    --ink-muted: #a0a6ae;
+    --rule: #333941;
+    --rule-strong: #7f8792;
+    --accent: #7fb3ff;
+    --ok: #7fd79b;
+    --warn: #e8b765;
+    --danger: #ff9c93;
+    --ok-wash: #17251c;
+    --warn-wash: #2a2113;
+    --danger-wash: #2b1a19;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--text-base);
+  line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+}
+
+h1, h2, h3 { line-height: 1.2; margin: 0; font-weight: 640; letter-spacing: -0.011em; }
+h1 { font-size: var(--text-xl); }
+h2 { font-size: var(--text-lg); }
+h3 { font-size: var(--text-md); }
+p  { margin: 0 0 var(--s4); max-width: var(--measure); }
+ul, ol { margin: 0 0 var(--s4); padding-left: var(--s5); }
+li { margin-bottom: var(--s2); max-width: var(--measure); }
+:last-child { margin-bottom: 0; }
+
+a { color: var(--accent); text-underline-offset: 0.18em; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.wrap { width: min(76rem, 100% - var(--s6)); margin-inline: auto; }
+.prose { max-width: var(--measure); }
+.muted { color: var(--ink-muted); }
+.mono { font-family: var(--mono); font-size: 0.92em; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+.skip {
+  position: absolute; left: var(--s4); top: -4rem;
+  background: var(--surface); color: var(--ink);
+  padding: var(--s3) var(--s4); border: 2px solid var(--accent);
+  border-radius: var(--radius); z-index: 10;
+  transition: top 180ms ease-out;
+}
+.skip:focus { top: var(--s4); }
+
+/* --- masthead ----------------------------------------------------------- */
+
+.masthead {
+  border-bottom: 2px solid var(--rule-strong);
+  background: var(--surface);
+  padding-block: var(--s5);
+}
+.masthead__inner { display: flex; flex-wrap: wrap; gap: var(--s4); align-items: baseline; justify-content: space-between; }
+.masthead p { margin: var(--s1) 0 0; font-size: var(--text-sm); color: var(--ink-muted); }
+
+main { padding-block: var(--s6) var(--s8); }
+
+/* --- banners ------------------------------------------------------------ */
+
+.banner {
+  border: 2px solid currentColor;
+  border-left-width: 8px;
+  border-radius: var(--radius);
+  padding: var(--s4) var(--s5);
+  margin-bottom: var(--s6);
+}
+.banner h2 { font-size: var(--text-md); margin-bottom: var(--s2); }
+.banner p { color: var(--ink); }
+.banner--ok { color: var(--ok); background: var(--ok-wash); }
+.banner--warn { color: var(--warn); background: var(--warn-wash); }
+.banner--danger { color: var(--danger); background: var(--danger-wash); }
+
+/* --- sections ----------------------------------------------------------- */
+
+.section { margin-top: var(--s7); border-top: 2px solid var(--rule-strong); padding-top: var(--s5); }
+.section:first-of-type { margin-top: var(--s6); }
+.section__step {
+  display: block;
+  font-family: var(--mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: var(--s1);
+}
+.section__body { margin-top: var(--s4); }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: var(--s5);
+}
+
+/* --- key/value pairs ---------------------------------------------------- */
+
+.facts { display: grid; grid-template-columns: minmax(11rem, 16rem) 1fr; gap: var(--s3) var(--s5); margin: 0; }
+.facts dt { font-size: var(--text-sm); color: var(--ink-muted); }
+.facts dd { margin: 0; }
+@media (max-width: 46rem) {
+  .facts { grid-template-columns: 1fr; gap: 0; }
+  .facts dt { margin-top: var(--s3); }
+}
+
+/* --- tables ------------------------------------------------------------- */
+
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+caption { text-align: left; color: var(--ink-muted); font-size: var(--text-sm); padding-bottom: var(--s3); }
+th, td { text-align: left; vertical-align: top; padding: var(--s3) var(--s4) var(--s3) 0; }
+thead th {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-muted);
+  border-bottom: 2px solid var(--rule-strong);
+  padding-bottom: var(--s2);
+}
+tbody tr { border-bottom: 1px solid var(--rule); }
+tbody th { font-weight: 600; }
+
+/* --- verdict and status chips ------------------------------------------
+   Three independent channels carry the same meaning: the word, the colour,
+   and the border style. Remove any two and the table still reads.
+------------------------------------------------------------------------- */
+
+.chip {
+  display: inline-block;
+  font-size: var(--text-sm);
+  font-weight: 650;
+  line-height: 1.35;
+  padding: 0.1em 0.55em;
+  border-radius: var(--radius);
+  border: 2px solid currentColor;
+  white-space: nowrap;
+}
+.chip--satisfied { color: var(--ok); background: var(--ok-wash); border-style: solid; }
+.chip--not_satisfied { color: var(--danger); background: var(--danger-wash); border-style: dashed; }
+.chip--insufficient_documentation { color: var(--warn); background: var(--warn-wash); border-style: dotted; }
+.chip--not_applicable { color: var(--ink-muted); background: transparent; border-style: double; border-width: 3px; }
+.chip--ok { color: var(--ok); background: var(--ok-wash); }
+.chip--warn { color: var(--warn); background: var(--warn-wash); border-style: dotted; }
+.chip--danger { color: var(--danger); background: var(--danger-wash); border-style: dashed; }
+.chip--none { color: var(--ink-muted); background: transparent; border-style: double; border-width: 3px; }
+.chip--neutral { color: var(--ink-muted); background: var(--sunken); border-color: var(--rule-strong); }
+
+/* --- quotes and letter body --------------------------------------------- */
+
+blockquote.evidence {
+  margin: 0 0 var(--s2);
+  padding-left: var(--s4);
+  border-left: 4px solid var(--rule-strong);
+  font-size: var(--text-base);
+}
+.locator { font-family: var(--mono); font-size: var(--text-xs); color: var(--ink-muted); }
+
+.letter {
+  white-space: pre-wrap;
+  max-width: var(--measure);
+  line-height: 1.75;
+  font-size: var(--text-md);
+  margin: 0;
+  font-family: var(--font);
+}
+
+.citation { border-top: 1px solid var(--rule); padding-top: var(--s3); margin-top: var(--s3); }
+.citation:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+.citation__id {
+  font-family: var(--mono);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  background: var(--sunken);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  padding: 0.05em 0.45em;
+}
+
+details { border: 1px solid var(--rule); border-radius: var(--radius); padding: var(--s3) var(--s4); background: var(--surface); }
+details[open] { padding-bottom: var(--s4); }
+summary { cursor: pointer; font-weight: 600; }
+summary::marker { color: var(--ink-muted); }
+
+/* --- decision --------------------------------------------------------- */
+
+.decide { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: var(--s5); }
+.decide__panel { border: 2px solid var(--rule-strong); border-radius: var(--radius); padding: var(--s5); background: var(--surface); }
+.decide__panel--approve { border-color: var(--ok); }
+.decide__panel--reject { border-color: var(--rule-strong); }
+
+label { display: block; font-weight: 600; font-size: var(--text-sm); margin-bottom: var(--s1); }
+.hint { display: block; font-weight: 400; color: var(--ink-muted); font-size: var(--text-xs); margin-bottom: var(--s2); }
+
+input[type="text"], input[type="email"], textarea {
+  font: inherit;
+  width: 100%;
+  padding: var(--s2) var(--s3);
+  color: var(--ink);
+  background: var(--bg);
+  border: 2px solid var(--rule-strong);
+  border-radius: var(--radius);
+}
+textarea { min-height: 6.5rem; resize: vertical; line-height: 1.55; }
+input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--danger); }
+
+.field { margin-bottom: var(--s4); }
+
+.btn {
+  font: inherit;
+  font-weight: 650;
+  padding: 0.65em 1.5em;
+  border-radius: var(--radius);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: background-color 160ms ease-out, color 160ms ease-out, border-color 160ms ease-out;
+}
+.btn--approve { background: var(--ok); border-color: var(--ok); color: var(--bg); }
+.btn--approve:hover { background: var(--bg); color: var(--ok); }
+.btn--reject { background: transparent; border-color: var(--danger); color: var(--danger); }
+.btn--reject:hover { background: var(--danger-wash); }
+
+/* --- footer ------------------------------------------------------------- */
+
+.foot { border-top: 1px solid var(--rule); margin-top: var(--s8); padding-block: var(--s5); color: var(--ink-muted); font-size: var(--text-sm); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <div>
+      <h1>{% block masthead %}Appeal review{% endblock %}</h1>
+      <p>No appeal leaves this system without a decision recorded on this screen.</p>
+    </div>
+    <nav aria-label="Sections">
+      <a href="/">Review queue</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+{% block content %}{% endblock %}
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>Overturn — every decision here is written to the append-only audit log with the name entered by the reviewer.</p>
+  </div>
+</footer>
+</body>
+</html>
