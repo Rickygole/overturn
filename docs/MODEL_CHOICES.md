@@ -63,41 +63,63 @@ from measurement, not intuition. Reproduce with:
 uv run python scripts/calibrate_retrieval.py
 ```
 
-Measured 2026-08-22 against the six-policy corpus, TF-IDF with unigram and
-bigram features, cosine similarity:
+Measured 2026-08-22 against the six-policy corpus, TF-IDF over unigrams plus
+order-independent word pairs within a three-word window, cosine similarity:
 
 | Case | Expected policy | Retrieved | Top score | Runner-up | Margin |
 |---|---|---|---|---|---|
-| CASE-001 | NBH-ENDO-031 | NBH-ENDO-031 | 0.166 | 0.043 | 0.123 |
-| CASE-002 | NBH-MSK-022 | NBH-MSK-022 | 0.231 | 0.069 | 0.162 |
-| CASE-003 | NBH-CARD-014 | NBH-CARD-014 | 0.148 | 0.086 | 0.061 |
-| CASE-004 | *(none)* | — | 0.052 | 0.027 | 0.025 |
-| CASE-005 | NBH-PULM-008 | NBH-PULM-008 | 0.284 | 0.022 | 0.262 |
-| CASE-006 | NBH-BEHV-045 | NBH-BEHV-045 | 0.197 | 0.017 | 0.180 |
-| CASE-007 | NBH-ENDO-031 | NBH-ENDO-031 | 0.200 | 0.060 | 0.140 |
-| CASE-008 | NBH-CARD-014 | NBH-CARD-014 | 0.139 | 0.093 | 0.045 |
+| CASE-001 | NBH-ENDO-031 | NBH-ENDO-031 | 0.111 | 0.029 | 0.082 |
+| CASE-002 | NBH-MSK-022 | NBH-MSK-022 | 0.192 | 0.033 | 0.158 |
+| CASE-003 | NBH-CARD-014 | NBH-CARD-014 | 0.093 | 0.042 | 0.051 |
+| CASE-004 | *(none)* | — | 0.048 | 0.013 | 0.035 |
+| CASE-005 | NBH-PULM-008 | NBH-PULM-008 | 0.223 | 0.009 | 0.214 |
+| CASE-006 | NBH-BEHV-045 | NBH-BEHV-045 | 0.160 | 0.008 | 0.153 |
+| CASE-007 | NBH-ENDO-031 | NBH-ENDO-031 | 0.125 | 0.039 | 0.086 |
+| CASE-008 | NBH-CARD-014 | NBH-CARD-014 | 0.092 | 0.067 | 0.025 |
 
-Weakest correct match 0.139; strongest no-policy match 0.052. Separation 0.087.
+Weakest correct match 0.092; strongest no-policy match 0.048. Separation 0.044.
 
 | Threshold | Value | Why |
 |---|---|---|
-| `retrieval_no_policy_floor` | 0.08 | Above every no-policy case, below every real one. Below this, the system declines to appeal. |
-| `retrieval_score_floor` | 0.16 | Just above the weakest correct matches, so CASE-003 and CASE-008 reformulate. A reformulation path that never fires is untested code. |
+| `retrieval_no_policy_floor` | 0.06 | Above every no-policy case, below every real one. Below this, the system declines to appeal rather than appealing weakly. |
+| `retrieval_score_floor` | 0.11 | Just above the weakest correct matches, so CASE-003 and CASE-008 reformulate. A reformulation path that never fires is untested code. |
 
-### What this measurement changed
+### Three things this measurement caught
 
-The first version of the retriever used unigrams only and **retrieved the wrong
-policy for CASE-008** — a cardiac MRI denial matched the lumbar spine MRI
-policy, because "magnetic", "resonance" and "imaging" appear in both and carry
-almost no inverse document frequency across six documents.
+Worth recording, because each one would have shipped silently and none of them
+would have produced an error.
 
-The two available responses were to lower the threshold until the wrong answer
-counted as acceptable, or to fix the scorer. Adding bigram features fixed it:
-"cardiac magnetic" appears in exactly one policy. All eight cases now retrieve
-correctly.
+**1. Unigrams cannot separate two MRI policies.** A cardiac MRI denial retrieved
+the *lumbar spine* policy. "Magnetic", "resonance" and "imaging" appear in both,
+and across six documents they carry almost no inverse document frequency.
 
-This is the reason the calibration script prints the separation between the two
-populations and **fails when they overlap** rather than emitting a suggested
-threshold. A threshold can only be chosen once the retrieval is right; choosing
-one while they overlap is how you get a system that works on the cases someone
-happened to try.
+**2. Ranking policies by summed section score is wrong.** After adding word
+pairs, the correct policy had the single best-matching section and still lost,
+because the competing policy had more mediocre sections inside the top k.
+Summing rewards corpus shape rather than relevance. Ranking by the strongest
+single section, with the sum only as a tiebreak, fixed it.
+
+**3. Word pairs have to be order-independent.** A CPT descriptor reads "Magnetic
+resonance imaging, cardiac, with contrast". The policy it should match reads
+"cardiac magnetic resonance imaging". Ordered adjacent bigrams share *nothing*
+between those two strings. Unordered pairs within a three-word window share
+three, which is what finally separated the two policies on every case.
+
+The compression in the scores between the ordered and unordered versions is
+real — the separation narrowed from 0.087 to 0.044 — and it is the right trade.
+Word order varies between the two sides of this match by construction, because
+a billing code descriptor and a medical policy are written by different people
+for different purposes.
+
+### Why the calibration script fails rather than suggesting
+
+If the correct-policy and no-policy score populations overlap, the script exits
+non-zero and refuses to suggest a threshold. A threshold can only be chosen once
+retrieval is actually right. Choosing one while the populations overlap is how
+you get a retriever that works on the eight cases someone happened to try.
+
+The script also calls `TfidfIndex.best_policy` rather than reimplementing the
+ranking. An earlier version reimplemented it, the two implementations drifted
+apart, and the calibration reported success while the agent retrieved the wrong
+policy. A measurement harness that does not exercise the real code path measures
+the harness.
