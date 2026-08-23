@@ -140,6 +140,36 @@ class CaseRecord(OverturnModel):
     escalation_count: int = 0
     payer_responses: list[PayerResponse] = Field(default_factory=list)
 
+    # --- Transmission -------------------------------------------------------------
+    # Deliberately its own counter, not `escalation_count`. Escalation only
+    # advances through the scheduled ladder, which only ever looks at
+    # `submitted` and `escalated` cases -- a case sitting at `approved` (or
+    # bounced from it to `needs_human_review` after a failed send) is invisible
+    # to that path. Coupling transmission retries to it meant a transient
+    # network error on `try_submit` produced a case with no idempotency key
+    # that could ever change again: `find_overdue` would never see it, so
+    # `escalation_count` would never increment, so every retry replayed the
+    # same failed action forever.
+    transmission_attempts: int = Field(
+        default=0,
+        description="How many times SUBMIT_APPEAL has actually been attempted. "
+        "Bumped by `Pipeline.try_submit` immediately before each call to the "
+        "payer, so a deliberate retry gets a genuinely new idempotency key.",
+    )
+    transmission_errors: list[str] = Field(
+        default_factory=list,
+        description="One entry per failed transmission attempt, oldest first, "
+        "so a person reading `needs_human_reason` sees what happened on every "
+        "try rather than just the most recent one.",
+    )
+    transmission_unsafe: bool = Field(
+        default=False,
+        description="Set when a transmission claim expired without the guard "
+        "recording an outcome -- whether the payer received that attempt is "
+        "genuinely unknown. `retry_transmission` refuses to mint a new attempt "
+        "while this is true, because guessing wrong risks a second real appeal.",
+    )
+
     # --- Failure handling -------------------------------------------------------
     last_error: str | None = None
     failure_count: int = 0
