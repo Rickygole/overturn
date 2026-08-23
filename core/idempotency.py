@@ -30,14 +30,15 @@ import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
+from enum import Enum, auto
 from typing import Any, TypeVar
 
 from core.gateway import Access, GatewayHandle
 from core.schemas.action import ActionRecord
 from core.schemas.base import utcnow
 from core.schemas.enums import ActionType
-from core.store import AlreadyExists, DocumentStore
+from core.store import DocumentStore
 from core.telemetry import agent_span
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,15 @@ class ActionInFlight(Exception):
 
 class PayloadMismatch(Exception):
     """The same action key arrived with a different payload."""
+
+
+class _Decision(Enum):
+    """What the claim step concluded. Internal to this module."""
+
+    RUN = auto()  # we hold the claim; execute
+    REPLAY = auto()  # already done; return the stored result
+    IN_FLIGHT = auto()  # someone else holds a live claim
+    MISMATCH = auto()  # same key, different payload
 
 
 @dataclass(frozen=True)
@@ -119,22 +129,43 @@ class IdempotencyGuard:
             attempt=attempt,
             action_key=key,
         ) as span:
-            claimed = self._claim(collection, key, case_id, action_type, attempt, digest)
+            decision, record = self._claim(collection, key, case_id, action_type, attempt, digest)
+            delivery_count = int(record.get("delivery_count", 1))
+            span.set_attribute("overturn.delivery_count", delivery_count)
 
-            if not claimed:
-                outcome = self._resolve_existing(collection, key, digest)
-                if outcome is not None:
-                    span.set_attribute("overturn.idempotent_replay", True)
-                    span.set_attribute("overturn.delivery_count", outcome.delivery_count)
-                    logger.info(
-                        "idempotent replay: %s already completed, returning stored result", key
-                    )
-                    return outcome
-                # Claim was expired and has been taken over; fall through and run.
-                span.set_attribute("overturn.claim_taken_over", True)
+            if decision is _Decision.MISMATCH:
+                stored = str(record.get("payload_sha256", ""))
+                raise PayloadMismatch(
+                    f"action {key} was previously claimed with a different payload "
+                    f"({stored[:12]} vs {digest[:12]}); the caller is reusing an "
+                    f"action key for different work"
+                )
+
+            if decision is _Decision.REPLAY:
+                span.set_attribute("overturn.idempotent_replay", True)
+                logger.info(
+                    "idempotent replay: %s already %s, returning stored result",
+                    key,
+                    record.get("status"),
+                )
+                return ActionOutcome(
+                    result=record.get("result"),
+                    replayed=True,
+                    delivery_count=delivery_count,
+                    action_key=key,
+                )
+
+            if decision is _Decision.IN_FLIGHT:
+                span.set_attribute("overturn.idempotent_replay", False)
+                raise ActionInFlight(
+                    f"action {key} is claimed by another worker; let the message redeliver"
+                )
 
             span.set_attribute("overturn.idempotent_replay", False)
-            return self._run_and_record(collection, key, fn)
+            if record.get("taken_over"):
+                span.set_attribute("overturn.claim_taken_over", True)
+                logger.warning("took over expired claim on %s", key)
+            return self._run_and_record(collection, key, fn, delivery_count)
 
     # -- internals ---------------------------------------------------------- #
 
@@ -146,119 +177,103 @@ class IdempotencyGuard:
         action_type: ActionType,
         attempt: int,
         digest: str,
-    ) -> bool:
-        """Try to create the claim. Returns False if one already exists."""
-        record = ActionRecord(
-            action_key=key,
-            case_id=case_id,
-            action_type=action_type,
-            attempt=attempt,
-            payload_sha256=digest,
-            status="claimed",
-        )
-        try:
-            self._store.create(collection, key, record.to_firestore())
-            return True
-        except AlreadyExists:
-            return False
+    ) -> tuple[_Decision, dict[str, Any]]:
+        """Claim the action, or work out why we cannot, in one atomic step.
 
-    def _resolve_existing(self, collection: str, key: str, digest: str) -> ActionOutcome | None:
-        """Interpret an existing claim.
-
-        Returns an outcome to replay, or ``None`` if the caller should proceed
-        because a dead claim was taken over.
+        Everything here happens inside a single ``atomic_update``. The earlier
+        version of this method read the record, decided, and then wrote — and
+        two redeliveries racing an expired claim both passed the expiry check
+        and both went on to execute. Deciding and claiming have to be the same
+        operation or the guard does not guard anything.
         """
-        existing = self._store.get(collection, key)
-        if existing is None:
-            # Vanishingly rare: deleted between the failed create and this read.
-            return None
+        outcome: dict[str, Any] = {}
 
-        stored_digest = existing.get("payload_sha256")
-        if stored_digest and stored_digest != digest:
-            raise PayloadMismatch(
-                f"action {key} was previously claimed with a different payload "
-                f"({stored_digest[:12]} vs {digest[:12]}); the caller is reusing an "
-                f"action key for different work"
-            )
+        def mutate(current: dict[str, Any] | None) -> dict[str, Any] | None:
+            if current is None:
+                fresh = ActionRecord(
+                    action_key=key,
+                    case_id=case_id,
+                    action_type=action_type,
+                    attempt=attempt,
+                    payload_sha256=digest,
+                    status="claimed",
+                ).to_firestore()
+                outcome["decision"] = _Decision.RUN
+                outcome["record"] = fresh
+                return fresh
 
-        delivery_count = int(existing.get("delivery_count", 1)) + 1
-        status = existing.get("status")
+            stored_digest = current.get("payload_sha256")
+            if stored_digest and stored_digest != digest:
+                outcome["decision"] = _Decision.MISMATCH
+                outcome["record"] = current
+                return None  # abort the write; nothing about this call is valid
 
-        if status == "completed":
-            self._store.update(collection, key, {"delivery_count": delivery_count})
-            return ActionOutcome(
-                result=existing.get("result"),
-                replayed=True,
-                delivery_count=delivery_count,
-                action_key=key,
-            )
+            current["delivery_count"] = int(current.get("delivery_count", 1)) + 1
+            status = current.get("status")
 
-        if status == "failed":
-            self._store.update(collection, key, {"delivery_count": delivery_count})
-            return ActionOutcome(
-                result=existing.get("result"),
-                replayed=True,
-                delivery_count=delivery_count,
-                action_key=key,
-            )
+            if status in ("completed", "failed"):
+                outcome["decision"] = _Decision.REPLAY
+                outcome["record"] = current
+                return current
 
-        # status == "claimed": someone is working on it, or died trying.
-        if self._lease_expired(existing):
-            logger.warning("taking over expired claim on %s", key)
-            self._store.update(
-                collection,
-                key,
-                {
-                    "status": "claimed",
-                    "claimed_at": utcnow().isoformat(),
-                    "delivery_count": delivery_count,
-                    "error": "previous claim expired and was taken over",
-                },
-            )
-            return None
+            if self._lease_expired(current):
+                current["status"] = "claimed"
+                current["claimed_at"] = utcnow().isoformat()
+                current["taken_over"] = True
+                current["error"] = "previous claim expired and was taken over"
+                outcome["decision"] = _Decision.RUN
+                outcome["record"] = current
+                return current
 
-        self._store.update(collection, key, {"delivery_count": delivery_count})
-        raise ActionInFlight(
-            f"action {key} is claimed by another worker; let the message redeliver"
-        )
+            outcome["decision"] = _Decision.IN_FLIGHT
+            outcome["record"] = current
+            return current
+
+        self._store.atomic_update(collection, key, mutate)
+        return outcome["decision"], outcome["record"]
 
     def _lease_expired(self, record: dict[str, Any]) -> bool:
         raw = record.get("claimed_at")
         if not raw:
             return True
         try:
-            from datetime import datetime
-
             claimed_at = datetime.fromisoformat(str(raw))
         except ValueError:
             return True
         return utcnow() - claimed_at > self._lease
 
-    def _run_and_record(self, collection: str, key: str, fn: Callable[[], Any]) -> ActionOutcome:
+    def _run_and_record(
+        self,
+        collection: str,
+        key: str,
+        fn: Callable[[], Any],
+        delivery_count: int,
+    ) -> ActionOutcome:
         try:
             result = fn()
         except Exception as exc:
-            self._store.update(
-                collection,
-                key,
-                {
-                    "status": "failed",
-                    "error": str(exc)[:1000],
-                    "completed_at": utcnow().isoformat(),
-                },
-            )
+            self._finalise(collection, key, {"status": "failed", "error": str(exc)[:1000]})
             raise
 
-        self._store.update(
-            collection,
-            key,
-            {
-                "status": "completed",
-                "result": _jsonable(result),
-                "completed_at": utcnow().isoformat(),
-            },
+        self._finalise(collection, key, {"status": "completed", "result": _jsonable(result)})
+        return ActionOutcome(
+            result=result,
+            replayed=False,
+            delivery_count=delivery_count,
+            action_key=key,
         )
-        return ActionOutcome(result=result, replayed=False, delivery_count=1, action_key=key)
+
+    def _finalise(self, collection: str, key: str, fields: dict[str, Any]) -> None:
+        """Record the outcome without clobbering a concurrent delivery counter."""
+
+        def mutate(current: dict[str, Any] | None) -> dict[str, Any] | None:
+            if current is None:
+                return None
+            current.update(fields)
+            current["completed_at"] = utcnow().isoformat()
+            return current
+
+        self._store.atomic_update(collection, key, mutate)
 
 
 def _jsonable(value: Any) -> Any:
