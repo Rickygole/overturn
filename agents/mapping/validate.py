@@ -80,21 +80,73 @@ NEGATIONS = frozenset(
     ]
 )
 
-# Words and marks that end the reach of a negation. "He did not feel the warning
-# symptoms AND describes two further episodes" — the negation governs the first
-# clause and not the second, so a quote starting at "describes" is faithful.
+# Where a negation stops reaching.
 #
-# A fixed-width lookback cannot express that. It flagged honest quotes that
-# merely happened to sit a few words after an unrelated "no", which would make
-# the check worse than useless: it would drop real evidence and downgrade real
-# verdicts, and the harm this product exists to prevent is a winnable claim
-# dying on a technicality.
-CLAUSE_BOUNDARIES = frozenset(
-    ["and", "but", "or", "however", "although", "though", "while", "then", "whereas", "therefore"]
-)
-_BOUNDARY_MARKS = ".;:,"
+# The first version treated "and", "or" and every comma as boundaries, and that
+# is backwards: coordination is precisely how clinical negation distributes.
+# "Denies chest pain and shortness of breath" negates both. "No evidence of
+# infarction, ischaemia, or amyloid deposition" negates all three. Quoting from
+# after the coordinator produced verbatim evidence asserting the opposite of the
+# record — on CASE-006 it accepted "homicidal ideation, intent or plan" out of a
+# note that denies exactly that, about a psychiatric patient.
+#
+# But a coordinator sometimes does open a new clause: "he no longer senses
+# hypoglycaemia AND describes two further episodes" — the second half is not
+# negated, and flagging it would drop real evidence.
+#
+# What separates the two is whether a new predicate begins. A coordinator
+# followed by a verb starts one; a coordinator followed by a noun continues the
+# list the negation governs. That is the distinction below, and it is a
+# heuristic rather than a parser — stated plainly because the failure mode when
+# it is wrong is dropping honest evidence.
+HARD_BOUNDARIES = frozenset(["but", "however", "although", "though", "whereas"])
+COORDINATORS = frozenset({"and", "or", "nor"})
+_SENTENCE_MARKS = ".;:"
 
-MAX_LOOKBACK_WORDS = 12
+# Verb forms common in clinical notes. A coordinator followed by one of these is
+# opening a new predicate, so the preceding negation does not reach past it.
+_PREDICATE_OPENERS = frozenset(
+    [
+        "describes",
+        "reports",
+        "states",
+        "notes",
+        "confirms",
+        "denies",
+        "has",
+        "have",
+        "had",
+        "is",
+        "are",
+        "was",
+        "were",
+        "presented",
+        "underwent",
+        "completed",
+        "demonstrates",
+        "shows",
+        "showed",
+        "remains",
+        "remained",
+        "continues",
+        "continued",
+        "began",
+        "started",
+        "developed",
+        "returned",
+        "attended",
+        "received",
+        "requires",
+        "required",
+        "indicates",
+        "indicated",
+        "reveals",
+        "revealed",
+        "exhibits",
+    ]
+)
+
+MAX_LOOKBACK_WORDS = 25
 
 
 def _drops_a_leading_negation(quote: str, source: str) -> bool:
@@ -104,10 +156,6 @@ def _drops_a_leading_negation(quote: str, source: str) -> bool:
     record says "he did not feel the usual warning symptoms"; the quote is
     "feel the usual warning symptoms". Every word is verbatim, the substring
     test passes, and the evidence now says the opposite of the chart.
-
-    Scope is walked backwards from the quote and stops at the first clause
-    boundary, so a negation in a neighbouring clause does not condemn a
-    faithful quote.
     """
     normalised_source = normalise(source)
     normalised_quote = normalise(quote)
@@ -115,16 +163,37 @@ def _drops_a_leading_negation(quote: str, source: str) -> bool:
     if start <= 0:
         return False
 
-    if any(word.strip(_BOUNDARY_MARKS) in NEGATIONS for word in normalised_quote.split()):
+    quote_words = [w.strip(_SENTENCE_MARKS + ",") for w in normalised_quote.split()]
+    if any(word in NEGATIONS for word in quote_words):
         return False  # the quote carries its own negation; nothing was dropped
 
     preceding = normalised_source[:start].split()
-    for word in reversed(preceding[-MAX_LOOKBACK_WORDS:]):
-        bare = word.strip(_BOUNDARY_MARKS)
+    window_start = max(0, len(preceding) - MAX_LOOKBACK_WORDS)
+
+    # Walk backwards from the word immediately before the quote.
+    for position in range(len(preceding) - 1, window_start - 1, -1):
+        raw = preceding[position]
+        bare = raw.strip(_SENTENCE_MARKS + ",")
+
         if bare in NEGATIONS:
             return True
-        if bare in CLAUSE_BOUNDARIES or any(mark in word for mark in _BOUNDARY_MARKS):
+        if bare in HARD_BOUNDARIES or any(mark in raw for mark in _SENTENCE_MARKS):
             return False
+        if bare in COORDINATORS:
+            # Does a new predicate begin here? The word directly after the
+            # coordinator answers it: a verb opens a clause, a noun continues
+            # the list the negation governs.
+            # The word after the coordinator may be the quote's own first word,
+            # which is the common case — that is exactly where a truncation
+            # starts — so it is not in `preceding` at all.
+            after = (
+                preceding[position + 1]
+                if position + 1 < len(preceding)
+                else (quote_words[0] if quote_words else "")
+            )
+            if after.strip(_SENTENCE_MARKS + ",") in _PREDICATE_OPENERS:
+                return False
+            # Otherwise it is a coordinated list; the negation carries on.
     return False
 
 
