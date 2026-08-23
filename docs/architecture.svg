@@ -1,0 +1,325 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1284" width="1280" height="1284" role="img" aria-labelledby="ttl dsc">
+<title id="ttl">Overturn — fleet architecture</title>
+<desc id="dsc">Seven agents behind a per-agent access gateway. A denial letter enters through Cloud Storage and Pub/Sub into Cloud Run. Six agents run in sequence; Drafting and Verification form a retry loop capped at three attempts. A two-signature human gate stops everything until a billing clerk and a clinician both sign the same draft attempt. Every external effect passes an idempotency guard. After submission no process runs; state lives only in the Firestore cases collection until Cloud Scheduler wakes a Cloud Run job that runs the Lifecycle agent.</desc>
+
+<defs>
+<style>
+  .f    { font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .m    { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+  .t30  { font-size: 30px; font-weight: 700; }
+  .t17  { font-size: 17px; font-weight: 700; }
+  .t15  { font-size: 15px; }
+  .t15b { font-size: 15px; font-weight: 700; }
+  .t14  { font-size: 14px; }
+  .t14b { font-size: 14px; font-weight: 700; }
+  .ink  { fill: #101418; }
+  .ink2 { fill: #46505C; }
+  .red  { fill: #A93318; }
+  .pur  { fill: #6E2D8E; }
+  .blu  { fill: #14567F; }
+  .grn  { fill: #1F6042; }
+  .sla  { fill: #24405C; }
+  .ls   { letter-spacing: 1.4px; }
+  .mid  { text-anchor: middle; }
+  .end  { text-anchor: end; }
+</style>
+<marker id="aInk" viewBox="0 0 12 12" refX="11" refY="6" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 L12 6 L0 12 Z" fill="#101418"/></marker>
+<marker id="aRed" viewBox="0 0 12 12" refX="11" refY="6" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse"><path d="M0 0 L12 6 L0 12 Z" fill="#A93318"/></marker>
+<marker id="aBlu" viewBox="0 0 12 12" refX="11" refY="6" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M0 0 L12 6 L0 12 Z" fill="#14567F"/></marker>
+<marker id="aPur" viewBox="0 0 12 12" refX="11" refY="6" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M0 0 L12 6 L0 12 Z" fill="#6E2D8E"/></marker>
+<marker id="aGrn" viewBox="0 0 12 12" refX="11" refY="6" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M0 0 L12 6 L0 12 Z" fill="#1F6042"/></marker>
+<marker id="aSla" viewBox="0 0 12 12" refX="11" refY="6" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M0 0 L12 6 L0 12 Z" fill="#24405C"/></marker>
+</defs>
+
+<rect x="0" y="0" width="1280" height="1284" fill="#EEF1F4"/>
+
+<!-- ============================== HEADER ============================== -->
+<text class="f t30 ink" x="24" y="40">Overturn — architecture</text>
+<text class="f t15 ink2 end" x="1252" y="40">Seven agents · one service account each · least privilege enforced in code · durable across weeks</text>
+<line x1="24" y1="54" x2="1252" y2="54" stroke="#6E7A88" stroke-width="1"/>
+
+<!-- ============================== INGRESS ============================== -->
+<g>
+  <rect x="76" y="68" width="176" height="60" rx="6" fill="#E7F0F6" stroke="#14567F" stroke-width="1.6"/>
+  <text class="f t15b blu" x="92" y="90">Cloud Storage</text>
+  <text class="m t14 ink" x="92" y="108">overturn-intake</text>
+  <text class="f t14 ink2" x="92" y="124">denial letter lands</text>
+
+  <rect x="293" y="68" width="176" height="60" rx="6" fill="#E7F0F6" stroke="#14567F" stroke-width="1.6"/>
+  <text class="f t15b blu" x="309" y="90">Pub/Sub</text>
+  <text class="m t14 ink" x="309" y="108">denial-received</text>
+  <text class="f t14 ink2" x="309" y="124">at-least-once delivery</text>
+
+  <rect x="510" y="68" width="176" height="60" rx="6" fill="#E7F0F6" stroke="#14567F" stroke-width="1.6"/>
+  <text class="f t15b blu" x="526" y="90">Cloud Run</text>
+  <text class="m t14 ink" x="526" y="108">ingest service</text>
+  <text class="f t14 ink2" x="526" y="124">Pipeline.ingest()</text>
+
+  <line x1="252" y1="104" x2="291" y2="104" stroke="#14567F" stroke-width="2" marker-end="url(#aBlu)"/>
+  <text class="f t14 ink2 mid" x="272" y="96">event</text>
+  <line x1="469" y1="104" x2="508" y2="104" stroke="#14567F" stroke-width="2" marker-end="url(#aBlu)"/>
+  <text class="f t14 ink2 mid" x="489" y="96">push</text>
+
+  <path d="M598 128 V160 H381 V190" fill="none" stroke="#101418" stroke-width="2" marker-end="url(#aInk)"/>
+</g>
+
+<!-- ===================== FIRESTORE HEADER + LANES ===================== -->
+<text class="f t17 grn" x="706" y="90">Firestore — the only durable state</text>
+<text class="f t14 ink2" x="706" y="110">Firestore has no collection-level IAM. These grants are enforced</text>
+<text class="f t14 ink2" x="706" y="128">in code by core/gateway.py POLICY. There is no second door.</text>
+
+<g class="f t14b ink mid">
+  <text x="745" y="160">policy_</text><text x="745" y="178">sections</text>
+  <text x="823" y="169">cases</text>
+  <text x="901" y="160">audit_</text><text x="901" y="178">events</text>
+  <text x="979" y="169">actions</text>
+  <text x="1057" y="169">quarantine</text>
+  <text x="1135" y="160">case_</text><text x="1135" y="178">memory</text>
+  <text x="1213" y="160">agent_</text><text x="1213" y="178">registry</text>
+</g>
+<text class="f t14 blu end" x="686" y="186">Vertex AI · us-central1 — model per agent ▾</text>
+
+<!-- band fills, drawn under everything else -->
+<rect x="24" y="534" width="1228" height="180" rx="10" fill="#FBEEE9" stroke="#A93318" stroke-width="3"/>
+<rect x="24" y="738" width="1228" height="150" rx="10" fill="#F5ECF9" stroke="#6E2D8E" stroke-width="3"/>
+<rect x="24" y="902" width="1228" height="80"  rx="8"  fill="#E8EDF2" stroke="#24405C" stroke-width="2.5"/>
+<rect x="24" y="1074" width="1228" height="170" rx="10" fill="#E7F0F6" stroke="#14567F" stroke-width="2.5"/>
+
+<!-- the gap: no box, no fill. two rules and the space between them. -->
+<line x1="24" y1="996" x2="1252" y2="996" stroke="#46505C" stroke-width="2" stroke-dasharray="9 7"/>
+<line x1="24" y1="1060" x2="1252" y2="1060" stroke="#46505C" stroke-width="2" stroke-dasharray="9 7"/>
+
+<!-- collection lanes: present where agents run, absent through the gap -->
+<g stroke="#C3CBD4" stroke-width="1">
+  <line x1="706" y1="192" x2="706" y2="714"/><line x1="784" y1="192" x2="784" y2="714"/>
+  <line x1="862" y1="192" x2="862" y2="714"/><line x1="940" y1="192" x2="940" y2="714"/>
+  <line x1="1018" y1="192" x2="1018" y2="714"/><line x1="1096" y1="192" x2="1096" y2="714"/>
+  <line x1="1174" y1="192" x2="1174" y2="714"/><line x1="1252" y1="192" x2="1252" y2="714"/>
+  <line x1="706" y1="1074" x2="706" y2="1244"/><line x1="784" y1="1074" x2="784" y2="1244"/>
+  <line x1="862" y1="1074" x2="862" y2="1244"/><line x1="940" y1="1074" x2="940" y2="1244"/>
+  <line x1="1018" y1="1074" x2="1018" y2="1244"/><line x1="1096" y1="1074" x2="1096" y2="1244"/>
+  <line x1="1174" y1="1074" x2="1174" y2="1244"/><line x1="1252" y1="1074" x2="1252" y2="1244"/>
+</g>
+
+<!-- the one lane that survives the gap -->
+<rect x="784" y="996" width="78" height="64" fill="#D9EBE1" stroke="#1F6042" stroke-width="1.6"/>
+<text class="f t14b grn mid" x="823" y="1014">cases</text>
+<text class="f t14 grn mid" x="823" y="1034">one</text>
+<text class="f t14 grn mid" x="823" y="1050">document</text>
+<!-- orchestrator -->
+<g>
+  <line x1="686" y1="221" x2="1213" y2="221" stroke="#6E7A88" stroke-width="1.4"/>
+  <rect x="76" y="192" width="610" height="58" rx="6" fill="#FFFFFF" stroke="#6E7A88" stroke-width="1.4"/>
+  <text class="f t17 ink" x="92" y="213">Orchestrator</text>
+  <text class="f t14 ink2" x="212" y="213">— deterministic Python between agents</text>
+  <text class="f t14 ink2" x="92" y="231">Agents compute. This persists, transitions, and performs every external effect.</text>
+  <text class="f t14 ink2" x="92" y="247">case_id is derived from the document digest, so a redelivery lands on the same case.</text>
+  <text class="m t14 blu end" x="686" y="213">no model call</text>
+  <rect x="790" y="209" width="66" height="24" rx="4" fill="#D9EBE1" stroke="#1F6042" stroke-width="1.4"/>
+  <text class="f t14 mid" x="823" y="226" fill="#14432E" font-weight="700">write</text>
+  <rect x="868" y="209" width="66" height="24" rx="4" fill="#EDF6F1" stroke="#4E8C6C" stroke-width="1.4"/>
+  <text class="f t14 mid" x="901" y="226" fill="#1F6042">append</text>
+  <rect x="946" y="209" width="66" height="24" rx="4" fill="#D9EBE1" stroke="#1F6042" stroke-width="1.4"/>
+  <text class="f t14 mid" x="979" y="226" fill="#14432E" font-weight="700">write</text>
+  <rect x="1024" y="209" width="66" height="24" rx="4" fill="#FFFFFF" stroke="#6E7A88" stroke-width="1.4"/>
+  <text class="f t14 mid" x="1057" y="226" fill="#2A3540">read</text>
+  <rect x="1102" y="209" width="66" height="24" rx="4" fill="#D9EBE1" stroke="#1F6042" stroke-width="1.4"/>
+  <text class="f t14 mid" x="1135" y="226" fill="#14432E" font-weight="700">write</text>
+  <rect x="1180" y="209" width="66" height="24" rx="4" fill="#FFFFFF" stroke="#6E7A88" stroke-width="1.4"/>
+  <text class="f t14 mid" x="1213" y="226" fill="#2A3540">read</text>
+</g>
+<!-- sentinel -->
+<g>
+  <line x1="686" y1="290" x2="1057" y2="290" stroke="#6E7A88" stroke-width="1.4"/>
+  <rect x="76" y="262" width="610" height="56" rx="6" fill="#FFFFFF" stroke="#6E7A88" stroke-width="1.4"/>
+  <text class="f t17 ink" x="92" y="283">1 · Sentinel</text>
+  <text class="f t14 ink2" x="92" y="300">Screens untrusted bytes: prompt injection, instruction content, tool poisoning, PII.</text>
+  <text class="f t14 ink2" x="92" y="315">Can halt the pipeline → quarantined, terminal. Smallest surface: no policy corpus.</text>
+  <text class="m t14 blu end" x="686" y="283">Model Armor + gemma-4-26b + rules</text>
+  <rect x="790" y="278" width="66" height="24" rx="4" fill="#FFFFFF" stroke="#6E7A88" stroke-width="1.4"/>
+  <text class="f t14 mid" x="823" y="295" fill="#2A3540">read</text>
+  <rect x="868" y="278" width="66" height="24" rx="4" fill="#EDF6F1" stroke="#4E8C6C" stroke-width="1.4"/>
+  <text class="f t14 mid" x="901" y="295" fill="#1F6042">append</text>
+  <rect x="1024" y="278" width="66" height="24" rx="4" fill="#D9EBE1" stroke="#1F6042" stroke-width="1.4"/>
+  <text class="f t14 mid" x="1057" y="295" fill="#14432E" font-weight="700">write</text>
+</g>
+<!-- intake -->
+<g>
+  <line x1="686" y1="358" x2="901" y2="358" stroke="#6E7A88" stroke-width="1.4"/>
+  <rect x="76" y="330" width="610" height="56" rx="6" fill="#FFFFFF" stroke="#6E7A88" stroke-width="1.4"/>
+  <text class="f t17 ink" x="92" y="351">2 · Intake</text>
+  <text class="f t14 ink2" x="92" y="368">Denial letter → typed fields: payer, claim, service, reason, deadline. PDF or fax.</text>
+  <text class="f t14 ink2" x="92" y="383">Cannot see the policy corpus. Extraction must not consult the answer key.</text>
+  <text class="m t14 blu end" x="686" y="351">gemini-3.5-flash</text>
+  <rect x="790" y="346" width="66" height="24" rx="4" fill="#D9EBE1" stroke="#1F6042" stroke-width="1.4"/>
+  <text class="f t14 mid" x="823" y="363" fill="#14432E" font-weight="700">write</text>
+  <rect x="868" y="346" width="66" height="24" rx="4" fill="#EDF6F1" stroke="#4E8C6C" stroke-width="1.4"/>
+  <text class="f t14 mid" x="901" y="363" fill="#1F6042">append</text>
+</g>
+<!-- retrieval -->
+<g>
+  <line x1="686" y1="426" x2="901" y2="426" stroke="#6E7A88" stroke-width="1.4"/>
+  <rect x="76" y="398" width="610" height="56" rx="6" fill="#FFFFFF" stroke="#6E7A88" stroke-width="1.4"/>
+  <text class="f t17 ink" x="92" y="419">3 · Retrieval</text>
+  <text class="f t14 ink2" x="92" y="436">Finds the governing policy sections and returns them verbatim with stable ids.</text>
+  <text class="f t14 ink2" x="92" y="451">No governing policy → declined_no_basis, terminal. That set is the closed world.</text>
+  <text class="m t14 blu end" x="686" y="419">gemini-3.5-flash · only to reformulate</text>
+  <rect x="712" y="414" width="66" height="24" rx="4" fill="#FFFFFF" stroke="#6E7A88" stroke-width="1.4"/>
+  <text class="f t14 mid" x="745" y="431" fill="#2A3540">read</text>
+  <rect x="790" y="414" width="66" height="24" rx="4" fill="#D9EBE1" stroke="#1F6042" stroke-width="1.4"/>
+  <text class="f t14 mid" x="823" y="431" fill="#14432E" font-weight="700">write</text>
+  <rect x="868" y="414" width="66" height="24" rx="4" fill="#EDF6F1" stroke="#4E8C6C" stroke-width="1.4"/>
+  <text class="f t14 mid" x="901" y="431" fill="#1F6042">append</text>
+</g>
+<!-- mapping -->
+<g>
+  <line x1="686" y1="494" x2="901" y2="494" stroke="#6E7A88" stroke-width="1.4"/>
+  <rect x="76" y="466" width="610" height="56" rx="6" fill="#FFFFFF" stroke="#6E7A88" stroke-width="1.4"/>
+  <text class="f t17 ink" x="92" y="487">4 · Mapping</text>
+  <text class="f t14 ink2" x="92" y="504">Each policy criterion → satisfied / not satisfied / insufficient documentation.</text>
+  <text class="f t14 ink2" x="92" y="519">No appealable basis → declined_no_basis, terminal. Verdicts carry chart locators.</text>
+  <text class="m t14 blu end" x="686" y="487">gemini-3.5-flash</text>
+  <rect x="790" y="482" width="66" height="24" rx="4" fill="#D9EBE1" stroke="#1F6042" stroke-width="1.4"/>
+  <text class="f t14 mid" x="823" y="499" fill="#14432E" font-weight="700">write</text>
+  <rect x="868" y="482" width="66" height="24" rx="4" fill="#EDF6F1" stroke="#4E8C6C" stroke-width="1.4"/>
+  <text class="f t14 mid" x="901" y="499" fill="#1F6042">append</text>
+</g>
+<!-- drafting -->
+<g>
+  <line x1="686" y1="606" x2="709" y2="606" stroke="#A93318" stroke-width="2"/>
+  <line x1="709" y1="599" x2="709" y2="613" stroke="#A93318" stroke-width="2"/>
+  <line x1="781" y1="599" x2="781" y2="613" stroke="#A93318" stroke-width="2"/>
+  <line x1="781" y1="606" x2="901" y2="606" stroke="#6E7A88" stroke-width="1.4"/>
+  <rect x="76" y="578" width="610" height="56" rx="6" fill="#FFFFFF" stroke="#A93318" stroke-width="2"/>
+  <text class="f t17 red" x="92" y="599">5 · Drafting</text>
+  <text class="f t14 ink2" x="92" y="616">Writes the appeal from satisfied criteria only, citing sections by identifier.</text>
+  <text class="f t14 red" x="92" y="631">✗ No access to the policy corpus — it may cite only what Mapping handed it.</text>
+  <text class="m t14 blu end" x="686" y="599">gemini-3.7-flash</text>
+  <rect x="790" y="594" width="66" height="24" rx="4" fill="#D9EBE1" stroke="#1F6042" stroke-width="1.4"/>
+  <text class="f t14 mid" x="823" y="611" fill="#14432E" font-weight="700">write</text>
+  <rect x="868" y="594" width="66" height="24" rx="4" fill="#EDF6F1" stroke="#4E8C6C" stroke-width="1.4"/>
+  <text class="f t14 mid" x="901" y="611" fill="#1F6042">append</text>
+  <rect x="712" y="594" width="66" height="24" rx="4" fill="#FBEEE9" stroke="#A93318" stroke-width="2"/>
+  <text class="f t14b red mid" x="745" y="611">denied</text>
+</g>
+<!-- verification -->
+<g>
+  <line x1="686" y1="682" x2="901" y2="682" stroke="#6E7A88" stroke-width="1.4"/>
+  <rect x="76" y="654" width="610" height="56" rx="6" fill="#FFFFFF" stroke="#A93318" stroke-width="2"/>
+  <text class="f t17 red" x="92" y="675">6 · Verification</text>
+  <text class="f t14 ink2" x="92" y="692">Checks every citation three ways. Two of the three need no model at all.</text>
+  <text class="f t14 red" x="92" y="707">✗ No write on cases — it structurally cannot edit the draft it is judging.</text>
+  <text class="m t14 blu end" x="686" y="675">gemini-3.5-flash + string matching</text>
+  <rect x="712" y="670" width="66" height="24" rx="4" fill="#FFFFFF" stroke="#6E7A88" stroke-width="1.4"/>
+  <text class="f t14 mid" x="745" y="687" fill="#2A3540">read</text>
+  <rect x="790" y="670" width="66" height="24" rx="4" fill="#FFFFFF" stroke="#6E7A88" stroke-width="1.4"/>
+  <text class="f t14 mid" x="823" y="687" fill="#2A3540">read</text>
+  <rect x="868" y="670" width="66" height="24" rx="4" fill="#EDF6F1" stroke="#4E8C6C" stroke-width="1.4"/>
+  <text class="f t14 mid" x="901" y="687" fill="#1F6042">append</text>
+  <rect x="784" y="644" width="78" height="21" rx="4" fill="#FBEEE9" stroke="#A93318" stroke-width="1.6"/>
+  <text class="f t14b red mid" x="823" y="659">✗ no write</text>
+</g>
+<line x1="381" y1="250" x2="381" y2="262" stroke="#101418" stroke-width="2" marker-end="url(#aInk)"/>
+<line x1="381" y1="318" x2="381" y2="330" stroke="#101418" stroke-width="2" marker-end="url(#aInk)"/>
+<line x1="381" y1="386" x2="381" y2="398" stroke="#101418" stroke-width="2" marker-end="url(#aInk)"/>
+<line x1="381" y1="454" x2="381" y2="466" stroke="#101418" stroke-width="2" marker-end="url(#aInk)"/>
+<line x1="381" y1="522" x2="381" y2="534" stroke="#101418" stroke-width="2" marker-end="url(#aInk)"/>
+<!-- ===================== RETRY LOOP (hero 1) ===================== -->
+<text class="f t17 red ls" x="44" y="554">RETRY LOOP</text>
+<text class="f t15 ink" x="210" y="554">Drafting ⇄ Verification · capped at 3 attempts</text>
+<text class="f t15b red end" x="1232" y="554">3rd rejection → needs_human_review · NOTHING IS SENT</text>
+<text class="f t14 ink2" x="44" y="574">Rejection findings are fed forward as the next attempt's revision instructions — telling a writer only that it failed produces the same draft again.</text>
+
+<line x1="381" y1="634" x2="381" y2="652" stroke="#A93318" stroke-width="2.5" marker-end="url(#aRed)"/>
+<text class="f t14 red" x="391" y="649">draft attempt n</text>
+
+<path d="M76 682 H40 V664" fill="none" stroke="#A93318" stroke-width="3"/>
+<path d="M40 631 V606 H74" fill="none" stroke="#A93318" stroke-width="3" marker-end="url(#aRed)"/>
+<circle cx="40" cy="648" r="14" fill="#A93318"/>
+<text class="f t15b mid" x="40" y="653" fill="#FFFFFF">3</text>
+
+<line x1="381" y1="714" x2="381" y2="736" stroke="#101418" stroke-width="2" marker-end="url(#aInk)"/>
+<text class="f t14 ink" x="391" y="730">passed → awaiting_human_approval</text>
+
+<!-- ===================== HUMAN GATE (hero 2) ===================== -->
+<text class="f t17 pur ls" x="44" y="760">HUMAN APPROVAL GATE — HARD STOP</text>
+<text class="f t15 ink" x="424" y="760">nothing transmits without both signatures, on the same draft attempt</text>
+<text class="m t14 pur end" x="1232" y="760">CaseRecord.ready_to_submit</text>
+
+<rect x="44" y="772" width="560" height="72" rx="6" fill="#FFFFFF" stroke="#6E2D8E" stroke-width="2"/>
+<text class="f t17 pur" x="60" y="794">Billing clerk</text>
+<text class="f t14 ink2" x="60" y="815">Confirms the paper trail — three things a non-clinician can check:</text>
+<text class="f t14 ink2" x="60" y="835">cited sections exist · quotes match the source · nothing unsupported</text>
+
+<rect x="632" y="772" width="560" height="72" rx="6" fill="#FFFFFF" stroke="#6E2D8E" stroke-width="2"/>
+<text class="f t17 pur" x="648" y="794">Clinician co-sign</text>
+<text class="f t14 ink2" x="648" y="815">Signs the clinical argument. A billing clerk is the right person to</text>
+<text class="f t14 ink2" x="648" y="835">approve paperwork and the wrong person to approve medicine. NPI on file.</text>
+
+<line x1="324" y1="844" x2="324" y2="856" stroke="#6E2D8E" stroke-width="2.5" marker-end="url(#aPur)"/>
+<line x1="912" y1="844" x2="912" y2="856" stroke="#6E2D8E" stroke-width="2.5" marker-end="url(#aPur)"/>
+<rect x="324" y="856" width="588" height="26" rx="5" fill="#FFFFFF" stroke="#6E2D8E" stroke-width="2"/>
+<text class="f t15b pur mid" x="618" y="874">BOTH REQUIRED · re-checked at transmission, not at approval</text>
+
+<line x1="618" y1="882" x2="618" y2="900" stroke="#24405C" stroke-width="2.5" marker-end="url(#aSla)"/>
+<text class="m t14 sla" x="628" y="896">submit_appeal</text>
+
+<!-- ===================== IDEMPOTENCY GUARD ===================== -->
+<text class="f t17 sla ls" x="44" y="928">IDEMPOTENCY GUARD</text>
+<text class="f t15 ink" x="276" y="928">in front of every action with an effect outside this system</text>
+<text class="f t14 ink2" x="690" y="928">a crashed claim on submit_appeal is never auto-retried</text>
+<text class="m t14 sla end" x="1232" y="928">core/idempotency.py</text>
+<text class="m t14 ink" x="44" y="952">key = case_id : action_type : attempt</text>
+<text class="f t14 ink2" x="376" y="952">create-only claim · 300 s lease · an expired claim can be taken over · a second delivery replays the stored result</text>
+<text class="m t14 ink2" x="44" y="974">quarantine_document · notify_human · record_approval · record_cosign · submit_appeal · escalate · close_case</text>
+<line x1="618" y1="982" x2="618" y2="994" stroke="#24405C" stroke-width="2.5" marker-end="url(#aSla)"/>
+
+<!-- ===================== THE GAP ===================== -->
+<text class="f t17 ink" x="44" y="1024">NOTHING IS RUNNING</text>
+<text class="f t15 ink2" x="44" y="1046">No process. No connection. No object in memory. Weeks pass.</text>
+<text class="f t14 grn end" x="772" y="1034">only the case document survives  →</text>
+<text class="f t14 blu end" x="1252" y="1018">new deadline · status escalated · back to waiting</text>
+
+<!-- ===================== ESCALATION LOOP ===================== -->
+<text class="f t17 blu ls" x="44" y="1098">ASYNCHRONOUS ESCALATION</text>
+<text class="f t15 ink" x="352" y="1098">runs only on a schedule, never in the request path</text>
+
+<rect x="44" y="1110" width="250" height="44" rx="6" fill="#FFFFFF" stroke="#14567F" stroke-width="1.6"/>
+<text class="f t15b blu" x="60" y="1132">Cloud Scheduler</text>
+<text class="f t14 ink2" x="60" y="1148">every 5 minutes (cron)</text>
+<line x1="294" y1="1132" x2="334" y2="1132" stroke="#14567F" stroke-width="2" marker-end="url(#aBlu)"/>
+<text class="f t14 ink2 mid" x="314" y="1124">tick</text>
+<rect x="336" y="1110" width="350" height="44" rx="6" fill="#FFFFFF" stroke="#14567F" stroke-width="1.6"/>
+<text class="f t15b blu" x="352" y="1132">Cloud Run job</text>
+<text class="m t14 ink" x="352" y="1148">escalate_overdue(limit=50)</text>
+<line x1="511" y1="1154" x2="511" y2="1164" stroke="#14567F" stroke-width="2" marker-end="url(#aBlu)"/>
+
+<line x1="823" y1="1060" x2="823" y2="1156" stroke="#1F6042" stroke-width="2.5" marker-end="url(#aGrn)"/>
+<text class="f t14 grn" x="837" y="1106">the job's only input is stored state:</text>
+<text class="f t14 grn" x="837" y="1124">cases whose response_deadline has passed</text>
+
+<path d="M1168 1194 H1266 V1032 H868" fill="none" stroke="#14567F" stroke-width="2.5" marker-end="url(#aBlu)"/>
+
+<!-- lifecycle -->
+<g>
+  <line x1="686" y1="1194" x2="1135" y2="1194" stroke="#6E7A88" stroke-width="1.4"/>
+  <rect x="76" y="1166" width="610" height="56" rx="6" fill="#FFFFFF" stroke="#6E7A88" stroke-width="1.4"/>
+  <text class="f t17 ink" x="92" y="1187">7 · Lifecycle</text>
+  <text class="f t14 ink2" x="92" y="1204">Reads cases whose payer window has elapsed and picks the next rung.</text>
+  <text class="f t14 ink2" x="92" y="1219">requires_human does not stop the clock; only an exhausted ladder does.</text>
+  <text class="m t14 blu end" x="686" y="1187">gemini-3.5-flash</text>
+  <rect x="790" y="1182" width="66" height="24" rx="4" fill="#D9EBE1" stroke="#1F6042" stroke-width="1.4"/>
+  <text class="f t14 mid" x="823" y="1199" fill="#14432E" font-weight="700">write</text>
+  <rect x="868" y="1182" width="66" height="24" rx="4" fill="#EDF6F1" stroke="#4E8C6C" stroke-width="1.4"/>
+  <text class="f t14 mid" x="901" y="1199" fill="#1F6042">append</text>
+  <rect x="946" y="1182" width="66" height="24" rx="4" fill="#D9EBE1" stroke="#1F6042" stroke-width="1.4"/>
+  <text class="f t14 mid" x="979" y="1199" fill="#14432E" font-weight="700">write</text>
+  <rect x="1102" y="1182" width="66" height="24" rx="4" fill="#D9EBE1" stroke="#1F6042" stroke-width="1.4"/>
+  <text class="f t14 mid" x="1135" y="1199" fill="#14432E" font-weight="700">write</text>
+</g>
+
+<text class="f t14 ink2" x="44" y="1238">Appeal ladder (a static table, not a model decision): first_level 30 d → peer_to_peer 14 d → second_level 30 d → external_review 45 d → close. No rung can be skipped or invented.</text>
+
+<!-- ===================== LEGEND ===================== -->
+<text class="f t14 ink2" x="44" y="1270">write = create and update · append = create only, never modified · read = read only · a blank lane means no grant at all. Every grant here is read from core/gateway.py POLICY.</text>
+</svg>
