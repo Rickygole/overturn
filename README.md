@@ -61,6 +61,36 @@ scope. The boundaries are enforced, not described.
 | 6 | **Verification** | Checks every citation three ways before a human sees the draft. | Write the draft it is judging. |
 | 7 | **Lifecycle** | Runs on a schedule, never in the request path. Finds cases whose payer deadline has passed and climbs the appeal ladder. | Skip a rung. The ladder is a static table, not a model decision. |
 
+### What each identity can actually reach
+
+Generated from `core.gateway.POLICY` — the same dict the gateway enforces at
+runtime — so this table cannot drift from what the code does. Regenerate with
+`uv run python scripts/seed_registry.py`.
+
+| Agent | Service account | Model | Returns | Reads | Writes |
+|---|---|---|---|---|---|
+| `sentinel` | `overturn-sentinel` | `gemma-4-26b-a4b-it-maas` | `ScreeningResult` | `audit_events`, `cases`, `quarantine` | `audit_events`, `quarantine` |
+| `intake` | `overturn-intake` | `gemini-3.5-flash` | `DenialExtraction` | `audit_events`, `cases` | `audit_events`, `cases` |
+| `retrieval` | `overturn-retrieval` | `gemini-3.5-flash` | `RetrievalResult` | `audit_events`, `cases`, `policy_sections` | `audit_events`, `cases` |
+| `mapping` | `overturn-mapping` | `gemini-3.5-flash` | `CriteriaMatrix` | `audit_events`, `cases` | `audit_events`, `cases` |
+| `drafting` | `overturn-drafting` | `gemini-3.7-flash` | `AppealDraft` | `audit_events`, `cases` | `audit_events`, `cases` |
+| `verification` | `overturn-verification` | `gemini-3.5-flash` | `VerificationResult` | `audit_events`, `cases`, `policy_sections` | `audit_events` |
+| `lifecycle` | `overturn-lifecycle` | `gemini-3.5-flash` | `EscalationDecision` | `actions`, `audit_events`, `case_memory`, `cases` | `actions`, `audit_events`, `case_memory`, `cases` |
+
+Two rows are the point of the whole table. **Drafting** appears with no read on
+`policy_sections`, which is why it cannot go looking for supporting material
+Mapping did not hand it. **Verification** appears with no write on `cases`,
+which is why it cannot edit the draft it is judging. Neither is a rule someone
+has to remember; the handle an agent receives will not perform the call.
+
+A note on honesty, because it matters more than the table looks good. Buckets,
+Pub/Sub topics and secrets are genuinely scoped per identity by
+`infra/iam_setup.sh`, and an agent without the grant cannot reach them. Firestore
+has no collection-level IAM, so collection scoping is enforced deterministically
+in `core/gateway.py`, which every datastore consumer routes through — agents
+receive a `GatewayHandle`, never a store. Both layers are real; neither is
+claimed to be the other.
+
 ## How a case actually moves
 
 ```
