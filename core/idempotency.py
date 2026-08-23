@@ -62,6 +62,47 @@ class PayloadMismatch(Exception):
     """The same action key arrived with a different payload."""
 
 
+class ActionPreviouslyFailed(Exception):
+    """This action was attempted before and raised.
+
+    Deliberately not replayed as a result. The earlier version returned the
+    failed record the same way it returned a completed one, so a caller that
+    had just seen a transient network error on its first try would, on retry,
+    receive a successful-looking outcome carrying ``result=None`` — and go on to
+    mark the case submitted with a payer deadline for an appeal that was never
+    sent. The only trace was the word "unknown" in a history note.
+
+    A deliberate retry is a new attempt number, made by something that has
+    decided the earlier failure was safe to repeat.
+    """
+
+    def __init__(self, action_key: str, error: str | None) -> None:
+        self.action_key = action_key
+        self.error = error
+        super().__init__(
+            f"action {action_key} previously failed and was not retried "
+            f"automatically: {error or 'no error recorded'}"
+        )
+
+
+class UnsafeToRetry(Exception):
+    """A claim on a non-idempotent action expired without completing.
+
+    The worker holding it died somewhere between calling the payer and recording
+    that it had. Re-running would risk a second appeal on one claim; not running
+    risks none. Neither is safe to choose automatically, so the case goes to a
+    person with both possibilities stated.
+    """
+
+
+# Actions whose external effect cannot be safely repeated. A duplicate
+# notification is noise; a duplicate appeal confuses the payer's own process and
+# can reset a review clock, which is worse than the appeal not going out.
+NOT_SAFELY_REPEATABLE: frozenset[ActionType] = frozenset(
+    {ActionType.SUBMIT_APPEAL, ActionType.ESCALATE, ActionType.FILE_EXTERNAL_REVIEW}
+)
+
+
 class _Decision(Enum):
     """What the claim step concluded. Internal to this module."""
 
@@ -69,6 +110,8 @@ class _Decision(Enum):
     REPLAY = auto()  # already done; return the stored result
     IN_FLIGHT = auto()  # someone else holds a live claim
     MISMATCH = auto()  # same key, different payload
+    FAILED = auto()  # ran before and raised; not replayed as a result
+    UNSAFE = auto()  # a non-repeatable action's claim died mid-flight
 
 
 @dataclass(frozen=True)
@@ -155,6 +198,23 @@ class IdempotencyGuard:
                     action_key=key,
                 )
 
+            if decision is _Decision.FAILED:
+                span.set_attribute("overturn.previously_failed", True)
+                raise ActionPreviouslyFailed(key, record.get("error"))
+
+            if decision is _Decision.UNSAFE:
+                span.set_attribute("overturn.unsafe_to_retry", True)
+                logger.error(
+                    "action %s cannot be safely retried: the previous worker died "
+                    "mid-flight on a non-repeatable action",
+                    key,
+                )
+                raise UnsafeToRetry(
+                    f"action {key} was claimed by a worker that died before recording "
+                    f"the outcome. It may or may not have reached the payer. A person "
+                    f"has to check before this is attempted again."
+                )
+
             if decision is _Decision.IN_FLIGHT:
                 span.set_attribute("overturn.idempotent_replay", False)
                 raise ActionInFlight(
@@ -211,12 +271,25 @@ class IdempotencyGuard:
             current["delivery_count"] = int(current.get("delivery_count", 1)) + 1
             status = current.get("status")
 
-            if status in ("completed", "failed"):
+            if status == "completed":
                 outcome["decision"] = _Decision.REPLAY
                 outcome["record"] = current
                 return current
 
+            if status == "failed":
+                outcome["decision"] = _Decision.FAILED
+                outcome["record"] = current
+                return current
+
             if self._lease_expired(current):
+                if action_type in NOT_SAFELY_REPEATABLE:
+                    # The previous holder died between calling the payer and
+                    # recording that it had. We cannot tell which side of that
+                    # line it fell on, and guessing wrong files a second appeal.
+                    current["status"] = "unsafe_to_retry"
+                    outcome["decision"] = _Decision.UNSAFE
+                    outcome["record"] = current
+                    return current
                 current["status"] = "claimed"
                 current["claimed_at"] = utcnow().isoformat()
                 current["taken_over"] = True
