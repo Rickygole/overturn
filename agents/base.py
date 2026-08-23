@@ -99,20 +99,22 @@ class OverturnAgent(ABC, Generic[TIn, TOut]):
         it belongs in ``_execute``, so that the span and the audit event cannot
         be skipped by accident.
         """
-        with agent_span(
-            self.name.value,
-            case_id,
-            self.operation,
-            attempt=attempt,
-            agent_version=self.version,
-        ):
-            with self.deps.audit.record(
+        with (
+            agent_span(
+                self.name.value,
+                case_id,
+                self.operation,
+                attempt=attempt,
+                agent_version=self.version,
+            ),
+            self.deps.audit.record(
                 case_id, self.operation, self._digest_payload(request), attempt
-            ) as rec:
-                rec.input_summary = self._summarise(request)
-                output = self._execute(case_id, request, rec, attempt)
-                rec.output = self._render_output(output)
-                return output
+            ) as rec,
+        ):
+            rec.input_summary = self._summarise(request)
+            output = self._execute(case_id, request, rec, attempt)
+            rec.output = self._render_output(output)
+            return output
 
     @abstractmethod
     def _execute(self, case_id: str, request: TIn, rec: Recording, attempt: int) -> TOut:
