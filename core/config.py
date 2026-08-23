@@ -79,6 +79,11 @@ class Settings(BaseSettings):
 
     # --- Local development ------------------------------------------------------
     use_emulator: bool = Field(default=False)
+    trace_to_console: bool = Field(
+        default=False,
+        description="Print spans to stdout in local mode. Useful for the demo, "
+        "noisy during tests, so it is off unless asked for.",
+    )
     firestore_emulator_host: str = Field(default="localhost:8080")
     runtime_mode: Literal["local", "cloud"] = Field(default="local")
 

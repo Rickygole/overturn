@@ -62,8 +62,10 @@ def init_telemetry(component: str = "overturn") -> None:
         except Exception as exc:  # pragma: no cover - depends on cloud credentials
             logger.warning("Cloud Trace exporter unavailable, falling back to console: %s", exc)
             provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
-    else:
+    elif settings.trace_to_console:
         provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+    # Otherwise spans are recorded and sampled but not printed. Local test runs
+    # would otherwise bury their own output under span JSON.
 
     trace.set_tracer_provider(provider)
     _INITIALISED = True
