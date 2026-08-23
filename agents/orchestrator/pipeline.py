@@ -28,6 +28,7 @@ from agents.intake.documents import SourceDocument, extract_text_layer
 from agents.lifecycle.agent import LifecycleRequest
 from agents.mapping.agent import MappingRequest
 from agents.mapping.charts import ChartNotFound, load_chart
+from agents.mapping.dispute import has_answerable_dispute, primary_disputed_criteria
 from agents.orchestrator import effects
 from agents.orchestrator.deps import Fleet
 from agents.retrieval.agent import RetrievalRequest
@@ -151,19 +152,23 @@ class Pipeline:
             return self._fail(case_id, f"no chart available: {exc}")
 
         matrix = self.fleet.mapping.run(case_id, MappingRequest(chart=chart, retrieval=retrieval))
-        if not matrix.has_appealable_basis:
+        # Whether there is an appeal here is not a question of how many criteria
+        # are documented. It is whether the chart answers the one the payer
+        # actually asked. A case can document seven criteria beautifully and
+        # still be hopeless if the eighth is the one that was denied on.
+        disputed = primary_disputed_criteria(denial, retrieval)
+        answerable, explanation = has_answerable_dispute(matrix, disputed)
+        if not answerable:
             case = self._advance(
                 case_id,
                 CaseStatus.DECLINED_NO_BASIS,
-                attach=lambda c: setattr(c, "criteria", matrix),
-                note=f"only {matrix.satisfied_count} criteria documented",
+                attach=lambda c: (
+                    setattr(c, "criteria", matrix),
+                    setattr(c, "needs_human_reason", explanation),
+                ),
+                note=f"payer's reason turns on {', '.join(disputed[:2]) or 'unclear criteria'}",
             )
-            self._notify(
-                case_id,
-                f"The chart documents {matrix.satisfied_count} of "
-                f"{len(matrix.verdicts)} criteria. That is not a basis for an "
-                f"appeal; the gap is in the documentation, not the determination.",
-            )
+            self._notify(case_id, explanation)
             return case
 
         # --- Drafting and Verification -------------------------------------- #
