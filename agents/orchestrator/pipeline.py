@@ -35,6 +35,7 @@ from agents.retrieval.agent import RetrievalRequest
 from agents.sentinel.agent import ScreeningRequest
 from agents.verification.agent import VerificationRequest
 from core.audit import content_digest
+from core.idempotency import ActionPreviouslyFailed, UnsafeToRetry
 from core.schemas.base import utcnow
 from core.schemas.case import CaseRecord
 from core.schemas.enums import ActionType, AgentName, CaseStatus
@@ -275,13 +276,52 @@ class Pipeline:
         if draft is None:
             return self._fail(case_id, "approved case has no identifiable draft")
 
-        outcome = self._act(
-            case_id,
-            ActionType.SUBMIT_APPEAL,
-            {"draft_sha": content_digest(draft.to_firestore())},
-            lambda: effects.submit_appeal(self.fleet, case_id, draft),
-            attempt=case.escalation_count + 1,
-        )
+        try:
+            outcome = self._act(
+                case_id,
+                ActionType.SUBMIT_APPEAL,
+                {"draft_sha": content_digest(draft.to_firestore())},
+                lambda: effects.submit_appeal(self.fleet, case_id, draft),
+                attempt=case.escalation_count + 1,
+            )
+        except (ActionPreviouslyFailed, UnsafeToRetry) as exc:
+            # Transmission did not happen, or may have half-happened. Either way
+            # the case must not sit at `approved` looking finished — that status
+            # is in no queue and nothing would ever look at it again.
+            self._notify(
+                case_id,
+                f"The appeal for {case_id} was approved but not transmitted. {exc}",
+            )
+            return self._advance(
+                case_id,
+                CaseStatus.NEEDS_HUMAN_REVIEW,
+                attach=lambda c: (
+                    setattr(c, "needs_human_reason", str(exc)),
+                    setattr(c, "last_error", str(exc)[:500]),
+                ),
+                note="transmission failed; approved but not sent",
+            )
+        except Exception as exc:
+            # First failure. The action record already carries the error; the
+            # case follows it so a person sees it rather than a stalled status.
+            self._notify(case_id, f"Transmitting the appeal for {case_id} failed: {exc}")
+            self._advance(
+                case_id,
+                CaseStatus.NEEDS_HUMAN_REVIEW,
+                attach=lambda c: (
+                    setattr(c, "last_error", str(exc)[:500]),
+                    setattr(
+                        c,
+                        "needs_human_reason",
+                        f"The appeal was approved but transmission failed: {exc}. "
+                        f"Nothing reached the payer. Retrying is a decision for a "
+                        f"person, because a failure that happened partway through "
+                        f"cannot be told apart from one that never started.",
+                    ),
+                ),
+                note="transmission failed",
+            )
+            raise
 
         window = APPEAL_LADDER[case.appeal_level].response_window_days
         accel = self.settings.demo_seconds_per_day if self.settings.demo_time_acceleration else None
