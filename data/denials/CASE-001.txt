@@ -1,0 +1,76 @@
+MERIDIAN HEALTH PLAN
+Utilization Management Department
+P.O. Box 44190, Worcester, MA 01601
+Phone 1-800-555-0142  |  Fax 1-800-555-0198
+
+                                                    Date of Notice: July 28, 2026
+
+NOTICE OF ADVERSE BENEFIT DETERMINATION
+
+Member Name:          Jeromy156 Upton904
+Member ID:            MHP-4417-99083
+Group Number:         GRP-88014
+Claim Number:         CLM-2026-0714-33902
+Date of Service:      July 6, 2026
+Requesting Provider:  M. Castellanos, MD — Endocrinology
+Servicing Provider:   Bay State Medical Supply, NPI 1558829043
+
+SERVICE REVIEWED
+
+  Continuous glucose monitoring system, receiver and transmitter
+    HCPCS E2103   Quantity 1
+  Continuous glucose monitor sensors, one month supply
+    HCPCS A4239   Quantity 3
+  Diagnosis submitted: E11.65 Type 2 diabetes mellitus with hyperglycemia
+
+  Total billed: $1,284.00
+
+DETERMINATION
+
+Coverage for the service listed above has been DENIED.
+
+Denial reason code: MHP-NMN-04
+
+Reason for determination:
+
+  The clinical information submitted does not establish that the requested
+  continuous glucose monitoring system is medically necessary under the plan's
+  applicable medical policy. Specifically, the submitted documentation does not
+  establish that the member is treated with an intensive insulin regimen as
+  that term is defined in the applicable policy, and does not establish that
+  self-monitoring of blood glucose has been insufficient to guide therapy.
+
+  This determination was made by a licensed physician reviewer following review
+  of the records submitted with the request on July 14, 2026.
+
+APPLICABLE POLICY
+
+  Meridian Health Plan Medical Policy MHP-ENDO-031, Continuous Glucose
+  Monitoring Systems, version 3.1, effective January 1, 2026. A copy of the
+  policy is available on request at no charge and is published at the address
+  on the reverse of this notice.
+
+YOUR RIGHT TO APPEAL
+
+  You or your authorized representative may appeal this determination in
+  writing within 180 calendar days of the date of this notice, that is, on or
+  before January 24, 2027. A first-level appeal will receive a written response
+  within 30 calendar days of receipt.
+
+  Your appeal should state why you believe the determination is incorrect and
+  should include any additional clinical documentation supporting the request.
+
+  Send written appeals to:
+      Meridian Health Plan
+      Appeals and Grievances
+      P.O. Box 44205, Worcester, MA 01601
+
+  The treating provider may request a peer-to-peer discussion with a Meridian
+  medical director by calling 1-800-555-0142 during the appeal period.
+
+  If your appeal is denied, you may have the right to request an independent
+  external review. Information about external review will be provided with the
+  appeal determination.
+
+This notice is not a bill. If you have questions about this determination,
+call Member Services at the number above.
