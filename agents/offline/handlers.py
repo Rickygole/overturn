@@ -97,8 +97,11 @@ NEGATIONS = frozenset(
     ["not", "no", "never", "without", "unless", "except", "absent", "neither", "nor", "cannot"]
 )
 
-# Numbers, including decimals, kept as single tokens.
-_TOKEN = re.compile(r"\d+(?:\.\d+)?|[a-z]+")
+# Numbers, including decimals, kept as single tokens — and alphanumeric clinical
+# tokens kept whole. Splitting "a1c" into "a", "1", "c" injected a phantom
+# number 1 into every mention of a hemoglobin result, which then paired with
+# whatever comparator happened to be nearby and rejected honest paraphrases.
+_TOKEN = re.compile(r"\d+(?:\.\d+)?|[a-z][a-z0-9]*")
 
 
 def _content_words(text: str) -> set[str]:
@@ -142,12 +145,24 @@ _DIRECTION = {
     "less": "down",
     "fewer": "down",
     "below": "down",
-    "most": "down",
     "under": "down",
     "maximum": "down",
     "lower": "down",
-    "within": "down",
 }
+
+# Deliberately absent from that map: "within" and "most". "Within the twelve
+# months preceding the request" is a time window, not a threshold on a value,
+# and "most recent" is everywhere in clinical prose. Both were manufacturing a
+# downward comparator for whatever number sat nearby, which rejected "an A1c of
+# at least 7.0 percent" — a faithful restatement of the central criterion in
+# three of the eight cases, and a fatal finding three attempts running.
+
+# Numbers that are cross-references rather than quantities. A policy saying
+# "documented under section 3.2" is not stating a threshold of 3.2.
+_CROSS_REFERENCE = re.compile(
+    r"\b(?:section|policy|criterion|paragraph|under)\s+[\w.-]*\d[\w.-]*", re.IGNORECASE
+)
+
 _NUMBER_WINDOW = 5
 
 
@@ -159,7 +174,7 @@ def _thresholds(text: str) -> frozenset[tuple[str, str]]:
     about either number matches on the set. The comparator has to belong to the
     number it qualifies.
     """
-    words = _TOKEN.findall(text.lower())
+    words = _TOKEN.findall(_CROSS_REFERENCE.sub(" ", text.lower()))
     pairs: set[tuple[str, str]] = set()
     for index, word in enumerate(words):
         if not word[0].isdigit():
@@ -520,8 +535,31 @@ def verification_verify_citation(request: LlmRequest) -> VerificationResult:
     )
 
 
+def _best_supporting_quote(assertion: str, quotes: list[str]) -> tuple[str, float]:
+    """The single quote that best supports an assertion, and how well.
+
+    Matching against the concatenated corpus is what made the negation and
+    number guards useless. `_overlap` refuses a claim that introduces a negation
+    its source lacks, or a number its source does not contain — but with every
+    quote joined into one blob, the source contains every negation and every
+    number in the whole case. One "not" in an unrelated encounter note unlocked
+    every claim in the letter, and a number lifted from a locator date licensed
+    any dose.
+
+    So each assertion is checked against one quote at a time and scored on the
+    best single match. A claim has to be supported by something specific in the
+    record, which is what "supported" was always supposed to mean.
+    """
+    best_text, best_score = "", 0.0
+    for quote in quotes:
+        score = _overlap(assertion, quote)
+        if score > best_score:
+            best_text, best_score = quote, score
+    return best_text, best_score
+
+
 def verification_verify_assertions(request: LlmRequest) -> VerificationResult:
-    """Each clinical claim against the chart evidence, by real overlap."""
+    """Each clinical claim against the chart evidence, one quote at a time."""
     evidence = re.search(r"CHART EVIDENCE, complete:\n\n(.*?)\n\n=+", request.prompt, re.DOTALL)
     assertions_block = re.search(
         r"ASSERTIONS THE LETTER MAKES:\n(.*?)\n\nWhich", request.prompt, re.DOTALL
@@ -529,7 +567,14 @@ def verification_verify_assertions(request: LlmRequest) -> VerificationResult:
     if not assertions_block:
         return VerificationResult(case_id="offline", attempt=1)
 
-    corpus = evidence.group(1) if evidence else ""
+    # The corpus arrives as one "[locator] quote" per line. Split it back apart;
+    # the union is what destroyed the guards.
+    quotes = [
+        line.strip()
+        for line in (evidence.group(1) if evidence else "").splitlines()
+        if line.strip()
+    ]
+
     ungrounded: list[str] = []
     findings: list[VerificationFinding] = []
 
@@ -537,19 +582,25 @@ def verification_verify_assertions(request: LlmRequest) -> VerificationResult:
         assertion = line.lstrip("- ").strip()
         if not assertion:
             continue
-        if _overlap(assertion, corpus) < ASSERTION_SUPPORT_FLOOR:
-            ungrounded.append(assertion)
-            findings.append(
-                VerificationFinding(
-                    check="assertion_grounded",
-                    severity="fatal",
-                    locus=assertion[:80],
-                    detail=(
-                        f"No chart evidence supports this claim. Remove it or "
-                        f"replace it with something the record documents: {assertion!r}"
-                    ),
-                )
+
+        source, score = _best_supporting_quote(assertion, quotes)
+        if score >= ASSERTION_SUPPORT_FLOOR:
+            continue
+
+        ungrounded.append(assertion)
+        findings.append(
+            VerificationFinding(
+                check="assertion_grounded",
+                severity="fatal",
+                locus=assertion[:80],
+                detail=(
+                    f"No single piece of chart evidence supports this claim "
+                    f"(best match {score:.0%}). Remove it, or replace it with "
+                    f"something the record documents: {assertion!r}"
+                ),
+                source_text=source[:400] or None,
             )
+        )
 
     return VerificationResult(
         case_id="offline",
