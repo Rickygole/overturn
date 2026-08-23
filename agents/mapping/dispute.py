@@ -95,11 +95,64 @@ MIN_SHARED_TERMS = 2
 
 
 def _terms(text: str) -> set[str]:
+    """Distinctive words, keeping clinical acronyms.
+
+    The length filter was ``len(word) > 3``, which deleted every three-letter
+    acronym in the domain — a1c, cgm, mri, ecg, osa, ahi, iop — while keeping
+    "2026". Those acronyms are the most discriminating words a denial reason
+    contains, and dropping them left several realistic reasons matching nothing
+    at all.
+    """
     return {
         word
-        for word in re.findall(r"[a-z0-9]+", text.lower())
-        if word not in BOILERPLATE and len(word) > 3
+        for word in re.findall(r"[a-z][a-z0-9]*|[0-9]+[a-z]+", text.lower())
+        if word not in BOILERPLATE
+        and (len(word) > 3 or any(c.isdigit() for c in word) or len(word) == 3)
     }
+
+
+def _rarity(retrieval: RetrievalResult) -> dict[str, float]:
+    """How discriminating each term is across the criteria being considered.
+
+    Counting shared terms equally is what let CASE-008 tie. That letter recites
+    what the reviewer *considered* — the electrocardiogram, the echocardiogram
+    report — before stating what it actually turned on, which was an unresolved
+    MRI contraindication. The recitation matched two satisfied criteria as
+    strongly as the holding matched the unmet one, one of the ties was
+    satisfied, and the case read as answerable. The system would have drafted a
+    letter arguing points the reviewer explicitly conceded and never touched the
+    one it denied on.
+
+    "Echocardiogram" appears in several criteria of that policy.
+    "Contraindication" appears in exactly one. Weighting by that difference is
+    what separates a recitation from a holding.
+    """
+    import math
+
+    criteria = [c for section in retrieval.sections for c in section.criteria]
+    if not criteria:
+        return {}
+
+    document_frequency: dict[str, int] = {}
+    for criterion in criteria:
+        for term in _terms(criterion.text):
+            document_frequency[term] = document_frequency.get(term, 0) + 1
+
+    total = len(criteria)
+    return {
+        term: math.log((total - count + 0.5) / (count + 0.5) + 1.0)
+        for term, count in document_frequency.items()
+    }
+
+
+def _is_exclusion(section_heading: str) -> bool:
+    """Exclusion sections are not things a chart can satisfy in the payer's favour.
+
+    Asking whether an exclusion is "satisfied" inverts the sign: a satisfied
+    exclusion means the service is excluded, which is the opposite of an
+    answerable dispute.
+    """
+    return "exclusion" in section_heading.lower()
 
 
 def disputed_criteria(denial: DenialExtraction, retrieval: RetrievalResult) -> list[str]:
@@ -142,17 +195,24 @@ def primary_disputed_criteria(denial: DenialExtraction, retrieval: RetrievalResu
     if not reason_terms:
         return []
 
-    scored: list[tuple[str, int]] = []
+    weights = _rarity(retrieval)
+    scored: list[tuple[str, float]] = []
     for section in retrieval.sections:
+        if _is_exclusion(section.section_heading):
+            continue
         for criterion in section.criteria:
             shared = reason_terms & _terms(criterion.text)
-            if len(shared) >= MIN_SHARED_TERMS:
-                scored.append((criterion.criterion_id, len(shared)))
+            if len(shared) < MIN_SHARED_TERMS:
+                continue
+            scored.append((criterion.criterion_id, sum(weights.get(term, 1.0) for term in shared)))
 
     if not scored:
         return []
+
+    # Ties only within a small margin, so a genuinely dual dispute still counts
+    # while a recitation that merely brushes the top does not.
     top = max(score for _, score in scored)
-    return sorted(cid for cid, score in scored if score == top)
+    return sorted(cid for cid, score in scored if score >= top * 0.85)
 
 
 def has_answerable_dispute(matrix: CriteriaMatrix, disputed: list[str]) -> tuple[bool, str]:
@@ -163,11 +223,14 @@ def has_answerable_dispute(matrix: CriteriaMatrix, disputed: list[str]) -> tuple
     is missing rather than reporting a score.
     """
     if not disputed:
-        # The reason was boilerplate. Fall back to the general test rather than
-        # declining a case we simply could not parse.
+        # The reason was boilerplate, or extraction did not recover it. Fall back
+        # to the general test rather than declining a case we simply could not
+        # parse — but say so, because "we could not tell" and "we checked" are
+        # different facts and the clerk is entitled to know which one this is.
         return matrix.has_appealable_basis, (
-            "The payer's stated reason is too generic to tie to a specific "
-            "criterion, so this was assessed on the criteria as a whole."
+            "The payer's stated reason could not be tied to a specific criterion, "
+            "so this was assessed on the criteria as a whole. Read the denial "
+            "letter before relying on this one."
         )
 
     verdicts = {v.criterion_id: v for v in matrix.verdicts}
