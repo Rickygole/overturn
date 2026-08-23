@@ -21,7 +21,7 @@ from collections.abc import Callable, Iterator
 
 from core.gateway import Access, GatewayHandle
 from core.schemas.base import utcnow
-from core.schemas.case import CaseRecord
+from core.schemas.case import AWAITING_PAYER_STATUSES, CaseRecord
 from core.schemas.enums import CaseStatus
 from core.store import AlreadyExists, DocumentStore
 from core.telemetry import agent_span
@@ -68,14 +68,21 @@ class CaseRepository:
         return [CaseRecord.model_validate(data) for _, data in rows]
 
     def find_overdue(self, limit: int | None = None) -> list[CaseRecord]:
-        """Submitted cases whose payer response window has elapsed.
+        """Cases awaiting a payer response whose window has elapsed.
+
+        Covers both ``submitted`` and ``escalated``: a case on the second rung
+        of the ladder is waiting on the payer exactly as a freshly submitted one
+        is, and querying only ``submitted`` would let the ladder stall after one
+        escalation with nothing watching the new deadline.
 
         The deadline filter is applied in Python rather than in the query so that
         the in-memory and Firestore backends agree exactly, and so the demo-mode
         accelerated clock is honoured without a second index.
         """
-        submitted = self.find_by_status(CaseStatus.SUBMITTED)
-        overdue = [case for case in submitted if case.is_overdue]
+        waiting: list[CaseRecord] = []
+        for status in AWAITING_PAYER_STATUSES:
+            waiting.extend(self.find_by_status(status))
+        overdue = [case for case in waiting if case.is_overdue]
         overdue.sort(key=lambda c: c.response_deadline or utcnow())
         return overdue[:limit] if limit else overdue
 

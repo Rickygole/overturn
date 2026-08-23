@@ -16,6 +16,11 @@ from core.schemas.criteria import CriteriaMatrix
 from core.schemas.denial import DenialExtraction
 from core.schemas.draft import AppealDraft
 from core.schemas.enums import TERMINAL_STATUSES, AppealLevel, CaseStatus
+
+# Statuses in which the ball is in the payer's court and a deadline is running.
+AWAITING_PAYER_STATUSES: frozenset[CaseStatus] = frozenset(
+    {CaseStatus.SUBMITTED, CaseStatus.ESCALATED}
+)
 from core.schemas.policy import RetrievalResult
 from core.schemas.sentinel import ScreeningResult
 from core.schemas.verification import VerificationResult
@@ -163,8 +168,15 @@ class CaseRecord(OverturnModel):
         This single property is what the scheduled job queries on. It is
         deliberately a pure function of stored state, so a worker that has never
         seen this case before can evaluate it correctly.
+
+        Both statuses count, and the reason is the whole product: a case that
+        has been escalated to the second level is waiting on the payer in
+        exactly the way a freshly submitted one is. Checking only ``submitted``
+        let the ladder advance one rung and then stall silently — the case sat
+        in ``escalated`` past a deadline that nothing was watching, which is the
+        precise failure this system exists to prevent.
         """
-        if self.status != CaseStatus.SUBMITTED or self.response_deadline is None:
+        if self.status not in AWAITING_PAYER_STATUSES or self.response_deadline is None:
             return False
         return utcnow() >= self.response_deadline
 
