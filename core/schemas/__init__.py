@@ -10,6 +10,7 @@ from core.schemas.audit import AuditEvent
 from core.schemas.base import OverturnModel, utcnow
 from core.schemas.case import (
     CaseRecord,
+    ClinicianCosign,
     HumanDecision,
     PayerResponse,
     StatusTransition,
@@ -59,6 +60,7 @@ __all__ = [
     "ChartMedication",
     "ChartProblem",
     "Citation",
+    "ClinicianCosign",
     "CriteriaMatrix",
     "CriterionVerdict",
     "CriterionVerdictValue",

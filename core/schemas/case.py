@@ -32,13 +32,56 @@ class StatusTransition(OverturnModel):
 
 
 class HumanDecision(OverturnModel):
-    """The approval gate. Nothing leaves this system without one of these."""
+    """The clerk's gate: is the paper trail sound?
+
+    A billing clerk is the right person to approve this and the wrong person to
+    approve medicine, so the question put to them is deliberately narrow. They
+    are asked to confirm three things a non-clinician can actually check, all
+    three of which Verification has already computed:
+
+      * every cited section exists in the retrieved policy set
+      * the quoted policy text says what the letter says it says
+      * nothing is asserted that has no row in the criteria matrix
+
+    They are not asked whether the care was appropriate. Where a draft makes a
+    clinical argument, :class:`ClinicianCosign` is required as well, and
+    ``CaseRecord.ready_to_submit`` will not return true without it.
+    """
 
     decided_at: datetime = Field(default_factory=utcnow)
     decided_by: str
     approved: bool
     note: str | None = None
     draft_attempt_approved: int | None = None
+
+    citations_checked: bool = Field(
+        default=False, description="Clerk confirmed each cited identifier resolves."
+    )
+    quotes_checked: bool = Field(
+        default=False, description="Clerk confirmed quoted policy text matches the source."
+    )
+    assertions_checked: bool = Field(
+        default=False,
+        description="Clerk confirmed no claim appears that the matrix does not support.",
+    )
+
+
+class ClinicianCosign(OverturnModel):
+    """The ordering clinician's signature on the clinical argument.
+
+    Medical-necessity appeals are signed by the clinician who ordered the care.
+    Modelling that is not ceremony: it is the difference between a system that
+    drafts a letter for a qualified signatory and one that quietly asks an
+    administrator to vouch for a clinical claim they cannot evaluate.
+    """
+
+    signed_at: datetime = Field(default_factory=utcnow)
+    clinician_name: str
+    credential: str = Field(description="MD, DO, NP, PA, and so on.")
+    npi: str | None = None
+    attests_clinical_accuracy: bool
+    note: str | None = None
+    draft_attempt_signed: int | None = None
 
 
 class PayerResponse(OverturnModel):
@@ -75,6 +118,12 @@ class CaseRecord(OverturnModel):
 
     # --- Human gate -------------------------------------------------------------
     human_decision: HumanDecision | None = None
+    clinician_cosign: ClinicianCosign | None = None
+    requires_clinician_cosign: bool = Field(
+        default=True,
+        description="Set false only where the draft argues documentation alone and "
+        "makes no clinical claim. Defaults to true because that is the safe default.",
+    )
 
     # --- Lifecycle --------------------------------------------------------------
     appeal_level: AppealLevel = AppealLevel.FIRST_LEVEL
@@ -126,6 +175,30 @@ class CaseRecord(OverturnModel):
     @property
     def latest_verification(self) -> VerificationResult | None:
         return self.verifications[-1] if self.verifications else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def ready_to_submit(self) -> bool:
+        """Whether every signature this case needs is actually present.
+
+        Checked immediately before transmission, not at approval time, so a case
+        that gains a clinical argument on a later drafting attempt cannot ride
+        an earlier clerk approval out the door.
+        """
+        if not self.human_decision or not self.human_decision.approved:
+            return False
+        if self.requires_clinician_cosign:
+            cosign = self.clinician_cosign
+            if cosign is None or not cosign.attests_clinical_accuracy:
+                return False
+            approved_attempt = self.human_decision.draft_attempt_approved
+            if (
+                approved_attempt is not None
+                and cosign.draft_attempt_signed is not None
+                and cosign.draft_attempt_signed != approved_attempt
+            ):
+                return False
+        return True
 
     def approved_draft(self) -> AppealDraft | None:
         """The exact draft a human signed off on, not merely the most recent one."""
