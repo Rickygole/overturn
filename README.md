@@ -280,6 +280,34 @@ That fault-injection switch is off unless the environment variable is set for a
 single deliberate run. It exists because a safety net nobody has ever dropped
 into is not a demonstrated safety net.
 
+### The human gate, end to end
+
+The gate is two signatures: a billing clerk confirming the paper trail, and the
+ordering clinician signing the clinical argument. Nothing transmits until both
+are present on the same draft.
+
+Set a state path so separate processes share the same cases, then drive it:
+
+```bash
+export OVERTURN_LOCAL_STATE_PATH=./local_state/store.json
+
+uv run python scripts/run_pipeline.py CASE-001
+uv run python scripts/casectl.py list
+uv run python scripts/casectl.py show CASE-001 --letter --trail
+uv run python scripts/casectl.py approve CASE-001 --by clerk@clinic.example
+uv run python scripts/casectl.py cosign CASE-001 --clinician "M. Castellanos" --credential MD
+```
+
+The clerk's approval alone reports `Not transmitted — clerk=yes clinician=no`.
+The co-sign is what sends it. Either order works; whichever signature lands
+second is what transmits.
+
+Then let the payer stay silent and watch the case climb on its own:
+
+```bash
+uv run python scripts/casectl.py tick
+```
+
 ### The human approval interface
 
 ```bash

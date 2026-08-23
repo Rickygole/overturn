@@ -21,7 +21,7 @@ from agents.orchestrator.deps import build_fleet
 from agents.orchestrator.pipeline import Pipeline
 from core.audit import read_case_trail
 from core.config import get_settings
-from core.store import MemoryStore
+from core.store import MemoryStore, build_store
 
 REPO = Path(__file__).resolve().parents[1]
 DENIAL_DIR = REPO / "data" / "denials"
@@ -107,7 +107,9 @@ def main() -> int:
             "fabricate a citation. ***"
         )
 
-    store = MemoryStore()
+    # Persist when a local state path is configured, so the CLI and the web
+    # interface can pick these cases up from another process.
+    store = build_store() if settings.local_state_path else MemoryStore()
     for case_id in cases:
         run_case(case_id, store)
     return 0
