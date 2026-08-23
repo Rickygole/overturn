@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Case not found — Overturn{% endblock %}
+{% block masthead %}Case not found{% endblock %}
+{% block content %}
+<div class="card prose">
+  <h2>No case with that identifier</h2>
+  <p>Nothing in the datastore is filed under
+     <span class="mono">{{ case_id or "that id" }}</span>. It may have been created by a
+     different environment, or the link may be mistyped.</p>
+  <p><a href="/">Back to the review queue</a></p>
+</div>
+{% endblock %}

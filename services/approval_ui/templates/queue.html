@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Review queue — Overturn{% endblock %}
+{% block masthead %}Review queue{% endblock %}
+{% block nav %}<span class="muted" aria-current="page">Review queue</span>{% endblock %}
+
+{% macro queue_table(rows, caption, show_reason=False) %}
+<div class="table-scroll">
+  <table>
+    <caption>{{ caption }}</caption>
+    <thead>
+      <tr>
+        <th scope="col">Case</th>
+        <th scope="col">Patient</th>
+        <th scope="col">Payer</th>
+        <th scope="col">Service denied</th>
+        <th scope="col">Appeal deadline</th>
+        <th scope="col">Drafting attempts</th>
+        {% if show_reason %}<th scope="col">Sent back because</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <th scope="row"><a class="mono" href="/case/{{ row.case_id }}">{{ row.case_id }}</a></th>
+        <td>{{ row.patient }}</td>
+        <td>{{ row.payer }}</td>
+        <td>{{ row.service }}</td>
+        <td>
+          {{ row.deadline.stated }}<br>
+          <span class="chip chip--{{ row.deadline.tone }}">{{ row.deadline.label }}</span>
+        </td>
+        <td>
+          {{ row.attempts }}
+          {% if row.attempts > 1 %}
+          <span class="muted">({{ row.attempts - 1 }} rejected by verification)</span>
+          {% endif %}
+        </td>
+        {% if show_reason %}<td>{{ row.reason or "No reason recorded" }}</td>{% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{% block content %}
+
+<section class="section" aria-labelledby="awaiting-h">
+  <span class="section__step">Waiting on you</span>
+  <h2 id="awaiting-h">Awaiting human approval</h2>
+  <div class="section__body">
+    {% if awaiting %}
+      {{ queue_table(awaiting, "Cases with a drafted appeal that has passed verification and needs a human decision. Soonest deadline first.") }}
+    {% else %}
+      <div class="card prose">
+        <h3>Nothing is waiting for a decision</h3>
+        <p class="muted">Cases appear here once Drafting has produced a letter and Verification has
+        passed it. There is nothing for you to approve right now.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="section" aria-labelledby="review-h">
+  <span class="section__step">Returned to humans</span>
+  <h2 id="review-h">Needs human review</h2>
+  <div class="section__body">
+    {% if needs_review %}
+      {{ queue_table(needs_review, "Cases the fleet could not finish on its own, or that a reviewer sent back.", show_reason=True) }}
+    {% else %}
+      <div class="card prose">
+        <h3>No case has been sent back</h3>
+        <p class="muted">A case lands here when an agent gives up, when it exhausts its drafting
+        retries, or when a reviewer rejects a draft.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

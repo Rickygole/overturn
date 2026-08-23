@@ -13,7 +13,7 @@ from datetime import UTC, date, datetime
 
 from core.schemas.case import CaseRecord
 from core.schemas.criteria import CriterionVerdict
-from core.schemas.denial import DenialExtraction
+from core.schemas.denial import DenialExtraction, DeniedService
 from core.schemas.draft import AppealDraft
 from core.schemas.enums import CriterionVerdictValue
 from core.schemas.verification import VerificationResult
@@ -75,6 +75,25 @@ def verdict_key(verdict: CriterionVerdictValue | str) -> str:
     return str(verdict)
 
 
+def service_detail(service: DeniedService) -> str:
+    """The codes, date and amount attached to one denied line item.
+
+    Assembled here rather than in the template: Jinja's whitespace trimming eats
+    the spaces around a chain of inline conditionals, and " CPT 75561· ICD-10"
+    is the sort of small wrongness that makes a reader distrust the rest.
+    """
+    parts: list[str] = []
+    if service.procedure_code:
+        parts.append(f"CPT/HCPCS {service.procedure_code}")
+    if service.diagnosis_code:
+        parts.append(f"ICD-10 {service.diagnosis_code}")
+    if service.date_of_service:
+        parts.append(f"dated {fmt_date(service.date_of_service)}")
+    if service.billed_amount is not None:
+        parts.append(f"billed ${service.billed_amount:,.2f}")
+    return " \u00b7 ".join(parts)
+
+
 FILTERS = {
     "fmt_date": fmt_date,
     "fmt_datetime": fmt_datetime,
@@ -82,6 +101,7 @@ FILTERS = {
     "confidence_band": confidence_band,
     "verdict_label": verdict_label,
     "verdict_key": verdict_key,
+    "service_detail": service_detail,
 }
 
 

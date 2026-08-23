@@ -67,9 +67,7 @@ def build_brief(case: CaseRecord, instructions: Sequence[str] = ()) -> DraftingB
 
     verdicts = tuple(case.criteria.appealable_verdicts())
     if not verdicts:
-        raise NothingToArgue(
-            f"case {case.case_id} has no satisfied criteria with chart evidence"
-        )
+        raise NothingToArgue(f"case {case.case_id} has no satisfied criteria with chart evidence")
 
     # Only the sections those criteria live in, quoted verbatim. A section the
     # argument does not rest on is not context, it is an opportunity.
@@ -143,8 +141,7 @@ def render(brief: DraftingBrief) -> str:
         lines += [
             "",
             "!" * 70,
-            f"THIS IS ATTEMPT {brief.attempt}. A previous draft was REJECTED in "
-            f"verification.",
+            f"THIS IS ATTEMPT {brief.attempt}. A previous draft was REJECTED in verification.",
             "Fix every one of the following. Do not restate the rejected claims in "
             "softer language; remove them or replace them with something the "
             "criteria above actually support.",

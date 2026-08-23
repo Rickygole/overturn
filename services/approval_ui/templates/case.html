@@ -1,0 +1,482 @@
+{% extends "base.html" %}
+{% block title %}{{ case.case_id }} — appeal review{% endblock %}
+{% block masthead %}Appeal review — <span class="mono">{{ case.case_id }}</span>{% endblock %}
+
+{% block content %}
+
+{% if notice %}
+<div class="banner banner--ok" role="status">
+  <h2>{{ notice.heading }}</h2>
+  <p>{{ notice.body }}</p>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="banner banner--danger" role="alert">
+  <h2>{{ error_heading }}</h2>
+  <p>{{ error }}</p>
+  <p><a href="#s6">Jump to the decision</a></p>
+</div>
+{% endif %}
+
+<p class="muted meta">
+  Status <span class="chip chip--neutral">{{ case.status.value }}</span>
+  &nbsp;·&nbsp; Appeal level: {{ case.appeal_level.value.replace("_", " ") }}
+  &nbsp;·&nbsp; Last updated {{ case.updated_at | fmt_datetime }}
+</p>
+
+{# ---------------------------------------------------------------- 1 of 6 #}
+<section class="section" aria-labelledby="s1">
+  <span class="section__step">Section 1 of 6</span>
+  <h2 id="s1">The denial</h2>
+  <div class="section__body">
+    {% if denial %}
+    <dl class="facts">
+      <dt>Payer</dt><dd>{{ denial.payer_name }}</dd>
+      <dt>Claim number</dt><dd class="mono">{{ denial.claim_number or "Not stated in the letter" }}</dd>
+      <dt>Patient</dt><dd>{{ denial.patient_name or "Not stated in the letter" }}</dd>
+      <dt>Member id</dt><dd class="mono">{{ denial.member_id or "Not stated in the letter" }}</dd>
+      <dt>Service denied</dt>
+      <dd>
+        <ul>
+          {% for service in denial.services %}
+          <li>
+            {{ service.description }}
+            <span class="muted">{{ service | service_detail }}</span>
+          </li>
+          {% else %}
+          <li class="muted">No line items were itemised in the letter.</li>
+          {% endfor %}
+        </ul>
+      </dd>
+      <dt>Payer's stated reason</dt>
+      <dd>
+        <blockquote class="evidence">{{ denial.denial_reason_text }}</blockquote>
+        {% if denial.denial_reason_code %}
+        <span class="locator">Reason code {{ denial.denial_reason_code }}</span>
+        {% endif %}
+      </dd>
+      <dt>Date of denial</dt><dd>{{ denial.date_of_denial | fmt_date }}</dd>
+      <dt>Appeal deadline</dt>
+      <dd>
+        {{ deadline.stated }}
+        <span class="chip chip--{{ deadline.tone }}">{{ deadline.label }}</span>
+      </dd>
+    </dl>
+    {% if denial.extraction_notes %}
+    <p class="muted stack-4"><strong>Intake noted:</strong> {{ denial.extraction_notes }}</p>
+    {% endif %}
+    {% else %}
+    <div class="card prose">
+      <h3>No denial has been extracted for this case</h3>
+      <p class="muted">Intake has not run, or it failed. There is nothing here to appeal against yet.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{# ---------------------------------------------------------------- 2 of 6 #}
+<section class="section" aria-labelledby="s2">
+  <span class="section__step">Section 2 of 6</span>
+  <h2 id="s2">Sentinel screening of the source document</h2>
+  <div class="section__body">
+    {% if not screening %}
+    <div class="card prose">
+      <h3>No screening record</h3>
+      <p class="muted">This document was not screened, or the result was not attached to the case.
+      Treat its contents with more caution than usual.</p>
+    </div>
+    {% elif screening.findings or screening.quarantine %}
+    <div class="banner banner--danger">
+      <h3>Sentinel found {{ screening.findings | length }} item{{ "" if screening.findings|length == 1 else "s" }} in this document</h3>
+      <p>
+        {% if screening.quarantine %}
+        The document was <strong>quarantined</strong>. Nothing downstream should have read it.
+        {% else %}
+        The document was allowed through with the findings below recorded. Read the drafted letter
+        with these in mind before approving anything.
+        {% endif %}
+      </p>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <caption>Excerpts below are shown as data. They were never executed as instructions.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Category</th>
+            <th scope="col">Detector</th>
+            <th scope="col">Confidence</th>
+            <th scope="col">Why it was flagged</th>
+            <th scope="col">Excerpt</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for finding in screening.findings %}
+          <tr>
+            <th scope="row"><span class="chip chip--danger">{{ finding.category.value.replace("_", " ") }}</span></th>
+            <td class="mono">{{ finding.detector }}</td>
+            <td>{{ finding.confidence | pct }} <span class="muted">({{ finding.confidence | confidence_band }})</span></td>
+            <td>{{ finding.rationale }}</td>
+            <td><blockquote class="evidence">{{ finding.excerpt }}</blockquote></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p><span class="chip chip--ok">No threats found</span></p>
+    <dl class="facts">
+      <dt>Detectors that ran</dt>
+      <dd>{{ screening.layers_run | join(", ") if screening.layers_run else "None recorded" }}</dd>
+      <dt>Personal data seen</dt>
+      <dd>{{ screening.pii_categories_found | join(", ") if screening.pii_categories_found else "None recorded" }}
+        <span class="muted">— expected in a denial letter; recorded, not blocked.</span></dd>
+      <dt>Screened content hash</dt>
+      <dd class="mono">{{ screening.content_sha256[:16] }}…</dd>
+    </dl>
+    {% endif %}
+  </div>
+</section>
+
+{# ---------------------------------------------------------------- 3 of 6 #}
+<section class="section" aria-labelledby="s3">
+  <span class="section__step">Section 3 of 6</span>
+  <h2 id="s3">Criteria matrix</h2>
+  <div class="section__body">
+    {% if not matrix or not matrix.verdicts %}
+    <div class="card prose">
+      <h3>No criteria were mapped</h3>
+      <p class="muted">Without a matrix there is no documented basis for an appeal. Do not approve
+      a letter that rests on nothing.</p>
+    </div>
+    {% else %}
+    {% if matrix.chart_summary %}
+    <p class="prose">{{ matrix.chart_summary }}</p>
+    {% endif %}
+    <div class="table-scroll">
+      <table>
+        <caption>
+          Whether the chart documents what the payer's own policy asks for. This is a
+          documentation judgement, not a clinical one.
+          {{ matrix.satisfied_count }} of {{ matrix.verdicts | length }} criteria are satisfied with evidence.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Criterion</th>
+            <th scope="col">Verdict</th>
+            <th scope="col">Chart evidence</th>
+            <th scope="col">Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in matrix.verdicts %}
+          <tr>
+            <th scope="row">
+              <span class="mono">{{ row.criterion_id }}</span><br>
+              <span class="normal">{{ row.criterion_text }}</span><br>
+              <span class="locator">Policy section {{ row.section_id }}</span>
+            </th>
+            <td>
+              <span class="chip chip--{{ row.verdict | verdict_key }}">{{ row.verdict | verdict_label }}</span>
+              <p class="note">{{ row.reasoning }}</p>
+            </td>
+            <td>
+              {% for item in row.evidence %}
+              <blockquote class="evidence">{{ item.quote }}</blockquote>
+              <p class="locator">
+                {{ item.locator }}
+                {% if item.document_type %} · {{ item.document_type }}{% endif %}
+                {% if item.observed_date %} · {{ item.observed_date }}{% endif %}
+              </p>
+              {% else %}
+              <span class="muted">No chart evidence cited</span>
+              {% endfor %}
+            </td>
+            <td>
+              {{ row.confidence | pct }}<br>
+              <span class="muted">{{ row.confidence | confidence_band }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if matrix.unmapped_criteria %}
+    <div class="banner banner--warn stack-5">
+      <h3>{{ matrix.unmapped_criteria | length }} {{ "criterion" if matrix.unmapped_criteria|length == 1 else "criteria" }} could not be evaluated at all</h3>
+      <p class="mono">{{ matrix.unmapped_criteria | join(", ") }}</p>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+</section>
+
+{# ---------------------------------------------------------------- 4 of 6 #}
+<section class="section" aria-labelledby="s4">
+  <span class="section__step">Section 4 of 6</span>
+  <h2 id="s4">The drafted letter{% if draft %} — attempt {{ draft.attempt }}{% endif %}</h2>
+  <div class="section__body">
+    {% if not draft %}
+    <div class="card prose">
+      <h3>No letter has been drafted</h3>
+      <p class="muted">There is nothing to approve on this case yet.</p>
+    </div>
+    {% else %}
+    <div class="card">
+      <p><strong>Subject:</strong> {{ draft.subject_line }}</p>
+      <hr class="divider">
+      <div class="letter">{{ draft.body }}</div>
+      <hr class="divider">
+      <p><strong>Requested action:</strong> {{ draft.requested_action }}</p>
+      {% if draft.model_used %}
+      <p class="locator">Generated by {{ draft.model_used }}</p>
+      {% endif %}
+    </div>
+
+    <h3 class="stack-6">Citations, each next to the claim it is used to make</h3>
+    <div class="card stack-4">
+      {% for citation in draft.citations %}
+      <div class="citation">
+        <p><span class="citation__id">{{ citation.section_id }}</span></p>
+        <p><strong>The letter asserts:</strong> {{ citation.claim }}</p>
+        {% if citation.quoted_text %}
+        <blockquote class="evidence">{{ citation.quoted_text }}</blockquote>
+        {% endif %}
+        {% if citation.supporting_criterion_ids %}
+        <p class="locator">Rests on matrix rows: {{ citation.supporting_criterion_ids | join(", ") }}</p>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="muted">This letter cites no policy section. An appeal with no citation is an opinion.</p>
+      {% endfor %}
+    </div>
+
+    {% if draft.clinical_assertions %}
+    <h3 class="stack-6">Every factual claim the letter makes about the patient</h3>
+    <ul class="stack-4">
+      {% for assertion in draft.clinical_assertions %}
+      <li>{{ assertion }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% endif %}
+  </div>
+</section>
+
+{# ---------------------------------------------------------------- 5 of 6 #}
+<section class="section" aria-labelledby="s5">
+  <span class="section__step">Section 5 of 6</span>
+  <h2 id="s5">Verification</h2>
+  <div class="section__body">
+    {% if not verification %}
+    <div class="card prose">
+      <h3>This draft has not been verified</h3>
+      <p class="muted">No citation or grounding check has run against the letter above.</p>
+    </div>
+    {% else %}
+    <p>
+      {% if verification.passed %}
+      <span class="chip chip--ok">Passed on attempt {{ verification.attempt }}</span>
+      {% else %}
+      <span class="chip chip--danger">Rejected on attempt {{ verification.attempt }}</span>
+      {% endif %}
+      {% if verification.checked_by_model %}
+      <span class="muted">checked by {{ verification.checked_by_model }}</span>
+      {% endif %}
+    </p>
+    <div class="table-scroll stack-4">
+      <table>
+        <caption>The checks that ran against attempt {{ verification.attempt }}.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Check</th>
+            <th scope="col">Result</th>
+            <th scope="col">What was examined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for check in checks %}
+          <tr>
+            <th scope="row" class="normal">{{ check.label }}</th>
+            <td>
+              {% if check.passed %}
+              <span class="chip chip--satisfied">Passed</span>
+              {% else %}
+              <span class="chip chip--not_satisfied">Failed</span>
+              {% endif %}
+            </td>
+            <td>{{ check.detail }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    <h3 class="stack-6">Retry history</h3>
+    <p class="prose muted">
+      {{ history | length }} drafting attempt{{ "" if history|length == 1 else "s" }} on this case.
+      An attempt that verification sent back is shown here in full: the system catching its own
+      error is evidence, not something to hide.
+    </p>
+    <ol>
+      {% for entry in history %}
+      <li>
+        <strong>Attempt {{ entry.attempt }}</strong> —
+        {% if entry.passed %}
+        <span class="chip chip--satisfied">{{ entry.outcome }}</span>
+        {% elif entry.passed is false %}
+        <span class="chip chip--not_satisfied">{{ entry.outcome }}</span>
+        {% else %}
+        <span class="chip chip--none">{{ entry.outcome }}</span>
+        {% endif %}
+        {% if entry.findings %}
+        <ul>
+          {% for finding in entry.findings %}
+          <li>
+            <span class="chip chip--{{ 'not_satisfied' if finding.severity == 'fatal' else 'insufficient_documentation' }}">{{ finding.severity }}</span>
+            <span class="mono">{{ finding.check }}</span> at <span class="mono">{{ finding.locus }}</span> —
+            {{ finding.detail }}
+            {% if finding.source_text %}
+            <blockquote class="evidence">{{ finding.source_text }}</blockquote>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if entry.draft and entry.draft.revision_feedback_applied %}
+        <p class="muted">Written to answer:</p>
+        <ul>
+          {% for instruction in entry.draft.revision_feedback_applied %}
+          <li class="muted">{{ instruction }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </li>
+      {% else %}
+      <li class="muted">No drafting attempts recorded.</li>
+      {% endfor %}
+    </ol>
+
+    <details class="stack-5">
+      <summary>Audit trail — {{ trail | length }} recorded event{{ "" if trail|length == 1 else "s" }}</summary>
+      <div class="table-scroll stack-4">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">When</th>
+              <th scope="col">Agent</th>
+              <th scope="col">Operation</th>
+              <th scope="col">Decision</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for event in trail %}
+            <tr>
+              <td>{{ event.at | fmt_datetime }}</td>
+              <td class="mono">{{ event.agent.value }}</td>
+              <td class="mono">{{ event.operation }}</td>
+              <td>{{ event.decision }}{% if not event.succeeded %} <span class="chip chip--danger">failed</span>{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="muted">No audit events for this case.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </div>
+</section>
+
+{# ---------------------------------------------------------------- 6 of 6 #}
+<section class="section" aria-labelledby="s6">
+  <span class="section__step">Section 6 of 6</span>
+  <h2 id="s6">Your decision</h2>
+  <div class="section__body">
+
+    {% if case.human_decision %}
+    <div class="banner banner--{{ 'ok' if case.human_decision.approved else 'warn' }}">
+      <h3>{{ "Approved" if case.human_decision.approved else "Rejected" }} by {{ case.human_decision.decided_by }}</h3>
+      <p>
+        {{ case.human_decision.decided_at | fmt_datetime }}.
+        {% if case.human_decision.approved %}
+        Drafting attempt {{ case.human_decision.draft_attempt_approved }} is the letter that was
+        signed off, and it is the one that will be transmitted.
+        {% endif %}
+        {% if case.human_decision.note %}<br>{{ case.human_decision.note }}{% endif %}
+      </p>
+    </div>
+    {% endif %}
+
+    {% if decidable and draft %}
+    {% set approve_by_bad = error_field == "decided_by" and error_form == "approve" %}
+    {% set reject_by_bad = error_field == "decided_by" and error_form == "reject" %}
+    {% set reason_bad = error_field == "reason" %}
+    <div class="decide">
+      <form class="decide__panel decide__panel--approve" method="post" action="/case/{{ case.case_id }}/approve">
+        <h3>Approve for transmission</h3>
+        <p class="muted">This authorises the letter above — attempt {{ draft.attempt }} and no other —
+        to be sent to {{ denial.payer_name if denial else "the payer" }}.</p>
+        <input type="hidden" name="draft_attempt" value="{{ draft.attempt }}">
+        <div class="field">
+          <label for="approve-by">Your name or email</label>
+          <span class="hint" id="approve-by-hint">Recorded on the case and in the audit log. Required.</span>
+          <input type="text" id="approve-by" name="decided_by" required autocomplete="username"
+                 aria-invalid="{{ "true" if approve_by_bad else "false" }}"
+                 aria-describedby="approve-by-hint{{ " approve-by-error" if approve_by_bad }}"
+                 {{ "autofocus" if approve_by_bad }}
+                 value="{{ form.decided_by or reviewer_hint }}">
+          {% if approve_by_bad %}
+          <p class="field-error" id="approve-by-error">{{ error }}</p>
+          {% endif %}
+        </div>
+        <button class="btn btn--approve" type="submit">Approve attempt {{ draft.attempt }}</button>
+      </form>
+
+      <form class="decide__panel decide__panel--reject" method="post" action="/case/{{ case.case_id }}/reject">
+        <h3>Reject and send back</h3>
+        <p class="muted">Returns the case for human review. Nothing is transmitted.</p>
+        <div class="field">
+          <label for="reject-by">Your name or email</label>
+          <span class="hint" id="reject-by-hint">Recorded on the case and in the audit log. Required.</span>
+          <input type="text" id="reject-by" name="decided_by" required autocomplete="username"
+                 aria-invalid="{{ "true" if reject_by_bad else "false" }}"
+                 aria-describedby="reject-by-hint{{ " reject-by-error" if reject_by_bad }}"
+                 {{ "autofocus" if reject_by_bad }}
+                 value="{{ form.decided_by or reviewer_hint }}">
+          {% if reject_by_bad %}
+          <p class="field-error" id="reject-by-error">{{ error }}</p>
+          {% endif %}
+        </div>
+        <div class="field">
+          <label for="reject-reason">Reason for rejection</label>
+          <span class="hint" id="reject-reason-hint">Required. Say what is wrong with the draft — this is what the next attempt has to answer.</span>
+          <textarea id="reject-reason" name="reason" required
+                    aria-invalid="{{ "true" if reason_bad else "false" }}"
+                    aria-describedby="reject-reason-hint{{ " reject-reason-error" if reason_bad }}"
+                    {{ "autofocus" if reason_bad }}
+                    >{{ form.reason or "" }}</textarea>
+          {% if reason_bad %}
+          <p class="field-error" id="reject-reason-error">{{ error }}</p>
+          {% endif %}
+        </div>
+        <button class="btn btn--reject" type="submit">Reject this draft</button>
+      </form>
+    </div>
+    {% elif not draft %}
+    <div class="card prose">
+      <h3>There is nothing to decide yet</h3>
+      <p class="muted">No appeal has been drafted for this case.</p>
+    </div>
+    {% else %}
+    <div class="card prose">
+      <h3>This case is not open for a decision</h3>
+      <p class="muted">Its status is <span class="mono">{{ case.status.value }}</span>. Only a case in
+      <span class="mono">awaiting_human_approval</span> can be approved or rejected here.</p>
+      <p><a href="/">Back to the review queue</a></p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

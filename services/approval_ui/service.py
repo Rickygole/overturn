@@ -49,6 +49,7 @@ class ApprovalError(Exception):
 
     status_code = 409
     heading = "This decision was not recorded"
+    field: str | None = None  # the form control at fault, when there is one
 
 
 class NotApprovable(ApprovalError):
@@ -72,6 +73,7 @@ class MissingReason(ApprovalError):
 
     status_code = 400
     heading = "A rejection needs a reason"
+    field = "reason"
 
 
 class MissingReviewer(ApprovalError):
@@ -79,6 +81,7 @@ class MissingReviewer(ApprovalError):
 
     status_code = 400
     heading = "Say who is deciding"
+    field = "decided_by"
 
 
 @dataclass(frozen=True)
@@ -165,9 +168,7 @@ class ApprovalService:
                 recording.input_summary = (
                     f"reviewer approved drafting attempt {attempt} of case {case_id}"
                 )
-                recording.decision = (
-                    f"approved: attempt {attempt} may be transmitted to the payer"
-                )
+                recording.decision = f"approved: attempt {attempt} may be transmitted to the payer"
                 recording.output = {
                     "approved": True,
                     "draft_attempt_approved": attempt,

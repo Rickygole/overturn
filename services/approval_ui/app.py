@@ -14,7 +14,7 @@ without a web client.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 from urllib.parse import quote
 
 from fastapi import FastAPI, Form, Request
@@ -51,6 +51,7 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
         *,
         error: ApprovalError | Exception | None = None,
         error_heading: str | None = None,
+        error_form: str | None = None,
         notice: str | None = None,
         form: dict[str, Any] | None = None,
         status_code: int = 200,
@@ -58,21 +59,22 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
         """The review screen, with whatever the last submission left behind."""
         case = service.load(case_id)
         draft = view.draft_under_review(case)
+        verification = _verification_for(case, draft)
         context: dict[str, Any] = {
             "case": case,
             "denial": case.denial,
             "screening": case.screening,
             "matrix": case.criteria,
             "draft": draft,
-            "verification": _verification_for(case, draft),
+            "verification": verification,
             "history": view.attempt_history(case),
-            "checks": view.check_rows(_verification_for(case, draft)),
-            "deadline": view.deadline_view(
-                case.denial.appeal_deadline if case.denial else None
-            ),
+            "checks": view.check_rows(verification),
+            "deadline": view.deadline_view(case.denial.appeal_deadline if case.denial else None),
             "trail": service.trail(case.case_id),
             "decidable": case.status == REVIEWABLE_STATUS,
             "error": str(error) if error else None,
+            "error_field": getattr(error, "field", None),
+            "error_form": error_form,
             "error_heading": error_heading
             or getattr(error, "heading", None)
             or "This decision was not recorded",
@@ -96,15 +98,22 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
         )
 
     @app.get("/case/{case_id}", response_class=HTMLResponse)
-    def review(request: Request, case_id: str, decided: str | None = None, replay: int = 0) -> Response:
+    def review(
+        request: Request,
+        case_id: str,
+        decided: str | None = None,
+        replay: int = 0,
+    ) -> Response:
         return render_case(request, case_id, notice=_notice(decided, replay))
 
     @app.post("/case/{case_id}/approve")
     def approve(
         request: Request,
         case_id: str,
-        decided_by: str = Form(default=""),
-        draft_attempt: int | None = Form(default=None),
+        # Required, with no fallback to "the latest draft". A submission that
+        # cannot say which attempt the reviewer read is not an approval.
+        draft_attempt: Annotated[int, Form()],
+        decided_by: Annotated[str, Form()] = "",
     ) -> Response:
         try:
             outcome = service.approve(case_id, decided_by=decided_by, draft_attempt=draft_attempt)
@@ -113,6 +122,7 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
                 request,
                 case_id,
                 error=exc,
+                error_form="approve",
                 form={"decided_by": decided_by},
                 status_code=exc.status_code,
             )
@@ -122,6 +132,7 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
                 case_id,
                 error=exc,
                 error_heading="Another decision is being recorded right now",
+                error_form="approve",
                 form={"decided_by": decided_by},
                 status_code=409,
             )
@@ -131,8 +142,8 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
     def reject(
         request: Request,
         case_id: str,
-        decided_by: str = Form(default=""),
-        reason: str = Form(default=""),
+        decided_by: Annotated[str, Form()] = "",
+        reason: Annotated[str, Form()] = "",
     ) -> Response:
         try:
             service.reject(case_id, decided_by=decided_by, reason=reason)
@@ -141,6 +152,7 @@ def create_app(store: DocumentStore | None = None) -> FastAPI:
                 request,
                 case_id,
                 error=exc,
+                error_form="reject",
                 form={"decided_by": decided_by, "reason": reason},
                 status_code=exc.status_code,
             )
@@ -180,14 +192,29 @@ def _see_other(case_id: str, decided: str, replay: bool = False) -> RedirectResp
     )
 
 
-def _notice(decided: str | None, replay: int) -> str | None:
-    if decided == "approved":
-        if replay:
-            return (
+def _notice(decided: str | None, replay: int) -> dict[str, str] | None:
+    """The banner shown after a decision.
+
+    The replayed case gets its own heading. Telling a reviewer "Decision
+    recorded" when nothing was recorded is the kind of small lie that makes
+    someone press the button a third time.
+    """
+    if decided == "approved" and replay:
+        return {
+            "heading": "Already approved",
+            "body": (
                 "This case was already approved. Nothing further was recorded — "
                 "the earlier decision stands."
-            )
-        return "Approval recorded. This appeal may now be transmitted to the payer."
+            ),
+        }
+    if decided == "approved":
+        return {
+            "heading": "Approval recorded",
+            "body": "This appeal may now be transmitted to the payer.",
+        }
     if decided == "rejected":
-        return "Rejection recorded. The case has been returned for human review."
+        return {
+            "heading": "Rejection recorded",
+            "body": "The case has been returned for human review.",
+        }
     return None

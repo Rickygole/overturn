@@ -147,7 +147,7 @@ main { padding-block: var(--s6) var(--s8); }
   padding: var(--s4) var(--s5);
   margin-bottom: var(--s6);
 }
-.banner h2 { font-size: var(--text-md); margin-bottom: var(--s2); }
+.banner h2, .banner h3 { font-size: var(--text-md); margin-bottom: var(--s2); }
 .banner p { color: var(--ink); }
 .banner--ok { color: var(--ok); background: var(--ok-wash); }
 .banner--warn { color: var(--warn); background: var(--warn-wash); }
@@ -157,6 +157,7 @@ main { padding-block: var(--s6) var(--s8); }
 
 .section { margin-top: var(--s7); border-top: 2px solid var(--rule-strong); padding-top: var(--s5); }
 .section:first-of-type { margin-top: var(--s6); }
+main > .section:first-child { border-top: 0; padding-top: 0; margin-top: var(--s2); }
 .section__step {
   display: block;
   font-family: var(--mono);
@@ -265,7 +266,7 @@ summary::marker { color: var(--ink-muted); }
 
 /* --- decision --------------------------------------------------------- */
 
-.decide { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: var(--s5); }
+.decide { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: var(--s5); align-items: start; }
 .decide__panel { border: 2px solid var(--rule-strong); border-radius: var(--radius); padding: var(--s5); background: var(--surface); }
 .decide__panel--approve { border-color: var(--ok); }
 .decide__panel--reject { border-color: var(--rule-strong); }
@@ -286,6 +287,7 @@ textarea { min-height: 6.5rem; resize: vertical; line-height: 1.55; }
 input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--danger); }
 
 .field { margin-bottom: var(--s4); }
+.field-error { color: var(--danger); font-size: var(--text-sm); font-weight: 650; margin: var(--s2) 0 0; }
 
 .btn {
   font: inherit;
@@ -302,6 +304,32 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--
 .btn--reject:hover { background: var(--danger-wash); }
 
 /* --- footer ------------------------------------------------------------- */
+
+/* --- utilities ----------------------------------------------------------
+   The only three things templates ever need to vary: weight, a smaller note,
+   and a step on the spacing scale. Nothing here takes an arbitrary value.
+------------------------------------------------------------------------- */
+
+.normal { font-weight: 400; }
+.meta { max-width: none; font-size: var(--text-sm); }
+.note { margin-top: var(--s2); font-size: var(--text-sm); color: var(--ink-muted); }
+.divider { border: 0; border-top: 1px solid var(--rule); margin: var(--s4) 0; }
+.stack-4 { margin-top: var(--s4); }
+.stack-5 { margin-top: var(--s5); }
+.stack-6 { margin-top: var(--s6); }
+
+/* --- utilities ----------------------------------------------------------
+   The only things a template ever needs to vary: weight, a smaller note, a
+   rule, and a step on the spacing scale. Nothing here takes an arbitrary value.
+------------------------------------------------------------------------- */
+
+.normal { font-weight: 400; }
+.meta { max-width: none; font-size: var(--text-sm); }
+.note { margin-top: var(--s2); font-size: var(--text-sm); color: var(--ink-muted); }
+.divider { border: 0; border-top: 1px solid var(--rule); margin: var(--s4) 0; }
+.stack-4 { margin-top: var(--s4); }
+.stack-5 { margin-top: var(--s5); }
+.stack-6 { margin-top: var(--s6); }
 
 .foot { border-top: 1px solid var(--rule); margin-top: var(--s8); padding-block: var(--s5); color: var(--ink-muted); font-size: var(--text-sm); }
 
@@ -325,7 +353,7 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--
       <p>No appeal leaves this system without a decision recorded on this screen.</p>
     </div>
     <nav aria-label="Sections">
-      <a href="/">Review queue</a>
+      {% block nav %}<a href="/">Review queue</a>{% endblock %}
     </nav>
   </div>
 </header>

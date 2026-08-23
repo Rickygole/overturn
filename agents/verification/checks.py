@@ -32,8 +32,7 @@ def check_citation_existence(
             detail=(
                 f"The letter cites {section_id}, which does not exist in the "
                 f"retrieved policy. Remove it. Only these identifiers were "
-                f"provided: {', '.join(sorted(known)[:12])}"
-                + ("..." if len(known) > 12 else "")
+                f"provided: {', '.join(sorted(known)[:12])}" + ("..." if len(known) > 12 else "")
             ),
         )
         for section_id in missing

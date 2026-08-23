@@ -82,9 +82,7 @@ def chart_text_by_locator(chart: PatientChart) -> dict[str, str]:
         )
     for med in chart.medications:
         index[med.locator] = " ".join(
-            part
-            for part in (med.name, med.dose, med.route, med.frequency)
-            if part
+            part for part in (med.name, med.dose, med.route, med.frequency) if part
         )
     return index
 
@@ -127,8 +125,7 @@ def sanitise_matrix(
                 continue
             if not quote_is_present(evidence.quote, evidence.locator, chart_text):
                 adjustments.append(
-                    f"{verdict.criterion_id}: dropped a quote not present at "
-                    f"{evidence.locator!r}"
+                    f"{verdict.criterion_id}: dropped a quote not present at {evidence.locator!r}"
                 )
                 continue
             surviving.append(evidence)
@@ -141,8 +138,7 @@ def sanitise_matrix(
                     "verdict": CriterionVerdictValue.INSUFFICIENT_DOCUMENTATION,
                     "reasoning": (
                         "Downgraded automatically: the criterion was marked satisfied "
-                        "but no surviving chart evidence supports it. "
-                        + adjusted.reasoning
+                        "but no surviving chart evidence supports it. " + adjusted.reasoning
                     ),
                 }
             )
@@ -155,9 +151,7 @@ def sanitise_matrix(
 
     evaluated = {v.criterion_id for v in kept}
     criterion_ids = {
-        criterion.criterion_id
-        for section in retrieval.sections
-        for criterion in section.criteria
+        criterion.criterion_id for section in retrieval.sections for criterion in section.criteria
     }
     unmapped = sorted(criterion_ids - evaluated)
 
