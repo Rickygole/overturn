@@ -39,11 +39,11 @@ class DraftingAgent(OverturnAgent[DraftingBrief, AppealDraft]):
         attempt: int,
     ) -> AppealDraft:
         system = DRAFTING_SYSTEM
-        if self.settings.sabotage_drafting:
+        if self.settings.sabotage_drafting_on(request.attempt):
             # Loud on purpose. A fault injection that is not obvious in the
             # audit trail is indistinguishable from a real defect later.
             system += SABOTAGE_SUFFIX
-            rec.extra["fault_injection"] = "sabotage_drafting enabled"
+            rec.extra["fault_injection"] = f"sabotage enabled for attempt {request.attempt}"
 
         draft, response = self.llm.structured(
             agent=self.name.value,

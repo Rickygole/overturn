@@ -98,16 +98,38 @@ class Settings(BaseSettings):
     firestore_emulator_host: str = Field(default="localhost:8080")
     runtime_mode: Literal["local", "cloud"] = Field(default="local")
 
-    @property
-    def sabotage_drafting(self) -> bool:
-        """Deliberate-hallucination switch used only to prove Verification works.
+    def sabotage_drafting_on(self, attempt: int) -> bool:
+        """Deliberate-fault switch, used only to prove Verification works.
 
-        Never read from settings by default; the demo script sets the env var
-        explicitly for a single run and unsets it afterwards.
+        Off unless the environment variable is set for a single deliberate run.
+        Two modes, because they demonstrate different things:
+
+        ``first``  fabricate on attempt 1 only. A transient fault: Verification
+                   rejects it, the specific reason is fed back, and attempt 2 is
+                   clean. This shows the loop recovering.
+        ``always`` fabricate on every attempt. A persistent fault: all three
+                   attempts are rejected and the case goes to a person with
+                   nothing sent. This shows the cap holding.
+
+        A safety net nobody has ever dropped into is not a demonstrated safety
+        net, which is why this exists at all. It is disclosed in the README and
+        stated out loud in the demo.
         """
         import os
 
-        return os.getenv("OVERTURN_SABOTAGE_DRAFTING", "").lower() in {"1", "true", "yes"}
+        mode = os.getenv("OVERTURN_SABOTAGE_DRAFTING", "").lower()
+        if mode in {"1", "true", "yes", "always"}:
+            return True
+        if mode == "first":
+            return attempt == 1
+        return False
+
+    @property
+    def sabotage_configured(self) -> bool:
+        """Whether fault injection is enabled at all, for the run banner."""
+        import os
+
+        return bool(os.getenv("OVERTURN_SABOTAGE_DRAFTING", "").strip())
 
 
 @lru_cache(maxsize=1)
