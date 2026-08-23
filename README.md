@@ -153,17 +153,77 @@ docs/             architecture, model choices, platform probe
 
 ## Running it locally
 
-Nothing here requires a cloud project. The offline backend runs the full
-pipeline deterministically.
+**Nothing here requires a cloud project, an API key, or a network connection.**
+The full seven-agent pipeline runs offline and deterministically, so the
+architecture can be exercised rather than described. Only the generative calls
+are answered locally; the orchestration, the retry loop, the idempotency guard,
+the access gateway, the audit trail and the trace spans are all the real thing.
 
 ```bash
 git clone https://github.com/Rickygole/overturn.git
 cd overturn
-uv sync
-uv run pytest -q
+uv sync                # needs uv; see https://docs.astral.sh/uv/
+uv run pytest -q       # 189 tests, about two seconds
 ```
 
-Regenerating the patient charts needs Synthea and a JRE:
+Verified from a clean clone on 2026-08-23. If those two commands do not both
+succeed, that is a bug in this README and not in your machine.
+
+### Watch it work
+
+**A clean case.** A denial letter goes in, a verified appeal comes out and stops
+at the human gate:
+
+```bash
+uv run python scripts/run_pipeline.py CASE-001
+```
+
+**A prompt injection.** The letter carries an instruction payload aimed at
+whatever reads it. The pipeline halts before Intake ever sees the text:
+
+```bash
+uv run python scripts/run_pipeline.py CASE-002
+```
+
+**A fabricated citation, caught.** Drafting is deliberately instructed to invent
+a policy section on its first attempt. Verification rejects the draft, feeds
+back the specific reason, and the retry is clean:
+
+```bash
+OVERTURN_SABOTAGE_DRAFTING=first uv run python scripts/run_pipeline.py CASE-003
+```
+
+**The same fault, made permanent.** Three rejections, then the case goes to a
+person and nothing is sent:
+
+```bash
+OVERTURN_SABOTAGE_DRAFTING=always uv run python scripts/run_pipeline.py CASE-003
+```
+
+That fault-injection switch is off unless the environment variable is set for a
+single deliberate run. It exists because a safety net nobody has ever dropped
+into is not a demonstrated safety net.
+
+### The human approval interface
+
+```bash
+uv run uvicorn services.approval_ui.main:app --port 8080
+```
+
+### Measuring retrieval
+
+Retrieval decides which policy the entire case is argued against, so its
+thresholds are set from measurement rather than intuition. This prints the score
+distribution and **fails** if the correct-policy and no-policy populations
+overlap:
+
+```bash
+uv run python scripts/calibrate_retrieval.py
+```
+
+### Regenerating the patient charts
+
+Optional, and needs a JRE plus Synthea:
 
 ```bash
 java -jar synthea-with-dependencies.jar -p 8 -s 20260822 \
