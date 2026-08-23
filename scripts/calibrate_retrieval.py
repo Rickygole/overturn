@@ -68,15 +68,22 @@ def main() -> int:
 
     for case_id, query in CASE_QUERIES.items():
         want = expected.get(case_id)
-        hits = index.search(query, k=12)
+        # Call the same ranking the agent calls. An earlier version of this
+        # script reimplemented it, the two implementations disagreed, and the
+        # calibration passed while the agent retrieved the wrong policy. A
+        # measurement harness that does not exercise the real code path
+        # measures the harness.
+        best = index.best_policy(query)
+        got, top = best if best else ("(nothing)", 0.0)
 
+        hits = index.search(query, k=12)
         by_policy: dict[str, float] = {}
         for section, score in hits:
             by_policy[section.policy_id] = max(by_policy.get(section.policy_id, 0.0), score)
-
-        ranked = sorted(by_policy.items(), key=lambda kv: -kv[1])
-        got, top = (ranked[0] if ranked else ("(nothing)", 0.0))
-        runner_up = ranked[1][1] if len(ranked) > 1 else 0.0
+        runner_up = max(
+            (v for p, v in by_policy.items() if p != got),
+            default=0.0,
+        )
         margin = top - runner_up
 
         if want is None:
@@ -97,8 +104,10 @@ def main() -> int:
 
     print()
     if correct_scores:
-        print(f"correct-policy top scores : min {min(correct_scores):.3f}  "
-              f"max {max(correct_scores):.3f}")
+        print(
+            f"correct-policy top scores : min {min(correct_scores):.3f}  "
+            f"max {max(correct_scores):.3f}"
+        )
     if wrong_scores:
         print(f"no-policy-case top scores : max {max(wrong_scores):.3f}")
 
@@ -106,8 +115,10 @@ def main() -> int:
         gap = min(correct_scores) - max(wrong_scores)
         print(f"separation                : {gap:.3f}")
         if gap <= 0:
-            print("\nThe two populations overlap. That is a retrieval problem, not a "
-                  "threshold problem — do not paper over it with a constant.")
+            print(
+                "\nThe two populations overlap. That is a retrieval problem, not a "
+                "threshold problem — do not paper over it with a constant."
+            )
             return 1
         print(
             f"\nSuggested no_policy_floor : {max(wrong_scores) + gap * 0.35:.2f}  "
