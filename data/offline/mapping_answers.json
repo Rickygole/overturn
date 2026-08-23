@@ -1,0 +1,189 @@
+{
+  "CASE-001": {
+    "NBH-ENDO-031-3.1": {
+      "verdict": "satisfied",
+      "confidence": 0.95,
+      "reasoning": "The record documents type 2 diabetes on a four-injection-per-day insulin regimen, which meets the intensive regimen definition of three or more injections daily.",
+      "evidence": [
+        {
+          "locator": "enc/2026-05-19/endocrinology",
+          "quote": "Fifty-nine year old man with type 2 diabetes mellitus of nine years' duration, currently on a multiple daily injection regimen: insulin glargine 38 units nightly plus insulin lispro three times daily with meals, four injections per day total, alongside metformin 1000 mg twice daily."
+        }
+      ]
+    },
+    "NBH-ENDO-031-3.2": {
+      "verdict": "satisfied",
+      "confidence": 0.95,
+      "reasoning": "A structured training session on the requested device was completed and documented.",
+      "evidence": [
+        {
+          "locator": "enc/2026-06-11/diabetes-education",
+          "quote": "Completed a forty-five minute structured training session with the patient and his spouse on the use, application, calibration and interpretation of the prescribed continuous glucose monitoring system."
+        }
+      ]
+    },
+    "NBH-ENDO-031-3.3": {
+      "verdict": "satisfied",
+      "confidence": 0.9,
+      "reasoning": "A telehealth evaluation addressing diabetes management occurred on 14 July 2026, within six months of the request.",
+      "evidence": [
+        {
+          "locator": "enc/2026-07-14/endocrinology",
+          "quote": "Diabetes management discussed in full: insulin regimen unchanged, fingerstick frequency unchanged at two to three per day."
+        }
+      ]
+    },
+    "NBH-ENDO-031-3.4": {
+      "verdict": "satisfied",
+      "confidence": 0.95,
+      "reasoning": "Two of the listed alternatives are documented: an A1c of 8.6 percent, and level 2 hypoglycaemia at 48 mg/dL with an emergency department visit.",
+      "evidence": [
+        {
+          "locator": "lab/a1c-2026-05-19",
+          "quote": "2026-05-19 Hemoglobin A1c 8.6 % 4."
+        },
+        {
+          "locator": "enc/2026-04-06/emergency",
+          "quote": "Field glucose 48 mg/dL."
+        }
+      ]
+    },
+    "NBH-ENDO-031-3.5": {
+      "verdict": "satisfied",
+      "confidence": 0.9,
+      "reasoning": "The treating clinician documented that fingerstick testing at the frequency the patient can sustain is insufficient to guide insulin titration.",
+      "evidence": [
+        {
+          "locator": "enc/2026-05-19/endocrinology",
+          "quote": "Because his overnight and mid-shift excursions are going undetected, fingerstick monitoring at the frequency he is able to sustain is insufficient to guide safe titration of his mealtime insulin."
+        }
+      ]
+    },
+    "NBH-ENDO-031-4.1": {
+      "verdict": "satisfied",
+      "confidence": 0.9,
+      "reasoning": "The 19 May 2026 endocrinology note states the diabetes type, the insulin regimen, and the rationale for continuous monitoring.",
+      "evidence": [
+        {
+          "locator": "enc/2026-05-19/endocrinology",
+          "quote": "Fifty-nine year old man with type 2 diabetes mellitus of nine years' duration, currently on a multiple daily injection regimen: insulin glargine 38 units nightly plus insulin lispro three times daily with meals, four injections per day total, alongside metformin 1000 mg twice daily."
+        }
+      ]
+    },
+    "NBH-ENDO-031-4.2": {
+      "verdict": "satisfied",
+      "confidence": 0.9,
+      "reasoning": "The most recent A1c is recorded with its collection date.",
+      "evidence": [
+        {
+          "locator": "lab/a1c-2026-05-19",
+          "quote": "2026-05-19 Hemoglobin A1c 8."
+        }
+      ]
+    },
+    "NBH-ENDO-031-4.3": {
+      "verdict": "satisfied",
+      "confidence": 0.9,
+      "reasoning": "Device training is recorded as complete.",
+      "evidence": [
+        {
+          "locator": "enc/2026-06-11/diabetes-education",
+          "quote": "Training complete; patient is ready to begin monitoring once the device is dispensed."
+        }
+      ]
+    }
+  },
+  "CASE-003": {
+    "NBH-CARD-014-3.1": {
+      "verdict": "satisfied",
+      "confidence": 0.95,
+      "reasoning": "Exertional dyspnoea began in February 2026 and is documented as progressive, exceeding the six week requirement.",
+      "evidence": [
+        {
+          "locator": "enc/2026-02-18/internal-medicine",
+          "quote": "Eighty-three year old woman reporting six weeks of increasing breathlessness on exertion."
+        }
+      ]
+    },
+    "NBH-CARD-014-3.2": {
+      "verdict": "satisfied",
+      "confidence": 0.95,
+      "reasoning": "A twelve-lead electrocardiogram and a transthoracic echocardiogram were both performed in March 2026, within the preceding twelve months.",
+      "evidence": [
+        {
+          "locator": "enc/2026-03-02/ecg",
+          "quote": "Twelve-lead electrocardiogram performed 2 March 2026."
+        },
+        {
+          "locator": "enc/2026-03-09/echocardiogram",
+          "quote": "Transthoracic echocardiogram performed 9 March 2026."
+        }
+      ]
+    },
+    "NBH-CARD-014-3.3": {
+      "verdict": "satisfied",
+      "confidence": 0.9,
+      "reasoning": "The echocardiogram is explicitly reported as technically limited and unable to answer the clinical question, and the paced rhythm renders the electrocardiogram non-diagnostic.",
+      "evidence": [
+        {
+          "locator": "enc/2026-03-09/echocardiogram",
+          "quote": "The question of an infiltrative process raised clinically is not answered by this study and further imaging is advised."
+        },
+        {
+          "locator": "enc/2026-03-02/ecg",
+          "quote": "Interpretation: paced rhythm, non-diagnostic for ischaemia."
+        }
+      ]
+    },
+    "NBH-CARD-014-3.4": {
+      "verdict": "satisfied",
+      "confidence": 0.9,
+      "reasoning": "The cardiologist documented the specific management fork the result determines: bone scintigraphy and free light chains on an amyloid pattern, invasive angiography on an ischaemic pattern.",
+      "evidence": [
+        {
+          "locator": "enc/2026-04-22/cardiology",
+          "quote": "Cardiac magnetic resonance with late gadolinium enhancement and T1 mapping is the study that distinguishes these, and the distinction determines management directly: a positive amyloid pattern would take her to bone scintigraphy and serum free light chains and, if confirmed, to disease-modifying therapy, whereas an ischaemic pattern of enhancement would take her to invasive angiography."
+        }
+      ]
+    },
+    "NBH-CARD-014-3.5": {
+      "verdict": "insufficient_documentation",
+      "confidence": 0.85,
+      "reasoning": "The record notes a permanent pacemaker and states only that device details will need to be confirmed with the implanting centre. It does not state whether the device is MRI-conditional, so the record does not establish that the relative contraindication has been addressed.",
+      "evidence": []
+    },
+    "NBH-CARD-014-5.1": {
+      "verdict": "satisfied",
+      "confidence": 0.9,
+      "reasoning": "The April cardiology note describes the symptoms, their duration, and the clinical question the study is intended to answer.",
+      "evidence": [
+        {
+          "locator": "enc/2026-04-22/cardiology",
+          "quote": "The differential is between an infiltrative cardiomyopathy, most importantly cardiac amyloidosis given her age and the septal appearance, and ischaemic disease that the paced rhythm prevents me from excluding electrocardiographically."
+        }
+      ]
+    },
+    "NBH-CARD-014-5.2": {
+      "verdict": "satisfied",
+      "confidence": 0.9,
+      "reasoning": "The echocardiogram report is present with its date and its stated limitations.",
+      "evidence": [
+        {
+          "locator": "enc/2026-03-09/echocardiogram",
+          "quote": "Image quality is poor secondary to body habitus and limited acoustic windows; the apex and the lateral wall are not adequately visualised."
+        }
+      ]
+    },
+    "NBH-CARD-014-5.3": {
+      "verdict": "satisfied",
+      "confidence": 0.9,
+      "reasoning": "The electrocardiogram report is present with its date.",
+      "evidence": [
+        {
+          "locator": "enc/2026-03-02/ecg",
+          "quote": "Atrially paced rhythm at 70 beats per minute with intermittent ventricular pacing."
+        }
+      ]
+    }
+  }
+}
