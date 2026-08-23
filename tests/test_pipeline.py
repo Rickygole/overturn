@@ -574,3 +574,50 @@ class TestSignaturesMustNameWhatTheySigned:
             draft_attempt_signed=signed,
         )
         assert case.ready_to_submit is ready
+
+
+class TestEvaluationScorecard:
+    """The numbers published in the README, locked so they cannot quietly rot.
+
+    A results table in a README is a claim. This is what makes it a fact.
+    """
+
+    def test_every_case_reaches_its_intended_outcome(self):
+        import json
+
+        from scripts.evaluate import EXPECTED, run_case
+
+        manifest = json.loads(
+            (Path(__file__).resolve().parents[1] / "data" / "cases.json").read_text()
+        )
+        wrong: list[str] = []
+        for entry in manifest["cases"]:
+            result = run_case(entry["case_id"], entry["scenario"])
+            if not result.outcome_correct:
+                wrong.append(
+                    f"{result.case_id} ({result.scenario}): expected "
+                    f"{result.expected.value}, reached {result.actual.value}"
+                )
+        assert not wrong, "; ".join(wrong)
+        assert set(EXPECTED) >= {e["scenario"] for e in manifest["cases"]}
+
+    def test_no_case_produces_a_fabricated_citation_or_quote(self):
+        import json
+
+        from scripts.evaluate import run_case
+
+        manifest = json.loads(
+            (Path(__file__).resolve().parents[1] / "data" / "cases.json").read_text()
+        )
+        problems: list[str] = []
+        for entry in manifest["cases"]:
+            result = run_case(entry["case_id"], entry["scenario"])
+            problems.extend(
+                f"{result.case_id}: cited {c} which is not in the corpus"
+                for c in result.fabricated_citations
+            )
+            problems.extend(
+                f"{result.case_id}: quoted {e} which is not in the chart"
+                for e in result.unlocatable_evidence
+            )
+        assert not problems, "; ".join(problems)
