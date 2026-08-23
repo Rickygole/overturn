@@ -223,13 +223,40 @@ def scan_discourse(text: str) -> list[ThreatFinding]:
     return findings
 
 
+# Only two of these may halt a pipeline on their own, and the reason is the cost
+# of being wrong. `quarantined` is terminal: a legitimate denial letter caught
+# here is a claim that can never be appealed, which is the exact harm this
+# product exists to prevent.
+#
+# A red team put eight pieces of entirely ordinary payer language through these
+# detectors and seven were fatally quarantined — "a second-level appeal is not
+# available until the first-level appeal is decided", "the prior coverage policy
+# has been withdrawn and replaced", a section headed "ELECTRONIC PROCESSING AND
+# SUBMISSION". Every one of those is a real sentence a real insurer writes.
+#
+# So these findings are mostly advisory: they are recorded, they are shown to
+# the reviewer, and they cause the document to be neutralised before Intake
+# reads it — but they do not by themselves kill the claim. The two that remain
+# fatal are the ones with no innocent reading: text hidden from the human
+# reader, and a section explicitly addressed to an automated processor while
+# also carrying a directive.
 FATAL_DISCOURSE_DETECTORS: frozenset[str] = frozenset(
+    {
+        "rule:content_hidden_from_reader",
+    }
+)
+
+# Advisory findings still count — enough of them together is its own signal.
+# One piece of odd phrasing is a drafting quirk; four in one letter is not.
+ADVISORY_DISCOURSE_DETECTORS: frozenset[str] = frozenset(
     {
         "rule:contradicts_appeal_rights",
         "rule:suppresses_appeal",
         "rule:voids_its_own_policy",
         "rule:machine_directed_section",
-        "rule:content_hidden_from_reader",
         "rule:nominalised_directive",
     }
 )
+
+# How many advisory discourse findings together justify halting.
+ADVISORY_QUARANTINE_THRESHOLD = 3

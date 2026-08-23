@@ -29,7 +29,12 @@ import unicodedata
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
-from agents.sentinel.discourse import FATAL_DISCOURSE_DETECTORS, scan_discourse
+from agents.sentinel.discourse import (
+    ADVISORY_DISCOURSE_DETECTORS,
+    ADVISORY_QUARANTINE_THRESHOLD,
+    FATAL_DISCOURSE_DETECTORS,
+    scan_discourse,
+)
 from core.schemas.enums import ThreatCategory
 from core.schemas.sentinel import ThreatFinding
 
@@ -360,8 +365,22 @@ def decide_quarantine(findings: list[ThreatFinding]) -> bool:
 
     Python decides this, not a model. The model layers contribute findings; the
     consequence of a finding is not something a model gets a vote on.
+
+    Quarantine is terminal, so the bar is deliberately asymmetric. A rule that
+    matches an instruction addressed to a reader halts on its own — there is no
+    innocent reading of "ignore all previous instructions" in a denial letter.
+    The discourse detectors are mostly advisory instead, because the phrasings
+    they catch do occur in genuine payer prose, and a legitimate letter caught
+    here is a claim that can never be appealed.
+
+    Several advisory findings together are a different matter. One piece of odd
+    phrasing is a drafting quirk; several in one letter is a document that is
+    not what it claims to be.
     """
-    return any(f.detector in FATAL_RULES for f in findings)
+    if any(f.detector in FATAL_RULES for f in findings):
+        return True
+    advisory = sum(1 for f in findings if f.detector in ADVISORY_DISCOURSE_DETECTORS)
+    return advisory >= ADVISORY_QUARANTINE_THRESHOLD
 
 
 def sanitize(text: str, findings: list[ThreatFinding]) -> str:
