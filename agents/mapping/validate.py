@@ -53,12 +53,94 @@ def normalise(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
+# Words that reverse the meaning of what follows them. A quote that starts just
+# after one of these is verbatim and says the opposite of the record.
+NEGATIONS = frozenset(
+    [
+        "not",
+        "no",
+        "never",
+        "without",
+        "unless",
+        "cannot",
+        "denies",
+        "denied",
+        "denying",
+        "absent",
+        "lacks",
+        "lacking",
+        "failed",
+        "fails",
+        "failing",
+        "declined",
+        "refused",
+        "unable",
+        "neither",
+        "nor",
+    ]
+)
+
+# Words and marks that end the reach of a negation. "He did not feel the warning
+# symptoms AND describes two further episodes" — the negation governs the first
+# clause and not the second, so a quote starting at "describes" is faithful.
+#
+# A fixed-width lookback cannot express that. It flagged honest quotes that
+# merely happened to sit a few words after an unrelated "no", which would make
+# the check worse than useless: it would drop real evidence and downgrade real
+# verdicts, and the harm this product exists to prevent is a winnable claim
+# dying on a technicality.
+CLAUSE_BOUNDARIES = frozenset(
+    ["and", "but", "or", "however", "although", "though", "while", "then", "whereas", "therefore"]
+)
+_BOUNDARY_MARKS = ".;:,"
+
+MAX_LOOKBACK_WORDS = 12
+
+
+def _drops_a_leading_negation(quote: str, source: str) -> bool:
+    """Whether the quote begins inside the reach of a negation it omits.
+
+    This is the truncation attack, and it needs no altered words at all. The
+    record says "he did not feel the usual warning symptoms"; the quote is
+    "feel the usual warning symptoms". Every word is verbatim, the substring
+    test passes, and the evidence now says the opposite of the chart.
+
+    Scope is walked backwards from the quote and stops at the first clause
+    boundary, so a negation in a neighbouring clause does not condemn a
+    faithful quote.
+    """
+    normalised_source = normalise(source)
+    normalised_quote = normalise(quote)
+    start = normalised_source.find(normalised_quote)
+    if start <= 0:
+        return False
+
+    if any(word.strip(_BOUNDARY_MARKS) in NEGATIONS for word in normalised_quote.split()):
+        return False  # the quote carries its own negation; nothing was dropped
+
+    preceding = normalised_source[:start].split()
+    for word in reversed(preceding[-MAX_LOOKBACK_WORDS:]):
+        bare = word.strip(_BOUNDARY_MARKS)
+        if bare in NEGATIONS:
+            return True
+        if bare in CLAUSE_BOUNDARIES or any(mark in word for mark in _BOUNDARY_MARKS):
+            return False
+    return False
+
+
 def quote_is_present(quote: str, locator: str, chart_text: dict[str, str]) -> bool:
-    """Whether the quote actually appears at the locator it claims."""
+    """Whether the quote appears at the locator, and still means what it meant.
+
+    A substring test alone is not enough. "Verbatim" and "faithful" are not the
+    same property, and the gap between them does not require changing a single
+    word — it only requires stopping early.
+    """
     source = chart_text.get(locator)
     if source is None:
         return False
-    return normalise(quote) in normalise(source)
+    if normalise(quote) not in normalise(source):
+        return False
+    return not _drops_a_leading_negation(quote, source)
 
 
 def chart_text_by_locator(chart: PatientChart) -> dict[str, str]:
