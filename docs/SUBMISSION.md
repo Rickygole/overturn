@@ -67,7 +67,8 @@ in the draft.
       be overridden on every `deploy.sh` run
 - [ ] Seed the agent registry: `uv run python scripts/seed_registry.py --publish`
 - [ ] Confirm every frame shows **Northbeck Health Plan** and no real insurer's
-      name. Grep before uploading: `grep -ric "meridian" data/ docs/`
+      name. This is enforced by a test rather than a checklist item:
+      `uv run pytest tests/test_docs_accuracy.py -k payer`
 - [ ] Say out loud, in the first 20 seconds, that the patients, the payer and its
       policies are all synthetic, and that a person approves before anything is sent
 - [ ] Say out loud that the payer response window is compressed for the demo
