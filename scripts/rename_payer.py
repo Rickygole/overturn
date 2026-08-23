@@ -64,9 +64,16 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
+    # Case variants matter. A letterhead is UPPER CASE, prose is Title Case, and
+    # a slug is lower case. The first pass of this rename replaced only the
+    # Title Case form and left "MERIDIAN HEALTH PLAN" standing at the top of two
+    # denial letters — which is precisely the artifact a judge screenshots.
     replacements = [
+        (args.from_name.upper(), args.to_name.upper()),
+        (args.from_name.lower(), args.to_name.lower()),
         (args.from_name, args.to_name),
-        (args.from_prefix + "-", args.to_prefix + "-"),
+        (args.from_prefix.upper() + "-", args.to_prefix.upper() + "-"),
+        (args.from_prefix.lower() + "-", args.to_prefix.lower() + "-"),
     ]
 
     changed: list[tuple[Path, int]] = []
