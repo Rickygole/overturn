@@ -30,13 +30,22 @@ class Settings(BaseSettings):
     # --- Models -----------------------------------------------------------------
     # Flash carries the extraction and screening work; Pro is reserved for the one
     # genuinely hard generation step. See docs/MODEL_CHOICES.md for the rationale.
-    model_flash: str = Field(default="gemini-flash-latest")
-    model_pro: str = Field(default="gemini-pro-latest")
-    model_guard: str = Field(
-        default="gemma-3-27b-it",
-        description="Open-weights model backing the Sentinel screening pass.",
+    model_flash: str = Field(
+        default="gemini-3.5-flash",
+        description="Workhorse. Extraction, retrieval reformulation, verification.",
     )
-    embedding_model: str = Field(default="text-embedding-005")
+    model_heavy: str = Field(
+        default="gemini-3.7-flash",
+        description="The one genuinely hard generation step: drafting the appeal. "
+        "Newest GA model in the catalog; the 3.x Pro tiers are preview-only and "
+        "the preview ids sit below the 3.5 floor this project targets.",
+    )
+    model_guard: str = Field(
+        default="gemma-4-26b-a4b-it-maas",
+        description="Open-weights model backing the Sentinel screening pass, "
+        "alongside Model Armor and a deterministic rule layer.",
+    )
+    embedding_model: str = Field(default="gemini-embedding-001")
 
     # --- Storage ----------------------------------------------------------------
     intake_bucket: str = Field(default="overturn-intake")
