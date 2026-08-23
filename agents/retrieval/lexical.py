@@ -32,14 +32,51 @@ from core.schemas.policy import PolicySection
 
 TOKEN_RE = re.compile(r"[a-z0-9]+(?:[-.][a-z0-9]+)*")
 
+# How far apart two words may be and still count as a pair. Three is enough to
+# span "cardiac magnetic resonance imaging" end to end and short enough that
+# unrelated words in the same sentence do not start matching each other.
+PAIR_WINDOW = 3
+
 # Deliberately short. An aggressive stop list on a corpus this small removes
 # signal: "not", "or" and "all" carry real meaning in coverage criteria, where
 # "all of the following" and "any of the following" are the whole distinction.
 STOPWORDS: frozenset[str] = frozenset(
-    """
-    a an and are as at be been by for from has have in is it its of on or that
-    the this to was were will with which within where when been being
-    """.split()
+    [
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "been",
+        "by",
+        "for",
+        "from",
+        "has",
+        "have",
+        "in",
+        "is",
+        "it",
+        "its",
+        "of",
+        "on",
+        "or",
+        "that",
+        "the",
+        "this",
+        "to",
+        "was",
+        "were",
+        "will",
+        "with",
+        "which",
+        "within",
+        "where",
+        "when",
+        "been",
+        "being",
+    ]
 )
 
 
@@ -53,22 +90,33 @@ def tokenize(text: str) -> list[str]:
 
 
 def features(text: str) -> list[str]:
-    """Unigrams plus adjacent bigrams.
+    """Unigrams plus order-independent pairs within a small window.
 
-    Unigrams alone cannot tell these two policies apart. "Magnetic", "resonance"
+    Unigrams alone cannot tell two policies apart here. "Magnetic", "resonance"
     and "imaging" all appear in both the cardiac imaging policy and the lumbar
-    spine policy, and on a corpus this small they carry almost no inverse
-    document frequency. The phrase "cardiac magnetic" appears in exactly one of
-    them.
+    spine policy, and across six documents they carry almost no inverse document
+    frequency. The pair {cardiac, imaging} appears in exactly one of them.
 
-    This was not a guess. `scripts/calibrate_retrieval.py` retrieved the lumbar
-    policy for a cardiac MRI denial, and bigrams are the smallest honest fix —
-    the alternative was lowering a threshold until the wrong answer counted as
-    right.
+    The pairs are unordered and span a window rather than being strict adjacent
+    bigrams, because the two sides of this match are written by different people
+    for different purposes. A CPT descriptor says "Magnetic resonance imaging,
+    cardiac, with contrast". The policy it should match says "cardiac magnetic
+    resonance imaging". Ordered adjacent bigrams share nothing between those two
+    strings; unordered window pairs share three.
+
+    None of this was guesswork. `scripts/calibrate_retrieval.py` retrieved the
+    lumbar policy for a cardiac MRI denial twice — once with unigrams, once with
+    ordered bigrams — and this is the change that fixed it without touching a
+    threshold.
     """
     unigrams = tokenize(text)
-    bigrams = [f"{a}_{b}" for a, b in zip(unigrams, unigrams[1:], strict=False)]
-    return unigrams + bigrams
+    pairs: list[str] = []
+    for i, first in enumerate(unigrams):
+        for second in unigrams[i + 1 : i + 1 + PAIR_WINDOW]:
+            if first != second:
+                low, high = sorted((first, second))
+                pairs.append(f"{low}|{high}")
+    return unigrams + pairs
 
 
 class TfidfIndex:
@@ -107,8 +155,7 @@ class TfidfIndex:
     def _weight(self, counts: Counter[str]) -> dict[str, float]:
         """Sublinear term frequency times IDF, L2-normalised."""
         weights = {
-            term: (1.0 + math.log(count)) * self._idf(term)
-            for term, count in counts.items()
+            term: (1.0 + math.log(count)) * self._idf(term) for term, count in counts.items()
         }
         norm = math.sqrt(sum(w * w for w in weights.values())) or 1.0
         return {term: w / norm for term, w in weights.items()}
@@ -141,13 +188,24 @@ class TfidfIndex:
         if not hits:
             return None
 
-        by_policy: dict[str, float] = {}
+        # Rank by the single best-matching section, with the aggregate only as a
+        # tiebreak. Summing is the obvious thing and it is wrong: a policy with
+        # six mediocre sections outscores a policy with one excellent one, so a
+        # cardiac MRI denial gets routed to the lumbar spine policy because that
+        # policy happens to have more sections in the top k. The strongest single
+        # match is the signal; the rest is corpus shape.
+        best_per_policy: dict[str, float] = {}
+        total_per_policy: dict[str, float] = {}
         for section, score in hits:
-            by_policy[section.policy_id] = by_policy.get(section.policy_id, 0.0) + score
+            pid = section.policy_id
+            best_per_policy[pid] = max(best_per_policy.get(pid, 0.0), score)
+            total_per_policy[pid] = total_per_policy.get(pid, 0.0) + score
 
-        policy_id = max(by_policy, key=lambda p: by_policy[p])
-        top = max(score for section, score in hits if section.policy_id == policy_id)
-        return policy_id, top
+        policy_id = max(
+            best_per_policy,
+            key=lambda p: (best_per_policy[p], total_per_policy[p]),
+        )
+        return policy_id, best_per_policy[policy_id]
 
 
 @lru_cache(maxsize=1)
