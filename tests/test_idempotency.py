@@ -9,6 +9,7 @@ than doing nothing.
 from __future__ import annotations
 
 import threading
+from datetime import timedelta
 
 import pytest
 
@@ -41,7 +42,7 @@ class TestExactlyOnce:
 
         def submit() -> dict:
             calls.append(1)
-            return {"confirmation": "MHP-ACK-88123"}
+            return {"confirmation": "NBH-ACK-88123"}
 
         outcomes = [
             guard.execute("case-1", ActionType.SUBMIT_APPEAL, {"draft": 2}, submit)
@@ -51,7 +52,7 @@ class TestExactlyOnce:
         assert len(calls) == 1
         assert outcomes[0].executed is True
         assert all(o.replayed for o in outcomes[1:])
-        assert all(o.result == {"confirmation": "MHP-ACK-88123"} for o in outcomes)
+        assert all(o.result == {"confirmation": "NBH-ACK-88123"} for o in outcomes)
         assert store.count("actions") == 1
 
     def test_delivery_count_is_recorded_as_proof(self, guard, store):
@@ -221,3 +222,86 @@ class TestGatewayEnforcement:
         guard = IdempotencyGuard(store, GatewayHandle(AgentName.DRAFTING))
         with pytest.raises(PolicyViolation):
             guard.execute("case-1", ActionType.SUBMIT_APPEAL, {}, lambda: "no")
+
+
+class TestExpiredClaimRace:
+    """Regression: two redeliveries racing an expired claim.
+
+    A security review reproduced a double execution here. The old code read the
+    claim, evaluated the lease, and then wrote the takeover as three separate
+    operations, so two workers could both observe the same expired claim, both
+    take it over, and both run the action. For this system that means two
+    appeals filed on one claim.
+
+    The claim decision is now a single atomic step. This test races eight
+    workers at an already-expired claim and holds the action to running once.
+    """
+
+    def test_racing_takeovers_execute_once(self, store):
+        """A worker died ten minutes ago; eight redeliveries arrive at once.
+
+        The lease is realistic (five minutes) and the dead claim is older than
+        it. Exactly one worker may take the claim over; the rest must see the
+        fresh claim the winner wrote and back off.
+
+        Note on the lease length, because it is the whole mechanism: a lease
+        shorter than the action it protects offers no mutual exclusion at all.
+        Worker one takes over, stamps ``claimed_at``, and starts work; if that
+        stamp is already expired by the time worker two reads it, worker two
+        takes over too and both run. That is inherent to lease-based recovery,
+        not a bug to be coded around, and it is why ``DEFAULT_LEASE_SECONDS``
+        is generous relative to how long an appeal submission takes.
+        """
+        guard = IdempotencyGuard(store, GatewayHandle(AgentName.ORCHESTRATOR), lease_seconds=300)
+        key = "case-1:submit_appeal:1"
+        store.create(
+            "actions",
+            key,
+            {
+                "action_key": key,
+                "case_id": "case-1",
+                "action_type": "submit_appeal",
+                "attempt": 1,
+                "status": "claimed",
+                "claimed_at": (utcnow() - timedelta(minutes=10)).isoformat(),
+                "payload_sha256": payload_digest({"draft": 1}),
+                "delivery_count": 1,
+            },
+        )
+
+        executions: list[int] = []
+        barrier = threading.Barrier(8)
+
+        def worker() -> None:
+            barrier.wait()
+            try:
+                guard.execute(
+                    "case-1",
+                    ActionType.SUBMIT_APPEAL,
+                    {"draft": 1},
+                    lambda: executions.append(1),
+                )
+            except ActionInFlight:
+                pass
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(executions) == 1, (
+            f"expired-claim takeover executed {len(executions)} times; "
+            "the claim decision is not atomic"
+        )
+
+    def test_delivery_count_survives_completion(self, store):
+        """Finalising must not clobber the counter another delivery bumped."""
+        guard = IdempotencyGuard(store, GatewayHandle(AgentName.ORCHESTRATOR))
+        guard.execute("case-1", ActionType.NOTIFY_HUMAN, {}, lambda: "sent")
+        for _ in range(3):
+            guard.execute("case-1", ActionType.NOTIFY_HUMAN, {}, lambda: "sent")
+
+        record = store.get("actions", "case-1:notify_human:1")
+        assert record["delivery_count"] == 4
+        assert record["status"] == "completed"
