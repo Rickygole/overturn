@@ -1,0 +1,83 @@
+NORTHBECK HEALTH PLAN
+Utilization Management Department
+P.O. Box 44190, Worcester, MA 01601
+Phone 1-800-555-0142  |  Fax 1-800-555-0198
+
+                                                    Date of Notice: July 24, 2026
+
+NOTICE OF ADVERSE BENEFIT DETERMINATION — FIRST-LEVEL APPEAL DECISION
+
+Member Name:          Creola518 Heller342
+Member ID:            NBH-4417-20551
+Group Number:         GRP-11276
+Claim Number:         CLM-2026-0519-71144
+Date of Service:      Requested, not yet performed
+Requesting Provider:  L. Bianchi, MD — Cardiology
+Servicing Facility:   Merrimack Valley Imaging Center, NPI 1447736201
+Prior Determination:  Denied June 2, 2026, notice reason code NBH-NMN-11
+First-Level Appeal Received: June 25, 2026
+
+SERVICE REVIEWED
+
+  Magnetic resonance imaging, cardiac, with contrast material, including
+  stress imaging and morphology
+    CPT 75561   Quantity 1
+  Diagnosis submitted: R06.00 Dyspnea, unspecified
+                       R93.1  Abnormal findings on diagnostic imaging of heart
+
+  Estimated allowed amount: $2,940.00
+
+DETERMINATION
+
+Northbeck Health Plan has completed its review of the first-level written
+appeal submitted on behalf of the member on June 25, 2026. The original
+determination is UPHELD. Coverage for the service listed above remains DENIED.
+
+Denial reason code: NBH-NMN-11-A1
+
+Reason for determination:
+
+  The appeal reviewer, a board-certified cardiologist who did not participate
+  in the original determination, re-examined whether cardiac magnetic
+  resonance imaging is medically necessary under the plan's applicable medical
+  policy for cardiac magnetic resonance imaging. The reviewer considered the
+  additional information submitted with the appeal, including the treating
+  cardiologist's letter of April 22, 2026, the twelve-lead electrocardiogram,
+  and the transthoracic echocardiogram report. The reviewer concurs with the
+  original determination that the submitted records do not establish that a
+  contraindication to magnetic resonance imaging has been addressed: the
+  record identifies a permanent pacemaker without stating whether the device
+  is MRI-conditional, and the appeal submission did not supply this
+  information. On that basis the reviewer upholds the denial of cardiac
+  magnetic resonance imaging and did not reach the remaining criteria under
+  NBH-CARD-014-3.
+
+  This determination was made by a licensed physician reviewer following
+  review of the appeal record on July 20, 2026.
+
+APPLICABLE POLICY
+
+  Northbeck Health Plan Medical Policy NBH-CARD-014, Advanced Cardiac Imaging,
+  version 4.2, effective January 1, 2026.
+
+YOUR RIGHT TO A SECOND-LEVEL APPEAL
+
+  You or your authorized representative may request a second-level appeal in
+  writing within 180 calendar days of the date of this notice, that is, on or
+  before January 20, 2027. A second-level appeal will receive a written
+  response within 30 calendar days of receipt.
+
+  Send written second-level appeals to:
+      Northbeck Health Plan
+      Appeals and Grievances
+      P.O. Box 44205, Worcester, MA 01601
+
+  A peer-to-peer discussion with a Northbeck medical director may be requested
+  by the treating clinician in place of, or in addition to, a written
+  second-level appeal.
+
+  If the second-level appeal is denied, you may have the right to request an
+  independent external review. Information about external review will be
+  provided with the second-level determination.
+
+This notice is not a bill.

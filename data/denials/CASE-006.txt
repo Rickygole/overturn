@@ -1,0 +1,68 @@
+NORTHBECK HEALTH PLAN
+Utilization Management Department
+P.O. Box 44190, Worcester, MA 01601
+Phone 1-800-555-0142  |  Fax 1-800-555-0198
+
+                                                    Date of Notice: August 10, 2026
+
+NOTICE OF ADVERSE BENEFIT DETERMINATION
+
+Member Name:          Johnsie484 Rippin620
+Member ID:            NBH-4417-67312
+Group Number:         GRP-71455
+Claim Number:         CLM-2026-0801-66120
+Date of Service:      Requested, not yet performed
+Requesting Provider:  M. Farah, MD — Psychiatry
+Servicing Facility:   Northshore Behavioral Health IOP Program, NPI 1235587310
+
+SERVICE REVIEWED
+
+  Intensive outpatient psychiatric treatment, per diem
+    HCPCS S9480   Quantity 20
+  Diagnosis submitted: F33.1 Major depressive disorder, recurrent, moderate
+                       F41.1 Generalized anxiety disorder
+
+  Total billed: $6,400.00
+
+DETERMINATION
+
+Coverage for the service listed above has been DENIED.
+
+Denial reason code: NBH-NMN-22
+
+Reason for determination:
+
+  The clinical information submitted does not establish that an intensive
+  outpatient programme is medically necessary under the plan's applicable
+  medical policy. Specifically, the submitted documentation does not establish
+  that a less intensive level of care has been attempted, or that a less
+  intensive level of care is clinically inappropriate.
+
+  This determination was made by a licensed behavioral health reviewer
+  following review of the records submitted with the request on August 1, 2026.
+
+APPLICABLE POLICY
+
+  Northbeck Health Plan Medical Policy NBH-BEHV-045, Intensive Outpatient
+  Programmes for Behavioral Health, version 1.8, effective January 1, 2026.
+
+YOUR RIGHT TO APPEAL
+
+  You or your authorized representative may appeal this determination in
+  writing within 180 calendar days of the date of this notice, that is, on or
+  before February 6, 2027. A first-level appeal will receive a written response
+  within 30 calendar days of receipt.
+
+  Your appeal should state why you believe the determination is incorrect and
+  should include any additional clinical documentation supporting the request.
+
+  Send written appeals to:
+      Northbeck Health Plan
+      Appeals and Grievances
+      P.O. Box 44205, Worcester, MA 01601
+
+  Where the determination concerns an urgent clinical situation, an expedited
+  appeal decided within 72 hours may be requested.
+
+This notice is not a bill. If you have questions about this determination,
+call Member Services at the number above.
