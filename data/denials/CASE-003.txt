@@ -1,0 +1,70 @@
+MERIDIAN HEALTH PLAN
+Utilization Management Department
+P.O. Box 44190, Worcester, MA 01601
+Phone 1-800-555-0142  |  Fax 1-800-555-0198
+
+                                                     Date of Notice: June 2, 2026
+
+NOTICE OF ADVERSE BENEFIT DETERMINATION
+
+Member Name:          Creola518 Heller342
+Member ID:            MHP-4417-20551
+Group Number:         GRP-11276
+Claim Number:         CLM-2026-0519-71144
+Date of Service:      Requested, not yet performed
+Requesting Provider:  L. Bianchi, MD — Cardiology
+Servicing Facility:   Merrimack Valley Imaging Center, NPI 1447736201
+
+SERVICE REVIEWED
+
+  Magnetic resonance imaging, cardiac, with contrast material, including
+  stress imaging and morphology
+    CPT 75561   Quantity 1
+  Diagnosis submitted: R06.00 Dyspnea, unspecified
+                       R93.1  Abnormal findings on diagnostic imaging of heart
+
+  Estimated allowed amount: $2,940.00
+
+DETERMINATION
+
+Coverage for the service listed above has been DENIED.
+
+Denial reason code: MHP-NMN-11
+
+Reason for determination:
+
+  The clinical information submitted does not establish that cardiac magnetic
+  resonance imaging is medically necessary under the plan's applicable medical
+  policy. The submitted records do not establish that the initial diagnostic
+  evaluation was inconclusive for the clinical question posed. The
+  echocardiogram report dated March 9, 2026 provides an ejection fraction
+  estimate and the reviewer determined that this constitutes an adequate
+  assessment of left ventricular function.
+
+  The reviewer further notes that the submitted records do not address whether
+  a contraindication to magnetic resonance imaging exists.
+
+  This determination was made by a licensed physician reviewer following review
+  of the records submitted with the request on May 19, 2026.
+
+APPLICABLE POLICY
+
+  Meridian Health Plan Medical Policy MHP-CARD-014, Advanced Cardiac Imaging,
+  version 4.2, effective January 1, 2026.
+
+YOUR RIGHT TO APPEAL
+
+  You or your authorized representative may appeal this determination in
+  writing within 180 calendar days of the date of this notice, that is, on or
+  before November 29, 2026. A first-level appeal will receive a written
+  response within 30 calendar days of receipt.
+
+  Send written appeals to:
+      Meridian Health Plan
+      Appeals and Grievances
+      P.O. Box 44205, Worcester, MA 01601
+
+  A peer-to-peer discussion with a Meridian medical director may be requested
+  by the treating provider at any point during the appeal period.
+
+This notice is not a bill.
