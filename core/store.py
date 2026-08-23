@@ -17,7 +17,7 @@ implement it with that exact semantic and there is a test that holds them to it.
 from __future__ import annotations
 
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any, Protocol, runtime_checkable
 
 from core.config import get_settings
@@ -52,6 +52,27 @@ class DocumentStore(Protocol):
     ) -> list[tuple[str, dict[str, Any]]]: ...
 
     def stream(self, collection: str) -> Iterator[tuple[str, dict[str, Any]]]: ...
+
+    def atomic_update(
+        self,
+        collection: str,
+        doc_id: str,
+        mutate: Callable[[dict[str, Any] | None], dict[str, Any] | None],
+    ) -> dict[str, Any] | None:
+        """Read-modify-write with nothing able to interleave.
+
+        ``mutate`` receives the current document, or ``None`` if absent, and
+        returns the document to store, or ``None`` to abort without writing.
+        It may be called more than once and must therefore be free of side
+        effects.
+
+        This is the primitive that read-then-write cannot be built without.
+        A ``get`` followed by a ``set``, however carefully the values are
+        compared in between, is a check-then-act race: two callers both read
+        revision N, both see no conflict, and both write, and one update is
+        gone with no error raised. That is a lost approval.
+        """
+        ...
 
 
 # --------------------------------------------------------------------------- #
@@ -124,6 +145,26 @@ class MemoryStore:
         with self._lock:
             snapshot = [(k, dict(v)) for k, v in self._col(collection).items()]
         yield from snapshot
+
+    def atomic_update(
+        self,
+        collection: str,
+        doc_id: str,
+        mutate: Callable[[dict[str, Any] | None], dict[str, Any] | None],
+    ) -> dict[str, Any] | None:
+        """Atomic under the store lock, which is why the lock is reentrant.
+
+        ``mutate`` runs while the lock is held, so it must not call back into
+        this store for a different document or it will serialise the process.
+        """
+        with self._lock:
+            col = self._col(collection)
+            current = dict(col[doc_id]) if doc_id in col else None
+            updated = mutate(current)
+            if updated is None:
+                return None
+            col[doc_id] = dict(updated)
+            return dict(updated)
 
     # Test and demo affordances, not part of the Protocol.
     def count(self, collection: str) -> int:
@@ -218,6 +259,34 @@ class FirestoreStore:
     def stream(self, collection: str) -> Iterator[tuple[str, dict[str, Any]]]:
         for doc in self._client.collection(collection).stream():
             yield doc.id, doc.to_dict()
+
+    def atomic_update(
+        self,
+        collection: str,
+        doc_id: str,
+        mutate: Callable[[dict[str, Any] | None], dict[str, Any] | None],
+    ) -> dict[str, Any] | None:
+        """Real Firestore transaction.
+
+        Firestore retries the transactional function on contention, which is
+        why ``mutate`` is required to be free of side effects.
+        """
+        from google.cloud import firestore
+
+        ref = self._ref(collection, doc_id)
+        transaction = self._client.transaction()
+
+        @firestore.transactional
+        def _run(tx) -> dict[str, Any] | None:
+            snapshot = ref.get(transaction=tx)
+            current = snapshot.to_dict() if snapshot.exists else None
+            updated = mutate(current)
+            if updated is None:
+                return None
+            tx.set(ref, updated)
+            return updated
+
+        return _run(transaction)
 
 
 def build_store() -> DocumentStore:
