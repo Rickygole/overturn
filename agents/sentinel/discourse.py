@@ -102,13 +102,29 @@ _DO_NOT_PRINT = re.compile(
 
 # --- Nominalised directives -------------------------------------------------- #
 
+# A closed verb list is exactly what an attacker enumerates around, so the verb
+# is a wildcard and the *construction* is what is matched: "is to be <past
+# participle>" is a directive however the participle is spelled.
 _NOMINALISED_DIRECTIVE = re.compile(
-    r"\bis\s+to\s+be\s+(?:recorded|treated|omitted|disregarded|ignored|closed|"
-    r"marked|classified|suppressed)\b"
-    r"|\bare\s+to\s+be\s+(?:disregarded|ignored|omitted|suppressed|treated)\b"
-    r"|\bshall\s+be\s+(?:treated|recorded|deemed|regarded)\s+as\b"
-    r"|\bis\s+deemed\s+(?:approved|resolved|closed|upheld|withdrawn)\b"
-    r"|\btransmission\s+to\b[^.]{0,60}\bis\s+(?:expected|required|requested)\b",
+    r"\b(?:is|are)\s+to\s+be\s+\w+ed\b"
+    r"|\b(?:is|are)\s+to\s+be\s+(?:omitted|withheld|left|treated|given)\b"
+    r"|\bshall\s+be\s+(?:treated|recorded|deemed|regarded|entered|considered)\s+as\b"
+    r"|\bis\s+deemed\s+(?:approved|resolved|closed|upheld|withdrawn|final)\b"
+    r"|\bit\s+is\s+(?:requested|expected|required)\s+that\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Exfiltration phrased as a noun. "Send the chart" is a command and was caught;
+# "Forwarding of the chart is expected" is a nominalisation and was not, and it
+# does exactly the same work.
+_EXFILTRATION_NOMINAL = re.compile(
+    r"\b(?:forwarding|transmission|submission|provision|delivery|routing|"
+    r"disclosure|release)\s+of\b[^.]{0,80}"
+    r"\b(?:chart|record|records|file|documentation|data|information)\b"
+    r"|\b(?:chart|record|records|documentation)\b[^.]{0,60}"
+    r"\b(?:should|must|is\s+to)\s+be\s+(?:forwarded|transmitted|sent|routed|"
+    r"provided|released|disclosed)\b"
+    r"|\bforwarded\s+(?:for\s+our\s+records\s+)?to\b[^.]{0,40}@",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -204,7 +220,24 @@ def scan_discourse(text: str) -> list[ThreatFinding]:
             )
         )
 
-    # 4. Directives wearing a passive construction.
+    # 4. Records asked for, in the passive.
+    if exfiltration := _EXFILTRATION_NOMINAL.search(text):
+        findings.append(
+            ThreatFinding(
+                category=ThreatCategory.TOOL_POISONING,
+                excerpt=_excerpt(text, exfiltration),
+                detector="rule:exfiltration_nominal",
+                confidence=0.85,
+                rationale=(
+                    "The document asks for patient records to be sent somewhere, "
+                    "phrased as a noun rather than a command. A payer that already "
+                    "holds the claim file has no reason to ask a clinic to send it "
+                    "the chart."
+                ),
+            )
+        )
+
+    # 5. Directives wearing a passive construction.
     if directive := _NOMINALISED_DIRECTIVE.search(text):
         findings.append(
             ThreatFinding(
@@ -255,6 +288,7 @@ ADVISORY_DISCOURSE_DETECTORS: frozenset[str] = frozenset(
         "rule:voids_its_own_policy",
         "rule:machine_directed_section",
         "rule:nominalised_directive",
+        "rule:exfiltration_nominal",
     }
 )
 
