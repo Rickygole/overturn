@@ -203,12 +203,17 @@ class CaseRecord(OverturnModel):
             cosign = self.clinician_cosign
             if cosign is None or not cosign.attests_clinical_accuracy:
                 return False
+            # Both attempts must be pinned, and they must match. Skipping the
+            # check when either is unset meant an unpinned co-sign authorised
+            # any draft — including one written after the signature was given,
+            # since `approved_draft()` falls back to the most recent draft when
+            # the approval is not pinned either. A signature that cannot say
+            # what it signed is not a signature.
             approved_attempt = self.human_decision.draft_attempt_approved
-            if (
-                approved_attempt is not None
-                and cosign.draft_attempt_signed is not None
-                and cosign.draft_attempt_signed != approved_attempt
-            ):
+            signed_attempt = cosign.draft_attempt_signed
+            if approved_attempt is None or signed_attempt is None:
+                return False
+            if signed_attempt != approved_attempt:
                 return False
         return True
 
