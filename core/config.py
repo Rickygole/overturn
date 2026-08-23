@@ -89,6 +89,14 @@ class Settings(BaseSettings):
     demo_seconds_per_day: float = Field(default=1.0)
 
     # --- Local development ------------------------------------------------------
+    llm_backend: Literal["auto", "scripted", "vertex", "adk"] = Field(
+        default="auto",
+        description="Which model backend to use. 'auto' picks ADK in cloud mode and "
+        "the offline scripted backend locally. 'adk' routes every generative call "
+        "through a Google ADK agent and Runner; 'vertex' calls the Gen AI SDK "
+        "directly, which is the faster path when the ADK session layer adds nothing.",
+    )
+
     use_emulator: bool = Field(default=False)
     trace_to_console: bool = Field(
         default=False,

@@ -310,10 +310,27 @@ class LlmClient:
 
 
 def build_llm(backend: LlmBackend | None = None) -> LlmClient:
-    """Pick a backend from configuration unless one is supplied."""
+    """Pick a backend from configuration unless one is supplied.
+
+    ``auto`` means ADK in the cloud and the offline backend locally, which is
+    the combination that lets the whole pipeline be exercised without a project
+    while still running through ADK in deployment.
+    """
     if backend is not None:
         return LlmClient(backend)
+
     settings = get_settings()
-    if settings.runtime_mode == "cloud":
+    choice = settings.llm_backend
+    if choice == "auto":
+        choice = "adk" if settings.runtime_mode == "cloud" else "scripted"
+
+    if choice == "adk":
+        from agents.adk_fleet import AdkBackend
+
+        return LlmClient(AdkBackend(settings))
+    if choice == "vertex":
         return LlmClient(VertexBackend())
-    return LlmClient(ScriptedBackend())
+
+    from agents.offline.handlers import install
+
+    return LlmClient(install(ScriptedBackend()))
