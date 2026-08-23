@@ -138,6 +138,52 @@ outside party. Treating its contents as data rather than as instructions is
 Sentinel's entire job, which makes prompt-injection defence load-bearing here
 rather than a checkbox.
 
+## Does it actually get the right answer?
+
+The failure worth worrying about in a system like this is not a crash. It is a
+confident, well-cited, entirely irrelevant appeal — and nothing that asserts on
+status codes would notice one.
+
+So correctness is measured, not assumed. `scripts/evaluate.py` runs every case
+end to end and checks the outcome against what the scenario is *supposed* to
+produce, then independently re-checks every citation against the retrieved
+policy and every chart quote against the chart. It re-derives that grounding
+itself rather than asking the verification layer, because a harness that trusts
+the component it is measuring measures nothing.
+
+```bash
+uv run python scripts/evaluate.py
+```
+
+| Case | Scenario | Expected | Reached | Fabricated citations | Unlocatable evidence |
+|---|---|---|---|---|---|
+| `CASE-001` | clean win | `awaiting_human_approval` | `awaiting_human_approval` | 0 | 0 |
+| `CASE-002` | prompt injection | `quarantined` | `quarantined` | 0 | 0 |
+| `CASE-003` | verification catch | `awaiting_human_approval` | `awaiting_human_approval` | 0 | 0 |
+| `CASE-004` | no applicable policy | `declined_no_basis` | `declined_no_basis` | 0 | 0 |
+| `CASE-005` | clean win | `awaiting_human_approval` | `awaiting_human_approval` | 0 | 0 |
+| `CASE-006` | insufficient documentation | `declined_no_basis` | `declined_no_basis` | 0 | 0 |
+| `CASE-007` | scanned fax | `awaiting_human_approval` | `awaiting_human_approval` | 0 | 0 |
+| `CASE-008` | second denial | `awaiting_human_approval` | `awaiting_human_approval` | 0 | 0 |
+
+```
+outcomes correct              8/8
+cases fully grounded          8/8
+citations checked             36
+citations not in the corpus   0
+chart quotes with no locator  0
+
+ok   transient fabrication caught, retry clean             2 attempts, ended awaiting_human_approval
+ok   persistent fabrication stops at the cap, nothing sent  3 attempts, ended needs_human_review
+```
+
+Three of those rows are the ones that matter. **CASE-004** is a denial no policy
+in the corpus governs, and the correct behaviour is to decline rather than
+appeal weakly. **CASE-006** has a chart that documents seven criteria beautifully
+and is silent on the one the payer actually denied on — so it declines too, and
+tells the clerk to go and get that note rather than sending a letter that argues
+around the question. **CASE-002** never reaches extraction at all.
+
 ## Recovery, specifically
 
 The rubric asks how the system recovers if a worker agent loops or returns a
@@ -266,12 +312,36 @@ eight patients, so the charts in this repository can be regenerated exactly.
 
 ## Deploying it
 
+Full detail — prerequisites, verification commands, cost breakdown, and a
+troubleshooting table — is in [`docs/RUNBOOK.md`](docs/RUNBOOK.md). This is
+just the sequence, in order:
+
 ```bash
 export PROJECT_ID=your-project
-bash infra/enable_apis.sh     # enables 16 APIs, idempotent
-bash infra/iam_setup.sh       # creates 8 service accounts, least privilege
-bash infra/iam_audit.sh       # prints what each identity can actually do
+
+bash infra/enable_apis.sh          # turns on the 16 APIs the fleet needs. free.
+bash infra/iam_setup.sh            # creates 8 agent service accounts, least privilege. free.
+bash infra/iam_audit.sh            # prints what each identity can actually do. free, read-only.
+
+# Optional, and billed the moment it's created: Sentinel's Model Armor layer.
+# Sentinel runs fine without it — it records the layer as skipped, not clean.
+bash infra/model_armor_setup.sh    # optional. creates a billable-ish resource.
+
+bash infra/provision.sh            # buckets, Pub/Sub + DLQ, Firestore, uploads the policy corpus. free at demo volume.
+bash infra/deploy.sh               # builds the image (Dockerfile, via Cloud Build) once, deploys
+                                    # all three Cloud Run services, wires Pub/Sub push and the
+                                    # Cloud Scheduler job. pennies (Cloud Build minutes, Artifact
+                                    # Registry storage); the real cost is Vertex AI calls per case.
 ```
+
+`infra/deploy.sh` is also what you re-run for every subsequent code change.
+`infra/provision.sh` and `infra/deploy.sh` must run after `iam_setup.sh` —
+both grant IAM bindings on resources they create, targeting service accounts
+that have to exist first.
+
+Tear down what costs money while idle with `bash infra/teardown.sh` (add
+`--delete-data` to also remove the buckets); see the runbook for what is and
+isn't deleted.
 
 ## Data sources and compliance
 
