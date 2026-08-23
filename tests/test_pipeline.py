@@ -68,8 +68,7 @@ class TestCleanCase:
         for verdict in case.criteria.verdicts:
             for evidence in verdict.evidence:
                 assert evidence.locator in locators, (
-                    f"{verdict.criterion_id} cites {evidence.locator}, "
-                    f"which is not in the chart"
+                    f"{verdict.criterion_id} cites {evidence.locator}, which is not in the chart"
                 )
 
     def test_the_draft_cites_only_real_policy_sections(self, pipeline):
@@ -162,9 +161,7 @@ class TestUndocumentedCriterion:
 class TestFaultInjection:
     """Verification catching a fabricated citation, on purpose."""
 
-    def test_a_transient_fabrication_is_caught_and_the_retry_is_clean(
-        self, pipeline, monkeypatch
-    ):
+    def test_a_transient_fabrication_is_caught_and_the_retry_is_clean(self, pipeline, monkeypatch):
         monkeypatch.setenv("OVERTURN_SABOTAGE_DRAFTING", "first")
         case = run(pipeline, "CASE-003")
 
@@ -175,9 +172,7 @@ class TestFaultInjection:
         assert "NBH-CARD-014-9.9" not in case.latest_draft.cited_ids()
         assert case.status is CaseStatus.AWAITING_APPROVAL
 
-    def test_a_persistent_fabrication_exhausts_the_budget_and_stops(
-        self, pipeline, monkeypatch
-    ):
+    def test_a_persistent_fabrication_exhausts_the_budget_and_stops(self, pipeline, monkeypatch):
         monkeypatch.setenv("OVERTURN_SABOTAGE_DRAFTING", "always")
         case = run(pipeline, "CASE-003")
 
@@ -186,9 +181,7 @@ class TestFaultInjection:
         assert case.status is CaseStatus.NEEDS_HUMAN_REVIEW
         assert case.needs_human_reason is not None
 
-    def test_nothing_is_ever_submitted_on_a_rejected_draft(
-        self, pipeline, store, monkeypatch
-    ):
+    def test_nothing_is_ever_submitted_on_a_rejected_draft(self, pipeline, store, monkeypatch):
         monkeypatch.setenv("OVERTURN_SABOTAGE_DRAFTING", "always")
         run(pipeline, "CASE-003")
         submissions = [
@@ -198,9 +191,7 @@ class TestFaultInjection:
         ]
         assert submissions == []
 
-    def test_the_rejection_reason_is_specific_enough_to_act_on(
-        self, pipeline, monkeypatch
-    ):
+    def test_the_rejection_reason_is_specific_enough_to_act_on(self, pipeline, monkeypatch):
         monkeypatch.setenv("OVERTURN_SABOTAGE_DRAFTING", "first")
         case = run(pipeline, "CASE-003")
         instructions = case.verifications[0].revision_instructions()
@@ -211,9 +202,7 @@ class TestFaultInjection:
 class TestRedelivery:
     """Pub/Sub delivers at least once. The pipeline is invoked twice."""
 
-    def test_a_redelivered_document_does_not_produce_a_second_case(
-        self, pipeline, store
-    ):
+    def test_a_redelivered_document_does_not_produce_a_second_case(self, pipeline, store):
         first = run(pipeline, "CASE-001")
         second = run(pipeline, "CASE-001")
 

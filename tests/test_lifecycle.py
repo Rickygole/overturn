@@ -12,6 +12,7 @@ same code that runs when a real month goes by.
 from __future__ import annotations
 
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 
@@ -23,7 +24,6 @@ from core.schemas.base import utcnow
 from core.schemas.case import ClinicianCosign, HumanDecision, PayerResponse
 from core.schemas.enums import ActionType, AppealLevel, CaseStatus
 from core.store import MemoryStore
-from pathlib import Path
 
 DENIALS = Path(__file__).resolve().parents[1] / "data" / "denials"
 
@@ -106,7 +106,8 @@ class TestTheGate:
         assert case.ready_to_submit is False
         assert case.status is not CaseStatus.SUBMITTED
         assert not [
-            r for _, r in store.query("actions")
+            r
+            for _, r in store.query("actions")
             if r["action_type"] == ActionType.SUBMIT_APPEAL.value
         ]
 
@@ -117,7 +118,8 @@ class TestTheGate:
         assert case.response_deadline is not None
 
         submissions = [
-            r for _, r in store.query("actions")
+            r
+            for _, r in store.query("actions")
             if r["action_type"] == ActionType.SUBMIT_APPEAL.value
         ]
         assert len(submissions) == 1
@@ -129,7 +131,8 @@ class TestTheGate:
         pipeline.try_submit("CASE-001")
 
         submissions = [
-            r for _, r in store.query("actions")
+            r
+            for _, r in store.query("actions")
             if r["action_type"] == ActionType.SUBMIT_APPEAL.value
         ]
         assert len(submissions) == 1
