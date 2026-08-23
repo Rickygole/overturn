@@ -530,3 +530,47 @@ class TestTransmissionFailure:
             for _, r in store.query("actions")
             if r["action_type"] == ActionType.SUBMIT_APPEAL.value and r["status"] == "completed"
         ]
+
+
+class TestSignaturesMustNameWhatTheySigned:
+    """A signature that cannot say what it signed is not a signature.
+
+    The attempt cross-check was skipped whenever either number was unset, and
+    `ClinicianCosign.draft_attempt_signed` defaults to None — so an unpinned
+    co-sign authorised any draft, including one written after the signature was
+    given, because `approved_draft()` falls back to the latest draft when the
+    approval is unpinned too.
+    """
+
+    @pytest.mark.parametrize(
+        "approved,signed,ready",
+        [
+            (2, 2, True),
+            (2, 1, False),
+            (2, None, False),
+            (None, 1, False),
+            (None, None, False),
+        ],
+    )
+    def test_only_a_matching_pinned_pair_is_ready(self, approved, signed, ready):
+        from core.schemas import AppealDraft, CaseRecord, ClinicianCosign, HumanDecision
+
+        case = CaseRecord(case_id="c", source_document_uri="gs://x")
+        case.drafts = [
+            AppealDraft(case_id="c", attempt=n, subject_line="s", body="b" * 40) for n in (1, 2)
+        ]
+        case.human_decision = HumanDecision(
+            decided_by="clerk",
+            approved=True,
+            draft_attempt_approved=approved,
+            citations_checked=True,
+            quotes_checked=True,
+            assertions_checked=True,
+        )
+        case.clinician_cosign = ClinicianCosign(
+            clinician_name="Dr X",
+            credential="MD",
+            attests_clinical_accuracy=True,
+            draft_attempt_signed=signed,
+        )
+        assert case.ready_to_submit is ready
