@@ -1,0 +1,15 @@
+Overturn
+Copyright 2026 Ricky Gole
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+This product includes synthetic patient data generated using Synthea,
+Copyright 2017-2026 The MITRE Corporation, licensed under the Apache
+License, Version 2.0. https://github.com/synthetichealth/synthea
+Synthea is not included in or redistributed by this product; it is run
+as a tool to produce the patient base in data/charts/.
+
+All patients, payers, medical policies, clinicians, member identifiers,
+claim numbers and denial letters in this repository are fictional.
+Northbeck Health Plan does not exist. Any resemblance to a real person,
+insurer, or published medical policy is unintended.
