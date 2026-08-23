@@ -1,7 +1,7 @@
 """Lexical retrieval over the policy corpus.
 
-There is a vector index available on this project and it is used when one is
-configured. This module exists anyway, for three reasons that are all worth
+A vector path exists in `agents/retrieval/vector.py` and is selected in cloud
+mode. This module is the default anyway, for three reasons that are all worth
 more than they cost:
 
   * The pipeline has to run with no network and no bill. A retriever that only
