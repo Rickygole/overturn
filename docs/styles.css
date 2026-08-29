@@ -45,6 +45,9 @@ code:not(pre code){background:var(--sunken);padding:.1em .35em;border-radius:3px
        text-decoration:none;color:var(--ink-muted)}
 .nav a:hover{color:var(--ink);background:var(--sunken)}
 .nav a[aria-current="page"]{color:var(--ink);background:var(--sunken);font-weight:650}
+/* The only action in the masthead: the door into the running app. */
+.nav__app{color:var(--accent) !important;font-weight:650}
+.nav__app:hover{background:var(--sunken)}
 .theme{display:inline-flex}
 .theme button{font:inherit;font-size:.76rem;padding:.28rem .55rem;cursor:pointer;
   background:transparent;color:var(--ink-muted);border:1px solid var(--rule);border-right-width:0}

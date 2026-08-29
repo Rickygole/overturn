@@ -10,7 +10,7 @@ for site malfunctions, and deadline-day load on Devpost is a real risk.
 |---|---|---|
 | **Category** | The Fortified Enterprise Fleet | ☐ |
 | **Repository URL** | `https://github.com/Rickygole/overturn` — public, so no access grant needed | ☑ |
-| **Hosted project URL** | `https://overturn-approval-kruy6aauaq-uc.a.run.app` — password `northbeck-appeals-2026` (see "Testing notes for judges" below) | ☑ |
+| **Hosted project URL** | `https://overturn-kruy6aauaq-uc.a.run.app` — password `northbeck-appeals-2026` (see "Testing notes for judges" below) | ☑ |
 | **Text description** | Four parts, all drafted in [`PITCH.md`](PITCH.md) | ☑ |
 | **Spin-up instructions** | In `README.md`, verified from a clean clone on 2026-08-23 | ☑ |
 | **Architecture diagram** | [`architecture.svg`](architecture.svg), embedded in [`ARCHITECTURE.md`](ARCHITECTURE.md) | ☐ |
@@ -28,7 +28,7 @@ not as part of a script, and only once `docs/index.html` is final.
 Put this where the contest rules ask for testing instructions when a hosted
 project isn't open to the public without one:
 
-- **`https://overturn-approval-kruy6aauaq-uc.a.run.app`** — the human approval
+- **`https://overturn-kruy6aauaq-uc.a.run.app`** — the human approval
   interface. It is gated by a single shared password, **`northbeck-appeals-2026`**,
   not a Google account. This is deliberate and disclosed, not an oversight —
   see `services/approval_ui/auth.py`. Everything behind the login is synthetic:

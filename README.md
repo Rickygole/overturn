@@ -24,7 +24,7 @@ No real patient data and no real insurer appear anywhere — see "Data sources
 and compliance" below.
 
 **Live on Google Cloud:** the human approval interface is hosted at
-[`https://overturn-approval-kruy6aauaq-uc.a.run.app`](https://overturn-approval-kruy6aauaq-uc.a.run.app),
+[`https://overturn-kruy6aauaq-uc.a.run.app`](https://overturn-kruy6aauaq-uc.a.run.app),
 gated by a single shared password rather than a Google account —
 **`northbeck-appeals-2026`** — because it renders what looks like a medical
 record and an open URL with no door at all would undercut the point of the
@@ -275,7 +275,7 @@ the access gateway, the audit trail and the trace spans are all the real thing.
 git clone https://github.com/Rickygole/overturn.git
 cd overturn
 uv sync                # needs uv; see https://docs.astral.sh/uv/
-uv run pytest -q       # 437 tests, a few seconds
+uv run pytest -q       # 442 tests, a few seconds
 ```
 
 Verified from a clean clone on 2026-08-23. If those two commands do not both

@@ -21,6 +21,7 @@
       <a href="demo.html" aria-current="page">See it run</a>
       <a href="evidence.html">Evidence</a>
       <a href="architecture.html">Architecture</a>
+      <a href="https://overturn-kruy6aauaq-uc.a.run.app/queue" class="nav__app">Sign in &rarr;</a>
     </nav>
     <div class="theme" role="group" aria-label="Colour theme">
       <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
@@ -39,7 +40,7 @@ local run that needs no Google Cloud account and costs nothing.</p>
 <p>This is the screen the clerk uses. It is the deployed system on Cloud Run, reading cases
 out of Firestore that were processed by the real agents on Vertex AI &mdash; not a mockup.</p>
 <div class="callout">
-  <p style="margin:0 0 .8rem"><a class="btn" href="https://overturn-approval-kruy6aauaq-uc.a.run.app">Open the live app &rarr;</a></p>
+  <p style="margin:0 0 .8rem"><a class="btn" href="https://overturn-kruy6aauaq-uc.a.run.app/queue">Sign in to the queue &rarr;</a></p>
   <dl style="margin:0;display:grid;grid-template-columns:auto 1fr;gap:.2rem .8rem;font-size:.92rem">
     <dt class="muted">Password</dt><dd style="margin:0"><code style="user-select:all">northbeck-appeals-2026</code></dd>
   </dl>
@@ -49,6 +50,10 @@ out of Firestore that were processed by the real agents on Vertex AI &mdash; not
 </div>
 
 <h3>What is in the queue right now</h3>
+<p>Three cases are waiting on a human. A fourth &mdash; <code>CASE-002</code>, the letter with an
+injected instruction &mdash; never reaches the queue at all: Sentinel quarantined it, and a
+quarantined case is not something a clerk is asked to review. <a href="evidence.html#injection">The
+evidence page has what it did.</a></p>
 <div class="scroll">
 <table>
   <thead><tr><th>Case</th><th>State</th><th>What it shows</th></tr></thead>
@@ -59,7 +64,7 @@ out of Firestore that were processed by the real agents on Vertex AI &mdash; not
     <tr><td><code>CASE-002</code></td><td class="no">quarantined</td>
       <td>A denial letter with an injected instruction hidden in it. Sentinel stopped it before
         any agent read it as instructions.</td></tr>
-    <tr><td><code>CASE-003</code></td><td>needs human review</td>
+    <tr><td><code>CASE-003</code></td><td class="no">needs human review</td>
       <td>Three drafts, three rejections, nothing sent. The cap holding.</td></tr>
     <tr><td><code>CASE-005</code></td><td>awaiting approval</td>
       <td>A second clean case, for contrast &mdash; one attempt, passed.</td></tr>
