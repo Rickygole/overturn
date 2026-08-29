@@ -130,3 +130,55 @@ class TestReadmeClaims:
             assert f"`{entry['case_id']}`" in readme, (
                 f"{entry['case_id']} is in the manifest but not in the README scorecard"
             )
+
+    def test_the_published_numbers_are_the_numbers_it_produces(self):
+        """The earlier version of this test only checked that case ids appeared.
+
+        It was written to stop the scorecard rotting and it did not: the README
+        went on claiming 36 citations while the harness printed 29, and 189
+        tests while 399 ran. Both are the first things a judge sees and both are
+        checkable in one command, which is the worst combination.
+        """
+        import re
+        import subprocess
+
+        readme = (REPO / "README.md").read_text()
+        result = subprocess.run(
+            ["uv", "run", "python", "scripts/evaluate.py"],
+            capture_output=True,
+            text=True,
+            cwd=REPO,
+        )
+        for line in result.stdout.splitlines():
+            match = re.match(
+                r"^(outcomes correct|cases fully grounded|citations checked|"
+                r"citations not in the corpus|chart quotes with no locator)\s+(\S+)",
+                line,
+            )
+            if match:
+                label, value = match.group(1), match.group(2)
+                assert f"{label}" in readme, f"README does not report {label!r}"
+                published = re.search(rf"{re.escape(label)}\s+(\S+)", readme)
+                assert published and published.group(1) == value, (
+                    f"README says {label} = {published.group(1) if published else '?'}, "
+                    f"the harness prints {value}"
+                )
+
+    def test_the_quickstart_test_count_is_current(self):
+        import re
+        import subprocess
+
+        readme = (REPO / "README.md").read_text()
+        collected = subprocess.run(
+            ["uv", "run", "pytest", "--collect-only", "-q"],
+            capture_output=True,
+            text=True,
+            cwd=REPO,
+        ).stdout
+        actual = re.search(r"(\d+) tests collected", collected)
+        assert actual, "could not determine the test count"
+        claimed = re.search(r"# (\d+) tests", readme)
+        assert claimed, "README quickstart no longer states a test count"
+        assert claimed.group(1) == actual.group(1), (
+            f"README quickstart says {claimed.group(1)} tests, {actual.group(1)} run"
+        )

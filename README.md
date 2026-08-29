@@ -152,8 +152,18 @@ itself rather than asking the verification layer, because a harness that trusts
 the component it is measuring measures nothing.
 
 ```bash
-uv run python scripts/evaluate.py
+uv run python scripts/evaluate.py          # offline backend, deterministic, free
+uv run python scripts/evaluate.py --live   # real Vertex AI, costs money
 ```
+
+**These numbers are from the offline backend**, and that matters when reading
+them. The deterministic parts are the real thing — Sentinel's rules, the
+citation-existence check, retrieval, the whole orchestration — but the
+generative calls are answered locally, and `mapping.map_section` in particular
+reads verdicts from a fixture. So this table says the pipeline reaches the right
+conclusions given correct clinical judgements; it does not say the model makes
+them. `docs/EVALUATION.md` reports the same eight cases against real Gemini,
+which is the number that answers that question.
 
 | Case | Scenario | Expected | Reached | Fabricated citations | Unlocatable evidence |
 |---|---|---|---|---|---|
@@ -169,12 +179,11 @@ uv run python scripts/evaluate.py
 ```
 outcomes correct              8/8
 cases fully grounded          8/8
-citations checked             36
+citations checked             29
 citations not in the corpus   0
 chart quotes with no locator  0
-
-ok   transient fabrication caught, retry clean             2 attempts, ended awaiting_human_approval
-ok   persistent fabrication stops at the cap, nothing sent  3 attempts, ended needs_human_review
+ok   transient fabrication caught, retry clean            2 attempt(s), ended awaiting_human_approval
+ok   persistent fabrication stops at the cap, nothing sent 3 attempt(s), ended needs_human_review
 ```
 
 Four of those rows are the ones that matter, and three of them are refusals.
@@ -250,7 +259,7 @@ the access gateway, the audit trail and the trace spans are all the real thing.
 git clone https://github.com/Rickygole/overturn.git
 cd overturn
 uv sync                # needs uv; see https://docs.astral.sh/uv/
-uv run pytest -q       # 189 tests, about two seconds
+uv run pytest -q       # 401 tests, a few seconds
 ```
 
 Verified from a clean clone on 2026-08-23. If those two commands do not both
