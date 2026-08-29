@@ -368,6 +368,11 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
             path="/clinical",
         )
 
+    # Two paths, one handler. The other two services expose /healthz and the
+    # runbook documents /healthz, so a single service answering only /health is
+    # a documented endpoint that 404s — exactly the kind of small inconsistency
+    # that makes a reader doubt the parts they cannot check.
+    @app.get("/healthz")
     @app.get("/health")
     def health() -> JSONResponse:
         # Deliberately does not touch the datastore. A health check that fails
