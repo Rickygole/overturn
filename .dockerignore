@@ -16,8 +16,13 @@ __pycache__
 # Humans and CI need these; the running container does not.
 tests
 infra
-docs
 scripts
+
+# docs/ stays in the build context because the approval process serves the
+# site's web assets, so the product has one address. Only those assets are
+# copied into the image (see the Dockerfile) -- the markdown next to them is
+# for humans and never ships. Re-including files under an excluded directory
+# is not reliable across builders, so the filtering happens at COPY instead.
 
 # Secrets never belong in an image layer.
 .env

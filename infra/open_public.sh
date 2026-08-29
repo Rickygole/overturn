@@ -14,7 +14,7 @@ set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null)}"
 REGION="${REGION:-us-central1}"
-SERVICE="${SERVICE:-overturn-approval}"
+SERVICE="${SERVICE:-overturn}"
 UI_PASSWORD="${OVERTURN_UI_PASSWORD:-northbeck-appeals-2026}"
 
 [[ -n "${PROJECT_ID}" && "${PROJECT_ID}" != "(unset)" ]] || {

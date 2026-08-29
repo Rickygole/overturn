@@ -42,6 +42,11 @@ COPY core ./core
 COPY agents ./agents
 COPY services ./services
 COPY data ./data
+# The public site is served by the approval process itself so the product has a
+# single address. Same files GitHub Pages publishes, so that stays an exact
+# mirror rather than a second copy to keep in step. Only the web assets are
+# copied; the markdown beside them is for humans and has no business in here.
+COPY docs/*.html docs/*.css docs/*.js docs/*.svg ./docs/
 COPY README.md LICENSE NOTICE ./
 
 RUN uv sync --frozen --no-dev

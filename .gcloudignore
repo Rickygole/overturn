@@ -1,6 +1,7 @@
 # Controls what `gcloud builds submit` / `gcloud run deploy --source` uploads
-# as build context. Mirrors .dockerignore: the Dockerfile only needs
-# core/agents/services/data plus the project metadata files.
+# as build context. Mirrors .dockerignore: the Dockerfile needs
+# core/agents/services/data, the project metadata files, and the site assets
+# under docs/ that the approval process serves.
 #
 # For more information, run: gcloud topic gcloudignore
 .gcloudignore
@@ -18,7 +19,6 @@ __pycache__
 
 tests
 infra
-docs
 scripts
 
 .DS_Store

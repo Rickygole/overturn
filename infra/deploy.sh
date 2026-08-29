@@ -99,6 +99,9 @@ fi
 
 deploy_service() {
   local name="$1" sa="$2" max_instances="$3" allow_unauth="$4" service_flag="$5"
+  # Sixth argument is optional and defaults to scale-to-zero, which is right for
+  # everything a machine calls. Only the surface a person opens sets it to 1.
+  local min_instances="${6:-0}"
   local auth_flag="--no-allow-unauthenticated"
   if [[ "${allow_unauth}" == "true" ]]; then
     auth_flag="--allow-unauthenticated"
@@ -110,7 +113,7 @@ deploy_service() {
     --image="${IMAGE}" \
     --service-account="${sa}" \
     --set-env-vars="${COMMON_ENV},OVERTURN_SERVICE=${service_flag}" \
-    --min-instances=0 \
+    --min-instances="${min_instances}" \
     --max-instances="${max_instances}" \
     --memory="${MEMORY}" \
     --cpu="${CPU}" \
@@ -123,29 +126,33 @@ echo "-- overturn-ingest (private, orchestrator identity) --"
 deploy_service overturn-ingest "${ORCHESTRATOR_SA}" "${MAX_INGEST}" false ingest
 
 echo
-# Cloud Run IAM auth, not a login page: there is no auth code in
-# services/approval_ui today, so "publicly reachable" here means the URL
-# resolves and Cloud Run's own IAM check gates it, not an app-level sign-in.
-# The account that ran this script is granted invoker below so the reviewer
-# can open it immediately via `gcloud run services proxy` (see docs/RUNBOOK.md).
-# Fronting this with Identity-Aware Proxy is the natural next step, not done
-# here because it needs a load balancer and OAuth brand this script does not
-# create.
-echo "-- overturn-approval (IAM-gated, orchestrator identity) --"
-deploy_service overturn-approval "${ORCHESTRATOR_SA}" "${MAX_APPROVAL}" false approval
+# The service named plainly `overturn` because it serves the whole product: the
+# public site at / and the review queue at /queue, one address, one deployment.
+# The site pages are public (they describe the system and hold no case data);
+# everything that renders a case sits behind the login in services/approval_ui.
+#
+# Two gates stack here. This script leaves Cloud Run's IAM check on, which
+# returns 403 in a browser. `infra/open_public.sh` is the deliberate, separate
+# act that removes it and leaves only the app password -- publishing should be
+# something someone chose, not a side effect of deploying.
+#
+# min-instances is 1 rather than 0: this is the first thing a visitor sees, and
+# a cold start on the landing page is a bad way to open.
+echo "-- overturn (site + review queue, IAM-gated, orchestrator identity) --"
+deploy_service overturn "${ORCHESTRATOR_SA}" "${MAX_APPROVAL}" false approval 1
 
 echo
 echo "-- overturn-scheduler (private, lifecycle identity) --"
 deploy_service overturn-scheduler "${LIFECYCLE_SA}" "${MAX_SCHEDULER}" false scheduler
 
 INGEST_URL="$(gcloud run services describe overturn-ingest --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)')"
-APPROVAL_URL="$(gcloud run services describe overturn-approval --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)')"
+APPROVAL_URL="$(gcloud run services describe overturn --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)')"
 SCHEDULER_URL="$(gcloud run services describe overturn-scheduler --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)')"
 
 # Whoever ran this script can reach the approval UI without standing up IAP.
 CALLER="$(gcloud config get-value account 2>/dev/null)"
 if [[ -n "${CALLER}" ]]; then
-  gcloud run services add-iam-policy-binding overturn-approval \
+  gcloud run services add-iam-policy-binding overturn \
     --project="${PROJECT_ID}" --region="${REGION}" \
     --member="user:${CALLER}" --role="roles/run.invoker" --quiet >/dev/null
 fi
