@@ -56,7 +56,7 @@ create_bucket() {
       --project="${PROJECT_ID}" \
       --location="${REGION}" \
       --uniform-bucket-level-access \
-      --public-access-prevention=enforced >/dev/null
+      --public-access-prevention >/dev/null
     echo "  created: gs://${bucket}"
     created+=("gs://${bucket}")
   fi
@@ -128,6 +128,11 @@ echo
 
 # --- Cloud Storage -> Pub/Sub notification ------------------------------------
 echo "-- Bucket notification --"
+# The Cloud Storage service agent is created lazily on first use, so granting it
+# publish rights fails on a fresh project with "service account does not exist".
+# Asking for it is what brings it into being.
+GCS_AGENT="$(gcloud storage service-agent --project="${PROJECT_ID}" 2>/dev/null)"
+echo "  storage service agent: ${GCS_AGENT}"
 if gcloud storage buckets notifications list "gs://${INTAKE_BUCKET}" --project="${PROJECT_ID}" \
      --format="value(topic)" 2>/dev/null | grep -q "${INTAKE_TOPIC}$"; then
   echo "  exists: gs://${INTAKE_BUCKET} -> ${INTAKE_TOPIC}"

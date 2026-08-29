@@ -27,17 +27,38 @@ DLQ_TOPIC="${DLQ_TOPIC:-overturn-dead-letter}"
 
 sa_email() { echo "$1@${PROJECT_ID}.iam.gserviceaccount.com"; }
 
+# Service account creation is rate limited per project per minute, and this
+# script creates eight in a row. Without backoff it dies partway through with a
+# 429 and leaves the fleet half-built — which then looks like a permissions
+# problem rather than a throttle.
 create_sa() {
-  local id="$1" display="$2"
+  local id="$1" display="$2" attempt=1
   if gcloud iam service-accounts describe "$(sa_email "$id")" \
        --project="${PROJECT_ID}" >/dev/null 2>&1; then
     echo "  exists: ${id}"
-  else
-    gcloud iam service-accounts create "${id}" \
-      --project="${PROJECT_ID}" \
-      --display-name="${display}" >/dev/null
-    echo "  created: ${id}"
+    return 0
   fi
+
+  while (( attempt <= 6 )); do
+    if gcloud iam service-accounts create "${id}" \
+         --project="${PROJECT_ID}" \
+         --display-name="${display}" >/dev/null 2>&1; then
+      echo "  created: ${id}"
+      return 0
+    fi
+    # Might have been created by a concurrent run, or we are being throttled.
+    if gcloud iam service-accounts describe "$(sa_email "$id")" \
+         --project="${PROJECT_ID}" >/dev/null 2>&1; then
+      echo "  exists: ${id}"
+      return 0
+    fi
+    echo "  throttled on ${id}, waiting ${attempt}0s (attempt ${attempt}/6)"
+    sleep "${attempt}0"
+    (( attempt++ ))
+  done
+
+  echo "  FAILED to create ${id} after 6 attempts" >&2
+  return 1
 }
 
 grant_project() {
