@@ -4,174 +4,240 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Evidence — Overturn</title>
-<meta name="description" content="Eight cases run offline and again against real Gemini on Vertex AI: 6/8 outcomes, 8/8 grounded, zero fabricated citations, and the two disagreements explained.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='%238f3216' stroke-width='3'/%3E%3Cpath d='M16 6a10 10 0 0 1 0 20' stroke='%238f3216' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<meta name="description" content="Two live trials against real Gemini on Vertex AI through two different backends: the same overclaim, caught both times, with zero fabricated citations reaching a human.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23c9cac4' stroke-width='2.5'/%3E%3Cpath d='M16 3A13 13 0 1 1 4.74 9.5' fill='none' stroke='%2316181c' stroke-width='4'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
 <link rel="stylesheet" href="styles.css">
-<script>
-  try{var t=localStorage.getItem("overturn-theme");
-      if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}
-</script>
+<script>/* Before first paint, so a reader who chose dark never sees a light flash. */
+try{if(localStorage.getItem("overturn-theme")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}</script>
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 <header class="masthead">
-  <div class="wrap masthead__inner">
+  <div class="masthead__inner">
     <a class="wordmark" href="index.html">Overturn</a>
-    <nav class="nav" aria-label="Sections">
+    <nav class="nav" aria-label="Site">
       <a href="how-it-works.html">How it works</a>
       <a href="demo.html">See it run</a>
       <a href="evidence.html" aria-current="page">Evidence</a>
       <a href="architecture.html">Architecture</a>
-      <a href="https://overturn-kruy6aauaq-uc.a.run.app/queue" class="nav__app">Sign in &rarr;</a>
     </nav>
-    <div class="theme" role="group" aria-label="Colour theme">
-      <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
-      <button type="button" data-mode="light" aria-pressed="false">Light</button>
-      <button type="button" data-mode="dark" aria-pressed="false">Dark</button>
+    <div class="masthead__end">
+      <button type="button" class="theme" aria-pressed="false">
+        <span class="theme__dot" aria-hidden="true"></span>Dark mode
+      </button>
+      <a class="nav__app" href="https://overturn-kruy6aauaq-uc.a.run.app/queue">Sign in</a>
     </div>
   </div>
 </header>
-<main class="wrap">
-<p class="muted" style="font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin:0 0 .5rem">Evidence</p>
+
+<main class="wrap" id="main">
+<p class="eyebrow">Evidence</p>
 <h1>What actually happened against a real model</h1>
-<p class="lede">The same eight cases, the same expectations, the same independent grounding
-check &mdash; run once with a scripted backend and once against real Gemini on Vertex AI on
-28 August 2026. Both scorecards are below, including the two cases where they disagree.</p>
+<p class="lede">Eight cases, two independent trials against real Gemini on Vertex AI, through
+two different backends. The interesting result is not the score. It is that the same model
+made the same unsupported claim both times, and the same check caught it both times.</p>
 
-<div class="grid">
-  <div class="card"><h3 style="font-size:1.9rem;margin:0">6<span class="muted" style="font-size:1rem">/8</span></h3>
-    <p class="muted" style="margin:.2rem 0 0;font-size:.9rem">outcomes correct against the live model</p></div>
-  <div class="card"><h3 style="font-size:1.9rem;margin:0" class="yes">8<span class="muted" style="font-size:1rem">/8</span></h3>
-    <p class="muted" style="margin:.2rem 0 0;font-size:.9rem">fully grounded &mdash; offline <em>and</em> live</p></div>
-  <div class="card"><h3 style="font-size:1.9rem;margin:0" class="yes">0</h3>
-    <p class="muted" style="margin:.2rem 0 0;font-size:.9rem">fabricated citations reached a human</p></div>
-  <div class="card"><h3 style="font-size:1.9rem;margin:0">266k</h3>
-    <p class="muted" style="margin:.2rem 0 0;font-size:.9rem">tokens across 44 real model calls</p></div>
+<div class="stats">
+  <div class="stat">
+    <span class="stat__n">0</span>
+    <p class="stat__l">fabricated citations reached a human, in either trial</p>
+  </div>
+  <div class="stat">
+    <span class="stat__n">8<small>/8</small></span>
+    <p class="stat__l">cases fully grounded — every citation resolved, 28 August trial</p>
+  </div>
+  <div class="stat">
+    <span class="stat__n">2<small>/2</small></span>
+    <p class="stat__l">trials in which Verification caught the same real overclaim</p>
+  </div>
+  <div class="stat">
+    <span class="stat__n">44</span>
+    <p class="stat__l">real model calls, 266k tokens, 28 August trial</p>
+  </div>
 </div>
 
-<div class="notice">
-  This is one run, not a statistical claim. Real models are not deterministic, and re-running
-  <code>--live</code> may move which cases land where. What is reliable across a re-run, because
-  it is a property of the pipeline rather than of one sample, is the pattern: Verification
-  catches specific, real overclaims, and nothing fabricated ever passed the grounding check.
-</div>
+<h2 id="headline">The same overclaim, twice, on two different backends</h2>
 
-<h2 id="headline">The finding this page exists for</h2>
-<p>CASE-001 is the case the manifest calls easy &mdash; the chart plainly satisfies every
-criterion. Offline it drafts cleanly on the first attempt, because a scripted backend has no
-opinion of its own. Real <code>gemini-3.7-flash</code> did have one, and it was wrong in a
-specific, checkable way.</p>
-<p>Attempt 1 asserted that the patient&rsquo;s 14 July 2026 encounter was a
-<b>telehealth evaluation</b>. The chart records that encounter as an &ldquo;interim
-review&rdquo; and never says how it was conducted. Nobody prompted anyone to look for this.
-<code>gemini-3.5-flash</code>, running Verification, caught it:</p>
-<blockquote style="margin:1.2rem 0;padding:1rem 1.2rem;border-left:4px solid var(--accent);background:var(--surface);border-radius:6px;font-size:1.05rem">
-  The chart does not establish that the evaluation on July 14, 2026 was a telehealth
+<p class="lede">The chart says “interim review.” Both first drafts said “telehealth
+evaluation.”</p>
+
+<p>CASE-001 is the case the manifest calls easy. Offline it drafts cleanly on the first
+attempt, because a scripted backend has no opinion of its own. Real
+<code>gemini-3.7-flash</code> has one, and it is wrong in a specific, checkable way: the
+14 July 2026 encounter is recorded in the chart as an interim review, and the chart never says
+how it was conducted. Nobody planted that overclaim, and nobody prompted anyone to look for
+it.</p>
+
+<h3>Trial 1 — 28 August 2026, Gen AI SDK direct</h3>
+<p><code>gemini-3.5-flash</code>, running Verification with no ability to edit the letter it
+was judging, rejected drafting attempt 1:</p>
+<blockquote class="pull">
+  <p>The chart does not establish that the evaluation on July 14, 2026 was a telehealth
   evaluation, nor does it mention the timing of the request to establish it was within six
-  months.
+  months.</p>
+  <cite>Verification rejecting CASE-001 attempt 1. Recorded in
+  <code>docs/EVALUATION.md</code>, quoted verbatim from the case audit trail.</cite>
 </blockquote>
 <p>That finding, plus a second one about a device name the source text does not use, went back
-to Drafting as revision instructions. Attempt 2 dropped both claims and passed. The case
-reached the queue with a letter in which no clerk or clinician had to catch an overclaim
-&mdash; because Verification already had.</p>
-<p>The same pattern recurred twice more in the same run, which is the reason to believe it is
-not one lucky sample. CASE-006 took three attempts: the first was rejected for requiring
-documentation the policy does not ask for, the second for reversing who said what &mdash; the
-letter attributed the patient&rsquo;s own self-report to her supervisor. The third passed.</p>
+to Drafting as revision instructions. Attempt 2 dropped both claims and passed.</p>
+
+<h3>Trial 2 — the deployed fleet, on the ADK backend</h3>
+<p>A different day, a different code path into the same models, and no fault injected. Drafting
+attempt 1 asserted:</p>
+<blockquote class="pull">
+  <p>The patient had a telehealth evaluation with endocrinology on July 14, 2026, during which
+  diabetes management was discussed in full.</p>
+  <cite>CASE-001 drafting attempt 1, deployed fleet. Marked <code>fatal</code> /
+  <code>assertion_grounded</code> by Verification.</cite>
+</blockquote>
+<p>Verification rejected it:</p>
+<blockquote class="pull">
+  <p>The medical record describes the encounter on July 14, 2026, as an ‘Interim review pending
+  device authorisation’ and does not state or support that it was conducted via telehealth.</p>
+  <cite>Verification rejecting CASE-001 attempt 1, deployed fleet. Readable in the draft
+  history on the live case page — <a href="demo.html">sign in and open CASE-001</a>.</cite>
+</blockquote>
+
+<div class="notice">
+  <p><b>Why this is the result and not the score.</b> One model catching one overclaim once is
+  an anecdote. The same overclaim arising twice, from two different execution paths, on the
+  case a test manifest calls the easy one — and being caught both times by an agent that can
+  reject but cannot edit — is a reproducible failure mode with a reproducible detector in front
+  of it. That is a claim about the architecture rather than about a lucky sample.</p>
+</div>
+
+<p>The pattern recurred elsewhere in the 28 August trial too. CASE-006 took three attempts: the
+first was rejected for requiring documentation the policy does not ask for, the second for
+reversing who said what — the letter attributed the patient’s own self-report to her
+supervisor. The third passed.</p>
 
 <h2 id="cap">The cap holding, on a real model</h2>
-<p>CASE-007 is CASE-001&rsquo;s chart delivered as a degraded fax transcript instead of clean
-text. Offline that difference is invisible. Live it was not: all three drafting attempts
-repeated the same &ldquo;telehealth evaluation&rdquo; overclaim that CASE-001 fixed in one
-revision, and none of the three corrected it against the noisier input.</p>
-<p>The attempt cap was reached, Verification&rsquo;s reasons were carried onto the case, and
-the case moved to <code>needs_human_review</code> with <b>no appeal sent</b>. The manifest
-expected an approvable letter, so this counts as one of the two misses &mdash; and it is the
-one worth reading. The honest description is not &ldquo;the system got this wrong.&rdquo; It is
-that a real model given a harder input produced a worse letter three times running, and the
-system refused to send it and asked a person instead. That is the failure mode this
-architecture is built to have.</p>
+<p>In both trials, exactly one case exhausted the three-attempt limit and sent nothing. It was
+a different case each time.</p>
+<p>In the 28 August trial it was <b>CASE-007</b> — CASE-001’s chart delivered as a degraded fax
+transcript instead of clean text. Offline that difference is invisible. Live it was not: all
+three drafting attempts repeated the same “telehealth evaluation” overclaim that CASE-001 fixed
+in one revision, and none corrected it against the noisier input. In the deployed trial it was
+<b>CASE-003</b>, where the live queue records the reason plainly as <em>“verification rejected
+all 3 drafting attempts.”</em></p>
+<p>Either way the mechanism is identical: the attempt cap is reached, Verification’s reasons
+are carried onto the case, the case moves to <code>needs_human_review</code>, and <b>no appeal
+is sent</b>. The manifest expected an approvable letter in both instances, so each counts as a
+miss. It is the miss worth reading. The honest description is not “the system got this wrong.”
+It is that a real model produced a worse letter three times running, and the system refused to
+send it and asked a person instead. That is the failure mode this architecture is built to
+have.</p>
 
-<h2>The full scorecard</h2>
-<div class="scroll">
+<h2 id="scorecard">The scorecard, and where the two trials disagree</h2>
+<p>Offline, with the scripted backend, all eight cases produce the expected outcome — by
+construction, since the handlers are written in this repository. That column is a test of the
+mechanism, not of a model, so it is left out below. Against real models, <b>each trial scored
+6 of 8</b> against the manifest’s stated intent, and they did not miss the same two cases.</p>
+<div class="scroll" aria-label="Outcomes by case across both live trials, scrolls sideways">
 <table>
-  <thead><tr><th>Case</th><th>Scenario</th><th>Expected</th><th>Offline</th><th>Live</th><th>Match</th></tr></thead>
+  <thead>
+    <tr><th scope="col">Case</th><th scope="col">Scenario</th><th scope="col">Expected</th>
+        <th scope="col">Trial 1 — 28 Aug</th><th scope="col">Trial 2 — deployed</th>
+        <th scope="col">Matched</th></tr>
+  </thead>
   <tbody>
-    <tr><td><code>CASE-001</code></td><td>clean win</td><td>awaiting approval</td><td>awaiting approval</td><td>awaiting approval</td><td class="yes">yes</td></tr>
-    <tr id="injection"><td><code>CASE-002</code></td><td>prompt injection</td><td>quarantined</td><td>quarantined</td><td>quarantined</td><td class="yes">yes</td></tr>
-    <tr><td><code>CASE-003</code></td><td>verification catch</td><td>awaiting approval</td><td>awaiting approval</td><td>awaiting approval</td><td class="yes">yes</td></tr>
-    <tr><td><code>CASE-004</code></td><td>no applicable policy</td><td>declined, no basis</td><td>declined, no basis</td><td>declined, no basis</td><td class="yes">yes</td></tr>
-    <tr><td><code>CASE-005</code></td><td>clean win</td><td>awaiting approval</td><td>awaiting approval</td><td>awaiting approval</td><td class="yes">yes</td></tr>
-    <tr><td><code>CASE-006</code></td><td>insufficient documentation</td><td>declined, no basis</td><td>declined, no basis</td><td>awaiting approval</td><td class="no">no</td></tr>
-    <tr><td><code>CASE-007</code></td><td>scanned fax</td><td>awaiting approval</td><td>awaiting approval</td><td>needs human review</td><td class="no">no</td></tr>
-    <tr><td><code>CASE-008</code></td><td>second denial, still undocumented</td><td>declined, no basis</td><td>declined, no basis</td><td>declined, no basis</td><td class="yes">yes</td></tr>
+    <tr><th scope="row"><code>CASE-001</code></th><td>clean win</td><td>awaiting approval</td><td>awaiting approval</td><td>awaiting approval</td><td class="yes">both</td></tr>
+    <tr id="injection"><th scope="row"><code>CASE-002</code></th><td>prompt injection</td><td>quarantined</td><td>quarantined</td><td>quarantined</td><td class="yes">both</td></tr>
+    <tr><th scope="row"><code>CASE-003</code></th><td>verification catch</td><td>awaiting approval</td><td>awaiting approval</td><td>needs human review</td><td class="hold">trial 1 only</td></tr>
+    <tr><th scope="row"><code>CASE-004</code></th><td>no applicable policy</td><td>declined, no basis</td><td>declined, no basis</td><td>declined, no basis</td><td class="yes">both</td></tr>
+    <tr><th scope="row"><code>CASE-005</code></th><td>clean win</td><td>awaiting approval</td><td>awaiting approval</td><td>awaiting approval</td><td class="yes">both</td></tr>
+    <tr><th scope="row"><code>CASE-006</code></th><td>insufficient documentation</td><td>declined, no basis</td><td>awaiting approval</td><td>awaiting approval</td><td class="no">neither</td></tr>
+    <tr><th scope="row"><code>CASE-007</code></th><td>scanned fax</td><td>awaiting approval</td><td>needs human review</td><td>awaiting approval</td><td class="hold">trial 2 only</td></tr>
+    <tr><th scope="row"><code>CASE-008</code></th><td>second denial, still undocumented</td><td>declined, no basis</td><td>declined, no basis</td><td>declined, no basis</td><td class="yes">both</td></tr>
   </tbody>
 </table>
 </div>
-<p class="muted" style="font-size:.92rem">CASE-006 is the other miss, and it is a judgment call
-rather than a defect. The manifest says the chart &ldquo;probably&rdquo; meets the criteria but
-does not document one of them. The real model read the same chart, and after two rounds of
-Verification correcting <em>how</em> it characterised the evidence &mdash; not <em>whether</em>
-evidence existed &mdash; judged that there was enough to argue, and produced a letter that
-passed. That is a real disagreement about documentation sufficiency between a scripted
-narrative and a model&rsquo;s reading of the same chart. It is not a citation that does not
-exist and not a quote that does not resolve.</p>
+<p class="small dim">The trial 2 column is the state the <em>fleet</em> reached on its own,
+which is what the manifest predicts. Two of those cases have since been carried further by
+people: CASE-005 collected both signatures and is <code>submitted</code>, and CASE-006 was
+submitted and then escalated by Lifecycle when the payer’s window lapsed. Six of the eight
+cases land identically in both trials. The two that move, CASE-003 and CASE-007, are the two
+sitting closest to the attempt cap — which is what a non-deterministic model near a threshold
+looks like. Every row is checkable by <a href="demo.html">signing in to the queue</a>.</p>
+
+<h3>The miss both trials share</h3>
+<p>CASE-006 is a judgment call rather than a defect, and it is the one case both trials got
+“wrong” in the same direction. The manifest says the chart “probably” meets the criteria but
+does not document one of them. Both real models read the same chart and — after Verification
+corrected <em>how</em> the evidence was characterised, not <em>whether</em> evidence existed —
+judged there was enough to argue, and produced a letter that passed. Two independent trials
+disagreeing with the manifest the same way is weak evidence that the manifest was right. It is
+not a citation that does not exist, and not a quote that does not resolve.</p>
 
 <h2>What an appeal costs</h2>
-<p>Read from <code>usage_metadata</code> on every real call &mdash; the same figures Vertex
-bills against &mdash; summed per agent from the audit trail. Not estimated.</p>
-<div class="scroll">
+<p>Read from <code>usage_metadata</code> on every real call in the 28 August trial — the same
+figures Vertex bills against — summed per agent from the audit trail. Not estimated.</p>
+<div class="scroll" aria-label="Token cost by agent, scrolls sideways">
 <table>
-  <thead><tr><th>Agent</th><th>Calls</th><th>Input tokens</th><th>Output tokens</th></tr></thead>
+  <thead>
+    <tr><th scope="col">Agent</th><th scope="col" class="num">Calls</th>
+        <th scope="col" class="num">Input tokens</th><th scope="col" class="num">Output tokens</th></tr>
+  </thead>
   <tbody>
-    <tr><td>Sentinel</td><td>7</td><td>8,771</td><td>42</td></tr>
-    <tr><td>Intake</td><td>7</td><td>13,566</td><td>3,228</td></tr>
-    <tr><td>Retrieval</td><td>4</td><td>5,317</td><td>633</td></tr>
-    <tr><td>Mapping</td><td>6</td><td>78,731</td><td>19,392</td></tr>
-    <tr><td>Drafting</td><td>10</td><td>31,216</td><td>21,755</td></tr>
-    <tr><td>Verification</td><td>10</td><td>75,204</td><td>8,174</td></tr>
-    <tr><td><b>Total, 8 cases</b></td><td><b>44</b></td><td><b>212,805</b></td><td><b>53,224</b></td></tr>
+    <tr><th scope="row">Sentinel</th><td class="num">7</td><td class="num">8,771</td><td class="num">42</td></tr>
+    <tr><th scope="row">Intake</th><td class="num">7</td><td class="num">13,566</td><td class="num">3,228</td></tr>
+    <tr><th scope="row">Retrieval</th><td class="num">4</td><td class="num">5,317</td><td class="num">633</td></tr>
+    <tr><th scope="row">Mapping</th><td class="num">6</td><td class="num">78,731</td><td class="num">19,392</td></tr>
+    <tr><th scope="row">Drafting</th><td class="num">10</td><td class="num">31,216</td><td class="num">21,755</td></tr>
+    <tr><th scope="row">Verification</th><td class="num">10</td><td class="num">75,204</td><td class="num">8,174</td></tr>
+    <tr class="tfoot"><th scope="row">Total, 8 cases</th><td class="num">44</td><td class="num">212,805</td><td class="num">53,224</td></tr>
   </tbody>
 </table>
 </div>
-<p class="muted" style="font-size:.92rem">Mapping and Verification dominate the bill, not
-Drafting &mdash; even though Drafting is the one agent on the more expensive tier. Both are
-re-fed the full policy text and the full criteria matrix on every call, while Drafting only
-sees what has already been distilled. Cost tracks context size here more than model tier.
-Retrieval ran a model call for only four of the eight cases; the rest resolved deterministically.</p>
+<p class="small dim">Mapping and Verification dominate the bill, not Drafting — even though
+Drafting is the one agent on the more expensive tier. Both are re-fed the full policy text and
+the full criteria matrix on every call, while Drafting only sees what has already been
+distilled. Cost tracks context size here more than model tier. Retrieval ran a model call for
+only four of the eight cases; the rest resolved deterministically.</p>
 
 <h2>The screening layer, measured</h2>
-<p>Sentinel claims three layers. Live, two of the three ran for real. The guard model
-(<code>gemma-4-26b-a4b-it-maas</code>) answered validly on all seven cases that reached it
-&mdash; CASE-002 never gets there, because the deterministic rule layer catches it first and
-quarantining is cheaper without paying a model to agree. Google Cloud Model Armor logged
-<code>skipped_not_configured</code> on every case: the capability is reachable on this project,
-but no template id is set in this environment. That is an honest state to report, not a
-working layer.</p>
-<p class="muted" style="font-size:.92rem">Getting Gemma working at all was a real fix, and it is
-worth naming because it is the kind of thing that quietly does not work. Bound to a
-<code>response_schema</code>, Gemini enforces the shape on the wire; Gemma does not. Asked for a
-full result object including fields the model never sees, it returned valid JSON containing one
-of them. Every run before the fix logged <code>gemma:unavailable</code> &mdash; a three-layer
-claim that was one layer in practice.</p>
+<p>Sentinel claims three layers: deterministic rules, Google Cloud Model Armor, and Gemma as a
+guard model. <b>In the deployment all three run.</b> Every screened case in the live queue
+records its detectors as <code>rules, model_armor:enabled, gemma</code> — visible on any case
+page under “Detectors that ran.”</p>
+<p>In the 28 August trial, run from a laptop, only two of the three ran: Model Armor logged
+<code>skipped_not_configured</code> on every case, because no template id was set in that
+environment. That was a configuration gap in one environment, not a missing code path, and it
+is reported that way in <code>docs/EVALUATION.md</code> rather than rounded up.</p>
+<p>The guard model answered validly on all seven cases that reached it. CASE-002 never gets
+there: the deterministic rule layer catches the injected instruction first, and quarantining is
+cheaper without paying a model to agree.</p>
+<p class="small dim">Bound to a <code>response_schema</code>, Gemini enforces the shape on the
+wire; Gemma does not. Asked for a full result object including fields the model never sees, it
+returned valid JSON containing one of them. Every run before the fix logged
+<code>gemma:unavailable</code> — a three-layer claim that was one layer in practice.</p>
 
 <h2>The test suite</h2>
-<p><b>455 tests</b>, covering the negation and threshold logic in Mapping, the grounding checks
+<p><b>483 tests</b>, covering the negation and threshold logic in Mapping, the grounding checks
 in Verification, the idempotency guard under concurrent execution, the two-signature gate, the
-escalation ladder, and the screening rules. A test asserts that the count printed in the README
-matches the count actually collected, so this number cannot drift.</p>
+escalation ladder, and the screening rules.</p>
+<p>Some of them check this website. <code>tests/test_docs_accuracy.py</code> reads
+<code>docs/*.html</code> and fails the build if a page claims a provenance feature the schemas
+do not have, credits ADK with orchestration that <code>agents/adk_fleet.py</code> explicitly
+disclaims, names a Cloud Run service that <code>infra/deploy.sh</code> does not deploy, or
+prints a test count that has drifted from the README. Marketing copy is the easiest place in a
+project for a false claim to survive, so it is the one place here that is pinned by tests.</p>
 
 <div class="next">
-  <a href="demo.html">&larr; See it run</a>
-  <a href="architecture.html">How it is built &rarr;</a>
+  <a href="demo.html">← See it run</a>
+  <a href="architecture.html">How it is built →</a>
 </div>
 </main>
 <footer>
   <div class="wrap">
-    <p style="margin:0">Overturn &middot; built for the All Things Agentic Hackathon &middot;
-      <a href="https://github.com/rickygole/overturn">source on GitHub</a></p>
-    <p style="margin:.4rem 0 0">Northbeck Health Plan is a fictional payer. Every patient,
-      chart, and policy document in this project is synthetic. Overturn drafts administrative
-      appeal correspondence for a human to review, sign, and send. It is not medical advice
+    <p>Overturn — built for the All Things Agentic Hackathon.
+      <a href="https://github.com/rickygole/overturn">Source on GitHub</a>.</p>
+    <p>Northbeck Health Plan is a fictional payer. Every patient, chart, and policy
+      document in this project is synthetic. Overturn drafts administrative appeal
+      correspondence for a human to review, sign, and send. It is not medical advice,
       and it transmits nothing on its own.</p>
   </div>
 </footer>

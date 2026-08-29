@@ -3,7 +3,7 @@
 **An agent fleet that appeals wrongful health insurance denials, and keeps
 appealing for weeks without being asked twice.**
 
-A clinic billing clerk gets a denial letter. Today they either spend two hours
+A clinic billing clerk gets a denial letter. Today they either spend forty minutes
 writing an appeal, or — far more often — they don't, and the claim dies. A large
 share of denials that *are* appealed get overturned, which means many of the
 ones nobody appeals were winnable. The bottleneck is not judgment. It is that

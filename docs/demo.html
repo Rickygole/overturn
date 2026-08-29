@@ -4,92 +4,161 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>See it run — Overturn</title>
-<meta name="description" content="The live approval queue, the four-minute walkthrough, and how to run the whole pipeline yourself with no cloud account.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='%238f3216' stroke-width='3'/%3E%3Cpath d='M16 6a10 10 0 0 1 0 20' stroke='%238f3216' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<meta name="description" content="The deployed approval queue, the four-minute walkthrough, and how to run the whole pipeline yourself with no cloud account and no cost.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23c9cac4' stroke-width='2.5'/%3E%3Cpath d='M16 3A13 13 0 1 1 4.74 9.5' fill='none' stroke='%2316181c' stroke-width='4'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
 <link rel="stylesheet" href="styles.css">
-<script>
-  try{var t=localStorage.getItem("overturn-theme");
-      if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}
-</script>
+<script>/* Before first paint, so a reader who chose dark never sees a light flash. */
+try{if(localStorage.getItem("overturn-theme")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}</script>
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 <header class="masthead">
-  <div class="wrap masthead__inner">
+  <div class="masthead__inner">
     <a class="wordmark" href="index.html">Overturn</a>
-    <nav class="nav" aria-label="Sections">
+    <nav class="nav" aria-label="Site">
       <a href="how-it-works.html">How it works</a>
       <a href="demo.html" aria-current="page">See it run</a>
       <a href="evidence.html">Evidence</a>
       <a href="architecture.html">Architecture</a>
-      <a href="https://overturn-kruy6aauaq-uc.a.run.app/queue" class="nav__app">Sign in &rarr;</a>
     </nav>
-    <div class="theme" role="group" aria-label="Colour theme">
-      <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
-      <button type="button" data-mode="light" aria-pressed="false">Light</button>
-      <button type="button" data-mode="dark" aria-pressed="false">Dark</button>
+    <div class="masthead__end">
+      <button type="button" class="theme" aria-pressed="false">
+        <span class="theme__dot" aria-hidden="true"></span>Dark mode
+      </button>
+      <a class="nav__app" href="https://overturn-kruy6aauaq-uc.a.run.app/queue">Sign in</a>
     </div>
   </div>
 </header>
-<main class="wrap">
-<p class="muted" style="font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin:0 0 .5rem">See it run</p>
+
+<main class="wrap" id="main">
+<p class="eyebrow">See it run</p>
 <h1>Three ways to watch it work</h1>
 <p class="lede">The deployed queue with real cases in it, a four-minute walkthrough, and a
 local run that needs no Google Cloud account and costs nothing.</p>
 
-<h2>1. The live approval queue</h2>
+<h2>1. The live review queue</h2>
 <p>This is the screen the clerk uses. It is the deployed system on Cloud Run, reading cases
-out of Firestore that were processed by the real agents on Vertex AI &mdash; not a mockup.</p>
+out of Firestore that were processed by the real agents on Vertex AI — not a mockup.</p>
+
 <div class="callout">
-  <p style="margin:0 0 .8rem"><a class="btn" href="https://overturn-kruy6aauaq-uc.a.run.app/queue">Sign in to the queue &rarr;</a></p>
-  <dl style="margin:0;display:grid;grid-template-columns:auto 1fr;gap:.2rem .8rem;font-size:.92rem">
-    <dt class="muted">Password</dt><dd style="margin:0"><code style="user-select:all">northbeck-appeals-2026</code></dd>
-  </dl>
-  <p class="muted" style="margin:.8rem 0 0;font-size:.88rem">The credential is published here on
-  purpose: everything behind it is synthetic, and a judge should not have to email anyone to see
-  the product. The password exists so the queue is not open to crawlers, not to protect data.</p>
+  <p><a class="btn" href="https://overturn-kruy6aauaq-uc.a.run.app/queue">Sign in to the queue</a></p>
+  <p class="small"><b>Password</b> <code style="user-select:all">northbeck-appeals-2026</code></p>
+  <p class="small dim">The password exists so the queue is not open to crawlers, not to
+  protect data. Everything behind it is synthetic.</p>
 </div>
 
-<h3>What is in the queue right now</h3>
-<p>Three cases are waiting on a human. A fourth &mdash; <code>CASE-002</code>, the letter with an
-injected instruction &mdash; never reaches the queue at all: Sentinel quarantined it, and a
-quarantined case is not something a clerk is asked to review. <a href="evidence.html#injection">The
-evidence page has what it did.</a></p>
-<div class="scroll">
+<p>Signing in lands you on the dashboard rather than a list: counts by who is waiting, the
+deadline pressure where there is any, and the closed cases listed rather than hidden — because
+a case that silently vanishes from a queue looks like a case that was lost. It reads
+<b>8 cases, 3 needing a person</b>: two waiting on the clerk, one sent back, two with the
+payer, three closed.</p>
+
+<p>All eight cases are loaded, in six distinct states. Three of those states are refusals.</p>
+
+<div class="scroll" aria-label="Cases in the deployed queue, scrolls sideways">
 <table>
-  <thead><tr><th>Case</th><th>State</th><th>What it shows</th></tr></thead>
+  <thead>
+    <tr><th scope="col">Case</th><th scope="col">State</th>
+        <th scope="col">What it demonstrates</th></tr>
+  </thead>
   <tbody>
-    <tr><td><code>CASE-001</code></td><td>awaiting approval</td>
-      <td>The clean win &mdash; and the one where Verification caught the model overclaiming.
-        Open the draft history: attempt 1 is there, rejected, with the reason.</td></tr>
-    <tr><td><code>CASE-002</code></td><td class="no">quarantined</td>
-      <td>A denial letter with an injected instruction hidden in it. Sentinel stopped it before
-        any agent read it as instructions.</td></tr>
-    <tr><td><code>CASE-003</code></td><td class="no">needs human review</td>
-      <td>Three drafts, three rejections, nothing sent. The cap holding.</td></tr>
-    <tr><td><code>CASE-005</code></td><td>awaiting approval</td>
-      <td>A second clean case, for contrast &mdash; one attempt, passed.</td></tr>
+    <tr>
+      <th scope="row"><code>CASE-001</code></th><td>Awaiting approval</td>
+      <td><b>Open this one first.</b> Three drafts, two rejected, three distinct real catches —
+        all clickable. Attempt 1 claimed the 14 July encounter was a telehealth evaluation; the
+        chart calls it an interim review.</td>
+    </tr>
+    <tr>
+      <th scope="row"><code>CASE-007</code></th><td>Awaiting approval</td>
+      <td>CASE-001’s chart delivered as a degraded fax transcript. Two attempts, one rejection,
+        then a pass. It hit the cap and sent nothing in the 28 August trial.</td>
+    </tr>
+    <tr>
+      <th scope="row"><code>CASE-003</code></th><td>Needs human review</td>
+      <td>Three drafts, three rejections, <b>nothing sent</b>. The cap holding. The case was
+        handed to a person with the reasons attached.</td>
+    </tr>
+    <tr>
+      <th scope="row"><code>CASE-005</code></th><td>Submitted</td>
+      <td><b>The two-signature gate, held rather than described.</b> A clerk signed and nothing
+        moved. Only the clinician’s co-signature on the same draft sent it.</td>
+    </tr>
+    <tr>
+      <th scope="row"><code>CASE-006</code></th><td>Escalated</td>
+      <td><b>The seventh agent, doing its job unattended.</b> Submitted, the payer went silent,
+        the response window lapsed, and Lifecycle escalated it on its own from
+        <code>first_level_appeal</code> to <code>peer_to_peer_review</code>. No human asked it
+        to.</td>
+    </tr>
+    <tr>
+      <th scope="row"><code>CASE-002</code></th><td>Quarantined</td>
+      <td>A denial letter with an injected instruction in it. Sentinel stopped it before any
+        agent read it as instructions, so it never enters the queue as a review row.
+        <a href="evidence.html#injection">What it did.</a></td>
+    </tr>
+    <tr>
+      <th scope="row"><code>CASE-004</code></th><td>Declined — no basis</td>
+      <td>No applicable policy. Nothing drafted, because there was nothing honest to argue.</td>
+    </tr>
+    <tr>
+      <th scope="row"><code>CASE-008</code></th><td>Declined — no basis</td>
+      <td>A second denial on a still-undocumented record. Same refusal, arrived at
+        independently.</td>
+    </tr>
   </tbody>
 </table>
 </div>
-<p class="muted" style="font-size:.9rem">Every case page shows the original letter, the criteria
-matrix with each verdict and its chart locator, the full draft-and-rejection history, and the
-two-signature gate. Nothing can be submitted from the queue without both signatures on the same
-draft attempt.</p>
+
+<div class="notice">
+  <p><b>Two things about that table that you should not have to find out later.</b></p>
+  <p><b>The clock is compressed.</b> The deployment runs with
+  <code>OVERTURN_DEMO_TIME_ACCELERATION</code> on, one second standing in for one day. It is a
+  built-in setting, not a patch. A real payer response window is 30 days, and without
+  compression nobody would ever watch an escalation happen. CASE-006’s escalation is real
+  behaviour on a fast clock — the ladder, the trigger, and the audit entry are the production
+  ones.</p>
+  <p><b>Nothing was transmitted to an insurer.</b> “Submitted” means handed to
+  <code>services/payer_sim.py</code>, a local simulator that makes no network calls at all.
+  Northbeck Health Plan does not exist. No real payer, patient, or chart is involved anywhere
+  in this system.</p>
+</div>
+
+<div class="notice">
+  <p><b>This is a second trial, not a copy of the evidence page.</b> These cases were processed
+  by the deployed fleet through the ADK backend. The eight-case run recorded in
+  <code>docs/EVALUATION.md</code> was a separate trial on 28 August 2026 through a different
+  code path. Both scored 6 of 8 against the test manifest, and they did not miss the same two
+  cases: CASE-003 and CASE-007 swap places.</p>
+  <p>That is the useful part. Two runs of a non-deterministic model landing in different places
+  is exactly what the evaluation says to expect. What did <em>not</em> move is the finding — on
+  CASE-001 both trials produced the same unsupported “telehealth evaluation” claim, and
+  Verification caught it both times.
+  <a href="evidence.html#headline">Both rejections, quoted side by side.</a></p>
+</div>
+
+<p class="small dim">Every case page shows the original letter, the screening result with the
+detectors that ran, the criteria matrix with each verdict and its chart locator, the full
+draft-and-rejection history, and the two-signature gate. Nothing can be submitted without both
+signatures on the same draft attempt.</p>
 
 <h2>2. The walkthrough</h2>
 <figure>
   <div class="placeholder">
-    <p style="margin:0;font-weight:650">Four-minute demo video</p>
-    <p style="margin:.3rem 0 0;font-size:.9rem">Embedded here on submission.</p>
+    <p><b>Four-minute demo video</b></p>
+    <p class="small">Embedded here on submission.</p>
   </div>
   <figcaption>The walkthrough follows one denial letter from the moment it lands in a Cloud
   Storage bucket through to the two-signature gate, and then shows the two cases that
   deliberately do not produce a letter.</figcaption>
 </figure>
 <!-- On submission, replace the .placeholder div above with exactly this. It is the only
-     external resource this site should ever load, and nocookie is the right host for it:
+     external resource this site should ever load besides the fonts, and nocookie is the
+     right host for it:
 <div style="position:relative;padding-top:56.25%">
-  <iframe style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:6px"
+  <iframe style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:2px"
     src="https://www.youtube-nocookie.com/embed/VIDEO_ID" title="Overturn walkthrough"
     allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture"
     allowfullscreen loading="lazy"></iframe>
@@ -97,10 +166,10 @@ draft attempt.</p>
 -->
 
 <h2>3. Run the whole thing yourself</h2>
-<p>The pipeline ships with a scripted backend that answers every model call deterministically.
-All eight cases run end to end with no Google Cloud project, no credentials, and no cost &mdash;
-the same agents, the same orchestration, the same grounding checks, only the model responses
-are canned.</p>
+<p>The pipeline ships with a scripted backend that answers every model call
+deterministically. All eight cases run end to end with no Google Cloud project, no
+credentials, and no cost — the same agents, the same orchestration, the same grounding
+checks. Only the model responses are canned.</p>
 <pre><code>git clone https://github.com/rickygole/overturn
 cd overturn
 uv sync
@@ -113,28 +182,30 @@ uv run python scripts/casectl.py run CASE-001 --explain
 
 # the approval queue on localhost
 uv run uvicorn services.approval_ui.main:app --port 8080</code></pre>
+
 <p>To point the same run at real Gemini on Vertex AI instead, set two variables. This is
 exactly how the numbers on the <a href="evidence.html">evidence page</a> were produced:</p>
 <pre><code>OVERTURN_RUNTIME_MODE=local OVERTURN_LLM_BACKEND=vertex \
     uv run python scripts/evaluate.py --live</code></pre>
+
 <div class="notice">
-  <b>The offline and live runs are the same code path.</b> Only the backend is swapped. That is
-  what makes the two scorecards on the evidence page comparable &mdash; and it is why the two
-  cases where they <em>disagree</em> are worth reading rather than hiding.
+  <p><b>The offline and live runs are the same code path.</b> Only the backend is swapped.
+  That is what makes the two scorecards on the evidence page comparable — and it is why the
+  two cases where they disagree are worth reading rather than hiding.</p>
 </div>
 
 <div class="next">
-  <a href="how-it-works.html">&larr; How it works</a>
-  <a href="evidence.html">The numbers &rarr;</a>
+  <a href="how-it-works.html">← How it works</a>
+  <a href="evidence.html">The numbers →</a>
 </div>
 </main>
 <footer>
   <div class="wrap">
-    <p style="margin:0">Overturn &middot; built for the All Things Agentic Hackathon &middot;
-      <a href="https://github.com/rickygole/overturn">source on GitHub</a></p>
-    <p style="margin:.4rem 0 0">Northbeck Health Plan is a fictional payer. Every patient,
-      chart, and policy document in this project is synthetic. Overturn drafts administrative
-      appeal correspondence for a human to review, sign, and send. It is not medical advice
+    <p>Overturn — built for the All Things Agentic Hackathon.
+      <a href="https://github.com/rickygole/overturn">Source on GitHub</a>.</p>
+    <p>Northbeck Health Plan is a fictional payer. Every patient, chart, and policy
+      document in this project is synthetic. Overturn drafts administrative appeal
+      correspondence for a human to review, sign, and send. It is not medical advice,
       and it transmits nothing on its own.</p>
   </div>
 </footer>

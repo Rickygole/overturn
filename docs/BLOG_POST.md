@@ -15,7 +15,7 @@ built" bonus. Everything below happened while building
 A clinic gets a denial letter from an insurer. Appealing it properly means
 finding the payer's own published medical policy, checking the patient's chart
 against that policy line by line, and writing a letter that cites section
-numbers correctly. That's maybe two hours of skilled work per claim, which is
+numbers correctly. That's maybe forty minutes of skilled work per claim, which is
 why most winnable denials never get appealed at all — the labor cost exceeds
 the value of the claim.
 

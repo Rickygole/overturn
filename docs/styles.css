@@ -1,103 +1,423 @@
-/* Shared across every page. One palette, defined once.
-   Three theme states: an explicit choice stamps data-theme on the root and wins
-   in both directions; with nothing stamped, the reader's system setting decides. */
+/* Overturn — one stylesheet for the whole public site.
+ *
+ * Light is the design. It is authored first, it is what every visitor sees on
+ * a first load, and every value below was picked against it. Dark exists
+ * because it was asked for, and it is a derivation of these tokens rather than
+ * a second palette with its own opinions.
+ *
+ * House rules, so later edits do not drift:
+ *   - Radius is 1-3px. Nothing here is a card floating over a page.
+ *   - No box-shadows. Depth comes from hairlines. The only ring is focus.
+ *   - Sizes come from the scale below. If a size is not in the scale, it is
+ *     a mistake rather than a decision.
+ */
+
+/* ── tokens ─────────────────────────────────────────────────────────────── */
+
 :root{
-  --bg:#faf8f5; --surface:#fff; --sunken:#f2efe9; --ink:#16181c; --ink-muted:#5f646c;
-  --rule:#e0dbd2; --rule-firm:#b9b2a6; --accent:#8f3216; --ok:#2f6b3f; --warn:#8a5a10;
-  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  /* surface */
+  --bg:#f6f6f3;          /* warm off-white; the page */
+  --panel:#fff;          /* anything lifted off the page by a rule, not a shadow */
+  --sunken:#f0f0ec;      /* code, and the inside of a quiet block */
+  --hair:#e7e7e2;        /* the default rule; almost not there */
+  --edge:#c9cac4;        /* a rule you are meant to notice */
+
+  /* text */
+  --ink:#16181c;         /* body and headings */
+  --muted:#4c5158;       /* secondary prose — still AA on both surfaces */
+  --dim:#6a6f77;         /* labels, captions, and every interactive border */
+
+  /* meaning. Never used alone: each one is paired with a word. */
+  --good:#177245;
+  --bad:#a01c11;
+  --warn:#ad5a00;
+  --link:#10529e;
+
+  /* type */
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --fs-micro:11px;       /* table headers, footer small print */
+  --fs-eyebrow:11.5px;   /* the one uppercase style on the site */
+  --fs-xs:13px;
+  --fs-sm:13.5px;
+  --fs-md:14px;
+  --fs-base:15px;        /* body */
+  --fs-lg:18px;          /* h2, lede */
+  --fs-display:32px;     /* h1 */
+  --fs-hero:36px;        /* the landing wordmark, and nothing else */
+
+  /* space — one scale, no in-between values */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px;
+  --s6:32px; --s7:48px; --s8:64px; --s9:96px;
+
+  --r:2px;               /* the radius. Nearly square, on purpose. */
+  --measure:52ch;        /* prose. Wider than this and the eye loses the line. */
+  --container:760px;
 }
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --bg:#0f1114; --surface:#181b20; --sunken:#1f232a; --ink:#f0ece6; --ink-muted:#9aa1aa;
-    --rule:#2c3138; --rule-firm:#7b838d; --accent:#e08b6a; --ok:#7fc08f; --warn:#e0b46a;
-  }
-}
+
+/* Dark is a derivation: same roles, same relationships, re-lit. There is no
+ * prefers-color-scheme block — the site commits to light until a reader says
+ * otherwise, so a first impression is a designed one rather than a coin flip. */
 :root[data-theme="dark"]{
-  --bg:#0f1114; --surface:#181b20; --sunken:#1f232a; --ink:#f0ece6; --ink-muted:#9aa1aa;
-  --rule:#2c3138; --rule-firm:#7b838d; --accent:#e08b6a; --ok:#7fc08f; --warn:#e0b46a;
+  --bg:#15171a;
+  --panel:#1b1e22;
+  --sunken:#212429;
+  --hair:#2a2e34;
+  --edge:#454b53;
+  --ink:#eceef0;
+  --muted:#b2b8c0;
+  --dim:#8d949c;
+  --good:#5fbf85;
+  --bad:#f0857a;
+  --warn:#dfa14a;
+  --link:#8ab4f0;
 }
+
+/* ── base ───────────────────────────────────────────────────────────────── */
+
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
-     font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased}
-.wrap{max-width:54rem;margin:0 auto;padding:0 1.25rem}
-h1,h2,h3{line-height:1.22;letter-spacing:-.02em}
-h1{font-size:clamp(1.9rem,4.6vw,2.7rem);margin:0 0 .6rem}
-h2{font-size:clamp(1.25rem,2.8vw,1.6rem);margin:3rem 0 .9rem}
-h3{font-size:1.05rem;margin:1.8rem 0 .4rem}
-p{margin:0 0 1rem;max-width:38em}
-a{color:var(--accent);text-underline-offset:3px}
-code,pre{font-family:var(--mono);font-size:.85em}
-pre{background:var(--sunken);border:1px solid var(--rule);border-radius:6px;
-    padding:.95rem 1.1rem;overflow-x:auto;line-height:1.55}
-code:not(pre code){background:var(--sunken);padding:.1em .35em;border-radius:3px}
-.muted{color:var(--ink-muted)}
-.lede{font-size:1.1rem;color:var(--ink-muted);max-width:36em}
 
-/* Masthead and navigation, identical on every page. */
-.masthead{border-bottom:1px solid var(--rule);background:var(--surface);
-          position:sticky;top:0;z-index:5}
-.masthead__inner{display:flex;align-items:center;justify-content:space-between;
-                 gap:1rem;padding:.7rem 0;flex-wrap:wrap}
-.wordmark{font-weight:700;letter-spacing:-.02em;text-decoration:none;color:var(--ink)}
-.nav{display:flex;gap:.15rem;flex-wrap:wrap}
-.nav a{font-size:.86rem;padding:.3rem .6rem;border-radius:5px;
-       text-decoration:none;color:var(--ink-muted)}
-.nav a:hover{color:var(--ink);background:var(--sunken)}
-.nav a[aria-current="page"]{color:var(--ink);background:var(--sunken);font-weight:650}
-/* The only action in the masthead: the door into the running app. */
-.nav__app{color:var(--accent) !important;font-weight:650}
-.nav__app:hover{background:var(--sunken)}
-.theme{display:inline-flex}
-.theme button{font:inherit;font-size:.76rem;padding:.28rem .55rem;cursor:pointer;
-  background:transparent;color:var(--ink-muted);border:1px solid var(--rule);border-right-width:0}
-.theme button:first-child{border-radius:5px 0 0 5px}
-.theme button:last-child{border-radius:0 5px 5px 0;border-right-width:1px}
-.theme button[aria-pressed="true"]{background:var(--sunken);color:var(--ink);font-weight:600}
-.theme button:focus-visible,.nav a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+html{-webkit-text-size-adjust:100%}
 
-main{padding:2.5rem 0 1rem}
-.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.89rem}
-th,td{text-align:left;padding:.5rem .65rem;border-bottom:1px solid var(--rule);vertical-align:top}
-th{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted)}
-.yes{color:var(--ok);font-weight:650}
-.no{color:var(--warn);font-weight:650}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:var(--fs-base);
+  line-height:1.6;
+  overflow-x:hidden;              /* wide content scrolls in its own box */
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  font-synthesis-weight:none;
+}
 
-.notice{border:1px solid var(--rule);border-left:4px solid var(--rule-firm);
-        background:var(--sunken);border-radius:6px;padding:.85rem 1.05rem;
-        margin:1.4rem 0;font-size:.93rem}
-.callout{border:1px solid var(--rule);border-left:4px solid var(--accent);
-         background:var(--surface);border-radius:6px;padding:1.05rem 1.2rem;margin:1.5rem 0}
-.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));margin:1.4rem 0}
-.card{border:1px solid var(--rule);border-radius:6px;padding:.95rem 1.1rem;
-      background:var(--surface);min-width:0}
-.card h3{margin-top:0}
+.wrap{max-width:var(--container);margin:0 auto;padding:0 var(--s4)}
 
-/* The pipeline, as a spine. Step 9 is deliberately empty of output. */
-ol.steps{list-style:none;counter-reset:s;padding:0;margin:1.5rem 0}
-ol.steps>li{counter-increment:s;position:relative;padding:0 0 1.5rem 2.8rem;
-            border-left:2px solid var(--rule);margin-left:1rem}
-ol.steps>li:last-child{border-left-color:transparent}
-ol.steps>li::before{content:counter(s);position:absolute;left:-1.05rem;top:-.15rem;
-  width:2rem;height:2rem;border-radius:99px;display:grid;place-items:center;
-  background:var(--surface);border:2px solid var(--rule-firm);
-  font-size:.8rem;font-weight:700;font-family:var(--mono);color:var(--ink)}
-ol.steps b{display:block;margin-bottom:.15rem;font-size:1.02rem}
-.gap{border-left-style:dashed !important;min-height:3rem}
+/* Anything that is not prose — tables, code, diagrams — is allowed the full
+ * container. Prose is not, because 52ch is where it stays readable. */
+p,li,figcaption,dd,blockquote{max-width:var(--measure)}
 
-figure{margin:1.5rem 0}
-figure img{max-width:100%;height:auto;border:1px solid var(--rule);border-radius:6px;background:#fff}
-figcaption{font-size:.85rem;color:var(--ink-muted);margin-top:.5rem;max-width:38em}
+h1,h2,h3{font-weight:600;letter-spacing:-.02em;line-height:1.2;text-wrap:balance}
+h1{font-size:var(--fs-display);letter-spacing:-.025em;line-height:1.1;margin:0 0 var(--s3);max-width:20ch}
+h2{font-size:var(--fs-lg);margin:var(--s8) 0 var(--s4);padding-top:var(--s5);
+   border-top:1px solid var(--hair)}
+main>h2:first-of-type{margin-top:var(--s7)}
+h3{font-size:var(--fs-base);margin:var(--s6) 0 var(--s2);max-width:var(--measure)}
 
-.next{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;
-      margin:3rem 0 0;padding-top:1.2rem;border-top:1px solid var(--rule)}
-.next a{font-weight:650;text-decoration:none}
-.btn{display:inline-block;padding:.7rem 1.3rem;border-radius:99px;text-decoration:none;
-     font-weight:650;background:var(--ink);color:var(--bg);border:1px solid var(--ink)}
-.btn--ghost{background:transparent;color:var(--ink);border-color:var(--rule-firm)}
-footer{margin-top:3rem;border-top:1px solid var(--rule);background:var(--surface);
-       padding:1.5rem 0;font-size:.86rem;color:var(--ink-muted)}
-.placeholder{border:2px dashed var(--rule);border-radius:6px;padding:2.2rem 1rem;
-             text-align:center;color:var(--ink-muted);background:var(--sunken)}
-@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
+p{margin:0 0 var(--s4)}
+
+.lede{font-size:var(--fs-lg);line-height:1.5;color:var(--muted);letter-spacing:-.01em;
+      max-width:46ch;margin-bottom:var(--s5)}
+
+/* The only uppercase on the site. One style, used as a section marker. */
+.eyebrow{
+  font-size:var(--fs-eyebrow);font-weight:500;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--dim);margin:0 0 var(--s3);
+}
+
+.muted{color:var(--muted)}
+.dim{color:var(--dim)}
+.small{font-size:var(--fs-sm);line-height:1.55}
+
+strong,b{font-weight:600}
+
+a{color:var(--link);text-decoration:underline;text-decoration-thickness:1px;
+  text-underline-offset:2px}
+a:hover{text-decoration-thickness:2px}
+
+/* One focus treatment everywhere. Visible, square, ink — never suppressed. */
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:1px}
+
+code,pre,.mono{font-family:var(--mono);font-variant-ligatures:none}
+code:not(pre code){
+  font-size:.92em;background:var(--sunken);border-radius:1px;padding:.05em .3em;
+}
+pre{
+  font-size:var(--fs-xs);line-height:1.7;background:var(--sunken);
+  border:1px solid var(--hair);border-radius:var(--r);
+  padding:var(--s4);margin:var(--s4) 0;overflow-x:auto;
+}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+
+hr,.rule{border:0;border-top:1px solid var(--hair);margin:var(--s7) 0}
+
+/* ── masthead ───────────────────────────────────────────────────────────── */
+
+.skip{position:absolute;left:-9999px;top:0;background:var(--ink);color:var(--bg);
+      padding:var(--s2) var(--s3);z-index:20;border-radius:var(--r)}
+.skip:focus{left:var(--s4);top:var(--s2)}
+
+.masthead{
+  position:sticky;top:0;z-index:10;
+  background:var(--bg);border-bottom:1px solid var(--hair);
+}
+.masthead__inner{
+  display:flex;align-items:center;gap:var(--s4);
+  min-height:46px;padding:var(--s2) var(--s4);
+  max-width:var(--container);margin:0 auto;
+}
+.wordmark{
+  font-size:var(--fs-md);font-weight:600;letter-spacing:-.02em;
+  color:var(--ink);text-decoration:none;flex:none;
+}
+.wordmark:hover{text-decoration:none}
+
+.nav{
+  display:flex;align-items:center;gap:var(--s1);flex:1 1 auto;min-width:0;
+  overflow-x:auto;scrollbar-width:none;
+}
+.nav::-webkit-scrollbar{display:none}
+.nav a{
+  font-size:var(--fs-xs);color:var(--muted);text-decoration:none;
+  padding:var(--s1) var(--s2);border-radius:1px;white-space:nowrap;
+}
+.nav a:hover{color:var(--ink);text-decoration:none}
+.nav a[aria-current="page"]{color:var(--ink);font-weight:500;
+  border-bottom:1px solid var(--ink);border-radius:0}
+
+.masthead__end{display:flex;align-items:center;gap:var(--s2);flex:none}
+
+/* The one action in the masthead: the door into the running product. */
+.nav__app{
+  font-size:var(--fs-xs);font-weight:500;color:var(--bg) !important;
+  background:var(--ink);border:1px solid var(--ink);border-radius:var(--r);
+  padding:var(--s1) var(--s3);text-decoration:none;white-space:nowrap;
+}
+.nav__app:hover{text-decoration:none;opacity:.88}
+
+/* Light/dark. A toggle button, not a three-way switch: the accessible name
+ * stays "Dark mode" and aria-pressed carries the state, so the label is never
+ * describing something other than what it does. */
+.theme{
+  display:inline-flex;align-items:center;gap:var(--s1);
+  font:inherit;font-size:var(--fs-xs);line-height:1;
+  color:var(--muted);background:transparent;
+  border:1px solid var(--dim);border-radius:var(--r);
+  padding:var(--s1) var(--s2);cursor:pointer;white-space:nowrap;
+}
+.theme:hover{color:var(--ink);border-color:var(--ink)}
+.theme[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.theme__dot{
+  width:9px;height:9px;border-radius:99px;flex:none;
+  border:1px solid currentColor;
+  background:linear-gradient(90deg,currentColor 0 50%,transparent 50% 100%);
+}
+
+/* ── layout ─────────────────────────────────────────────────────────────── */
+
+main{padding:var(--s7) 0 var(--s8)}
+main>:first-child{margin-top:0}
+
+/* ── tables ─────────────────────────────────────────────────────────────── */
+
+/* Wide content lives in its own scroller and is focusable, so a keyboard can
+ * reach the far column without a mouse. The body never scrolls sideways. */
+.scroll{overflow-x:auto;margin:var(--s4) 0;border-radius:var(--r)}
+.scroll:focus-visible{outline-offset:0}
+
+table{width:100%;border-collapse:collapse;font-size:var(--fs-sm);line-height:1.5}
+th,td{text-align:left;padding:var(--s2) var(--s3);border-bottom:1px solid var(--hair);
+      vertical-align:top}
+th{
+  font-size:var(--fs-micro);font-weight:500;text-transform:uppercase;
+  letter-spacing:.09em;color:var(--dim);white-space:nowrap;
+  border-bottom-color:var(--edge);
+}
+tbody tr:last-child td,tbody tr:last-child th{border-bottom:0}
+td code{white-space:nowrap}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+th.num{text-align:right}
+.tfoot td{border-top:1px solid var(--edge);font-weight:600}
+
+/* Meaning is never carried by hue alone: every one of these is a word. */
+.yes{color:var(--good);font-weight:500;white-space:nowrap}
+.no{color:var(--bad);font-weight:500;white-space:nowrap}
+.hold{color:var(--warn);font-weight:500;white-space:nowrap}
+
+/* ── blocks ─────────────────────────────────────────────────────────────── */
+
+.notice{
+  border:1px solid var(--hair);border-left:2px solid var(--edge);
+  background:var(--panel);border-radius:var(--r);
+  padding:var(--s3) var(--s4);margin:var(--s5) 0;font-size:var(--fs-md);
+}
+.notice p{max-width:48ch}
+.notice>:last-child{margin-bottom:0}
+
+.callout{
+  border:1px solid var(--edge);background:var(--panel);border-radius:var(--r);
+  padding:var(--s5);margin:var(--s5) 0;
+}
+.callout>:last-child{margin-bottom:0}
+
+/* The verbatim quote. This is the most important object on the site, so it is
+ * the only place the type steps up instead of down. */
+.pull{
+  margin:var(--s5) 0;padding:var(--s5);border:1px solid var(--edge);
+  border-left:3px solid var(--ink);background:var(--panel);border-radius:var(--r);
+  max-width:none;
+}
+.pull p{font-size:var(--fs-lg);line-height:1.5;letter-spacing:-.01em;
+        max-width:48ch;margin:0}
+.pull cite{
+  display:block;margin-top:var(--s3);font-style:normal;
+  font-size:var(--fs-xs);color:var(--dim);max-width:48ch;
+}
+
+.grid{display:grid;gap:var(--s3);margin:var(--s4) 0;
+      grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr))}
+.card{
+  border:1px solid var(--hair);background:var(--panel);border-radius:var(--r);
+  padding:var(--s4);min-width:0;
+}
+.card h3{margin:0 0 var(--s1);font-size:var(--fs-md)}
+.card p{margin:0;font-size:var(--fs-sm);line-height:1.55;color:var(--muted);max-width:none}
+
+/* Scoreboard figures. Tabular, so the columns line up at any zoom. */
+.stats{
+  display:grid;gap:0;margin:var(--s5) 0;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr));
+  border:1px solid var(--hair);border-radius:var(--r);background:var(--panel);
+}
+.stat{padding:var(--s4);border-right:1px solid var(--hair)}
+.stat:last-child{border-right:0}
+.stat__n{
+  font-size:var(--fs-display);font-weight:600;letter-spacing:-.03em;line-height:1;
+  font-variant-numeric:tabular-nums;display:block;
+}
+.stat__n small{font-size:var(--fs-md);font-weight:500;color:var(--dim);letter-spacing:0}
+.stat__l{margin:var(--s2) 0 0;font-size:var(--fs-xs);line-height:1.45;color:var(--muted);
+         max-width:24ch}
+
+/* ── the pipeline, as a spine ───────────────────────────────────────────── */
+
+ol.steps{list-style:none;counter-reset:s;padding:0;margin:var(--s5) 0}
+ol.steps>li{
+  counter-increment:s;position:relative;
+  padding:0 0 var(--s5) var(--s6);
+  border-left:1px solid var(--hair);margin-left:11px;max-width:none;
+}
+ol.steps>li:last-child{border-left-color:transparent;padding-bottom:0}
+ol.steps>li::before{
+  content:counter(s,decimal-leading-zero);
+  position:absolute;left:-12px;top:0;width:23px;
+  background:var(--bg);text-align:center;
+  font-family:var(--mono);font-size:var(--fs-micro);font-weight:500;color:var(--dim);
+  line-height:1.6;
+}
+ol.steps h3{margin:0 0 var(--s1)}
+ol.steps p{margin:0;color:var(--muted);font-size:var(--fs-md)}
+ol.steps .notice{margin:var(--s3) 0 0}
+/* Step 9 is the waiting. The dashes are the weeks. */
+.steps .gap{border-left-style:dashed;padding-top:var(--s5)}
+
+/* ── figures ────────────────────────────────────────────────────────────── */
+
+figure{margin:var(--s5) 0}
+figure img{max-width:100%;height:auto;display:block;
+           border:1px solid var(--hair);border-radius:var(--r);background:#fff}
+figcaption{font-size:var(--fs-xs);line-height:1.55;color:var(--dim);margin-top:var(--s3)}
+
+.placeholder{
+  border:1px dashed var(--edge);border-radius:var(--r);background:var(--sunken);
+  padding:var(--s8) var(--s4);text-align:center;color:var(--muted);
+}
+.placeholder p{max-width:none;margin:0}
+
+/* ── controls ───────────────────────────────────────────────────────────── */
+
+.btn{
+  display:inline-block;font-size:var(--fs-md);font-weight:500;
+  padding:10px var(--s5);border-radius:var(--r);text-decoration:none;
+  background:var(--ink);color:var(--bg);border:1px solid var(--ink);
+}
+.btn:hover{text-decoration:none;opacity:.88}
+.btn--ghost{background:transparent;color:var(--ink);border-color:var(--dim)}
+.btn--ghost:hover{border-color:var(--ink);opacity:1}
+
+.next{
+  display:flex;justify-content:space-between;gap:var(--s4);flex-wrap:wrap;
+  margin:var(--s8) 0 0;padding-top:var(--s4);border-top:1px solid var(--hair);
+  font-size:var(--fs-md);
+}
+.next a{font-weight:500;text-decoration:none}
+.next a:hover{text-decoration:underline}
+
+/* ── footer ─────────────────────────────────────────────────────────────── */
+
+footer{
+  border-top:1px solid var(--hair);background:var(--bg);
+  padding:var(--s6) 0 var(--s7);margin-top:var(--s8);
+}
+footer p{font-size:var(--fs-xs);line-height:1.6;color:var(--dim);max-width:64ch}
+footer p:last-child{margin-bottom:0}
+footer a{color:var(--muted)}
+
+/* ── the landing page ───────────────────────────────────────────────────── */
+
+.door{padding:var(--s9) var(--s4) var(--s8);text-align:center}
+.door__top{display:flex;flex-direction:column;align-items:center}
+.mark{width:148px;height:148px;display:block;margin:0 0 var(--s5)}
+.mark .ring{fill:none;stroke:var(--edge);stroke-width:3}
+.mark .arc{fill:none;stroke:var(--ink);stroke-width:9;stroke-linecap:butt}
+.mark .core{fill:var(--ink)}
+.mark .arc{stroke-linecap:round}
+
+.door h1{font-size:var(--fs-hero);letter-spacing:-.03em;margin:0 0 var(--s3);max-width:none}
+.door .lede{max-width:44ch;margin:0 auto var(--s5);text-align:left}
+.door .btn{padding:12px var(--s7)}
+
+/* The finding, directly under the door. Left-aligned: it is prose, and prose
+ * that is centred is prose nobody finishes. */
+.door__finding{
+  max-width:var(--measure);margin:var(--s8) auto 0;text-align:left;
+  padding-top:var(--s5);border-top:1px solid var(--hair);
+}
+.door__finding p{margin-bottom:var(--s3)}
+.door__finding p:last-child{margin-bottom:0}
+.door__meta{
+  max-width:60ch;margin:var(--s6) auto 0;text-align:left;
+  font-size:var(--fs-xs);line-height:1.6;color:var(--dim);
+}
+.door__meta a{color:var(--muted)}
+
+/* ── motion ─────────────────────────────────────────────────────────────── */
+
+/* The arc draws once, clockwise from the top, and stops. It is saying "this
+ * thing turns something around" — which is the product name. Nothing else on
+ * the site moves. */
+@media (prefers-reduced-motion:no-preference){
+  .mark .arc{stroke-dasharray:440;stroke-dashoffset:440;
+             animation:draw .9s cubic-bezier(.22,.61,.36,1) .1s forwards}
+  .mark .core{opacity:0;animation:fade .2s ease-out .8s forwards}
+  .door__top>*:not(.mark){animation:rise .25s ease-out .35s backwards}
+}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes fade{to{opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important}
+}
+
+/* ── narrow ─────────────────────────────────────────────────────────────── */
+
+@media (max-width:600px){
+  :root{--fs-display:26px;--fs-hero:30px;--fs-lg:16px}
+  .masthead__inner{flex-wrap:wrap;gap:var(--s2) var(--s3);padding:var(--s2) var(--s4)}
+  .wordmark{order:1}
+  .masthead__end{order:2;margin-left:auto}
+  .nav{order:3;flex-basis:100%;margin:0 calc(var(--s4) * -1);padding:0 var(--s4) var(--s1)}
+  main{padding-top:var(--s6)}
+  .door{padding-top:var(--s7)}
+  .mark{width:112px;height:112px}
+  .stat{border-right:0;border-bottom:1px solid var(--hair)}
+  .stat:last-child{border-bottom:0}
+  .callout,.pull{padding:var(--s4)}
+}
+
+@media print{
+  .masthead,.theme,.next{display:none}
+  body{background:#fff}
+}
