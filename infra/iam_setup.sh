@@ -71,8 +71,23 @@ grant_project() {
   echo "  project  ${id} <- ${role}"
 }
 
+# Buckets and topics have to exist before they can be granted on, and
+# infra/provision.sh is what creates them. Run order is therefore:
+#
+#   enable_apis.sh -> iam_setup.sh -> provision.sh -> iam_setup.sh -> deploy.sh
+#
+# The second iam_setup pass is not redundant. On a first run the bucket grants
+# here have nothing to bind to, and gcloud reports that as a plain error the
+# script used to swallow — so the deploy succeeded, Cloud Run answered its
+# health check, and the first denial letter died with a 403 on
+# storage.objects.get that looked nothing like a missing IAM grant.
 grant_bucket() {
   local id="$1" bucket="$2" role="$3"
+  if ! gcloud storage buckets describe "gs://${bucket}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+    echo "  SKIPPED  ${id} <- ${role} on ${bucket} (bucket does not exist yet;"
+    echo "           run infra/provision.sh, then re-run this script)"
+    return 0
+  fi
   gcloud storage buckets add-iam-policy-binding "gs://${bucket}" \
     --member="serviceAccount:$(sa_email "$id")" \
     --role="${role}" \
@@ -82,6 +97,11 @@ grant_bucket() {
 
 grant_topic() {
   local id="$1" topic="$2" role="$3"
+  if ! gcloud pubsub topics describe "${topic}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+    echo "  SKIPPED  ${id} <- ${role} on ${topic} (topic does not exist yet;"
+    echo "           run infra/provision.sh, then re-run this script)"
+    return 0
+  fi
   gcloud pubsub topics add-iam-policy-binding "${topic}" \
     --project="${PROJECT_ID}" \
     --member="serviceAccount:$(sa_email "$id")" \

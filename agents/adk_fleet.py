@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from google.adk.agents import LlmAgent, SequentialAgent
@@ -219,7 +220,27 @@ class AdkBackend:
         agent_name = _OPERATION_TO_AGENT.get((request.agent, request.operation))
         if agent_name is None:
             raise ModelUnavailable(f"no ADK agent mapped for {request.agent}.{request.operation}")
-        return asyncio.run(self._invoke(agent_name, request))
+
+        # ADK's Runner is async; the pipeline calling it is synchronous by
+        # design, because the orchestration has to stay readable and every stage
+        # commits before the next begins. Bridging with asyncio.run works from a
+        # script and blows up under a web server, which already has a loop:
+        # "asyncio.run() cannot be called from a running event loop".
+        #
+        # This only appeared in deployment. Locally the pipeline runs from a
+        # plain main(), so there is no loop to collide with — the failure needed
+        # FastAPI underneath it, and no test had that.
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self._invoke(agent_name, request))
+
+        # Already inside a loop: hand the coroutine to a worker thread that owns
+        # its own, and block. Blocking a request handler is acceptable and
+        # honest here — this pipeline is sequential by design and nothing else
+        # on this request is making progress meanwhile.
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(lambda: asyncio.run(self._invoke(agent_name, request))).result()
 
     async def _invoke(self, agent_name: str, request: LlmRequest) -> LlmResponse:
         runner = self._runner(agent_name)
