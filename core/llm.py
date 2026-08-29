@@ -62,6 +62,16 @@ class LlmRequest:
     temperature: float = 0.0
     max_output_tokens: int = 8192
     parts: list[dict[str, Any]] = field(default_factory=list)
+    json_mode: bool = False
+    """Ask for ``application/json`` without binding the call to ``schema``.
+
+    Some models accept ``response_mime_type=application/json`` but do not honor
+    ``response_schema`` -- they answer with valid JSON in a shape of their own
+    choosing rather than the one requested, which turns every structured call
+    into a validation failure. This asks for JSON by describing the shape in
+    the prompt instead, and leaves parsing the answer to the caller. Ignored
+    when ``schema`` is set, since that already implies JSON mode.
+    """
 
 
 @dataclass
@@ -210,6 +220,8 @@ class VertexBackend:
         if request.schema is not None:
             config["response_mime_type"] = "application/json"
             config["response_schema"] = request.schema
+        elif request.json_mode:
+            config["response_mime_type"] = "application/json"
 
         contents: list[Any] = [request.prompt]
         for part in request.parts:
@@ -311,6 +323,40 @@ class LlmClient:
                 prompt=prompt,
                 model=model,
                 temperature=temperature,
+            )
+        )
+
+    def json(
+        self,
+        agent: str,
+        operation: str,
+        system: str,
+        prompt: str,
+        model: str,
+        temperature: float = 0.0,
+    ) -> LlmResponse:
+        """Ask a model for JSON without constraining the call to a schema.
+
+        For a backend and model that honor ``response_schema`` (Gemini),
+        ``structured`` is the right call: the API enforces the shape. This
+        exists for models that answer ``response_mime_type=application/json``
+        with valid JSON but do not actually conform to a supplied
+        ``response_schema`` -- Gemma, notably, ignores field constraints and
+        required-ness entirely and answers with whatever shape it judges fits.
+        Binding such a call to a schema does not constrain the model; it just
+        turns every answer into a validation failure at the transport layer
+        instead of a parsing decision the caller can make. The prompt is
+        expected to describe the desired shape; the caller parses ``.text``.
+        """
+        return self.backend.invoke(
+            LlmRequest(
+                agent=agent,
+                operation=operation,
+                system=system,
+                prompt=prompt,
+                model=model,
+                temperature=temperature,
+                json_mode=True,
             )
         )
 
