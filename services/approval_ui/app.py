@@ -229,6 +229,7 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
                     view.queue_row(c) for c in service.cases.find_by_status(CaseStatus.APPROVED)
                 ],
                 "needs_review": [view.queue_row(c) for c in service.needs_human_review()],
+                "overview": _overview_or_none(service),
             },
         )
 
@@ -628,6 +629,20 @@ def _notice(decided: str | None, replay: int, transmit_failed: int = 0) -> dict[
             "body": "The case has been returned for human review.",
         }
     return None
+
+
+def _overview_or_none(service: ApprovalService) -> view.Overview | None:
+    """The dashboard summary, or nothing at all if it cannot be built.
+
+    The queue is the screen a clerk works from. A counting pass failing is not
+    a reason to take that away from them, so the summary is allowed to be
+    absent and the template renders without it.
+    """
+    try:
+        return view.overview(service.all_cases())
+    except Exception:
+        logger.exception("could not build the dashboard summary; rendering the queue without it")
+        return None
 
 
 def _landing_path(service: ApprovalService) -> str:

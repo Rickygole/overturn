@@ -615,6 +615,124 @@ fieldset.gate {
   word-break: break-all;
 }
 .key p { font-size: var(--text-sm); color: var(--ink-muted); margin: var(--s3) 0 0; }
+
+/* --- Dashboard -------------------------------------------------------------
+   The three tables below say what is waiting. They never said how much, and
+   they never showed a case nobody has to act on -- so a quarantined or
+   declined case vanished from the interface entirely. This is the glance that
+   comes before the reading. ------------------------------------------------ */
+
+.dash {
+  margin-bottom: var(--s7);
+  padding-bottom: var(--s5);
+  border-bottom: 1px solid var(--rule);
+}
+
+.dash__h {
+  font-size: var(--text-xl);
+  line-height: 1.2;
+  margin: 0 0 var(--s5);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+}
+
+.dash__total {
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+/* Deadline pressure earns the top of the page only when it exists. */
+.dash__urgent {
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--danger);
+  background: var(--danger-wash);
+  border-radius: var(--radius);
+  padding: var(--s3) var(--s4);
+  margin-bottom: var(--s5);
+}
+
+.dash__urgent-h {
+  margin: 0 0 var(--s2);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--danger);
+}
+
+.dash__urgent ul { margin: 0; padding: 0; list-style: none; }
+.dash__urgent li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  padding: var(--s1) 0;
+}
+
+.tiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+}
+
+.tile {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--s3) var(--s4) var(--s4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+/* Three channels, not one: the count, the word, and only then the colour.
+   A tile that needs a person carries a left edge a monochrome screen keeps. */
+.tile--act { border-left: 4px solid var(--accent); }
+.tile--wait { border-left: 4px solid var(--rule-strong); }
+.tile--quiet { border-left: 4px solid var(--rule); }
+.tile--zero { background: transparent; }
+.tile--zero .tile__n { color: var(--ink-muted); }
+
+.tile__n {
+  font-family: var(--mono);
+  font-size: var(--text-2xl);
+  font-weight: 650;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.tile__label { font-size: var(--text-sm); font-weight: 650; }
+
+.tile__caption {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+/* The whole tile is the target, not just the number. */
+.tile a {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  text-decoration: none;
+  color: inherit;
+}
+.tile a:hover .tile__label { text-decoration: underline; }
+
+.dash__closed { margin-top: var(--s5); font-size: var(--text-sm); }
+.dash__closed summary { cursor: pointer; font-weight: 650; }
+.dash__closed ul { margin: var(--s2) 0 0; padding-left: var(--s5); }
+.dash__closed li { padding: var(--s1) 0; }
+.dash__closed p { margin: var(--s2) 0; max-width: var(--measure); }
+
 </style>
 </head>
 <body>

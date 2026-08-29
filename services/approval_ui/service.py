@@ -126,6 +126,16 @@ class ApprovalService:
     def needs_human_review(self) -> list[CaseRecord]:
         return sorted(self.cases.find_by_status(CaseStatus.NEEDS_HUMAN_REVIEW), key=_by_deadline)
 
+    def all_cases(self) -> list[CaseRecord]:
+        """Every case, for the dashboard counts.
+
+        One pass rather than a query per status: at this size the read is
+        cheaper than fifteen round trips, and it is the only way to show the
+        statuses nothing else surfaces. At ten thousand cases this becomes
+        counters maintained on write.
+        """
+        return list(self.cases.iter_all())
+
     def trail(self, case_id: str) -> list[Any]:
         """Audit events for one case, oldest first."""
         from core.audit import read_case_trail

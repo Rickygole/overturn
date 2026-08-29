@@ -45,6 +45,59 @@
 
 {% block content %}
 
+{% if overview %}
+<section class="dash" aria-labelledby="dash-h">
+  <h2 id="dash-h" class="dash__h">
+    {% if overview.actionable %}
+      {{ overview.actionable }} case{{ "" if overview.actionable == 1 else "s" }} need{{ "s" if overview.actionable == 1 else "" }} a person
+    {% else %}
+      Nothing is waiting on a person
+    {% endif %}
+    <span class="dash__total">{{ overview.total }} case{{ "" if overview.total == 1 else "s" }} in the system</span>
+  </h2>
+
+  {% if overview.urgent %}
+  <div class="dash__urgent">
+    <p class="dash__urgent-h">Running out of time</p>
+    <ul>
+      {% for row in overview.urgent %}
+      <li>
+        <a class="mono" href="/case/{{ row.case_id }}">{{ row.case_id }}</a>
+        <span class="chip chip--{{ row.deadline.tone }}">{{ row.deadline.label }}</span>
+        <span class="muted">{{ row.patient }} — waiting on {{ row.waiting_on }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <ul class="tiles">
+    {% for tile in overview.tiles %}
+    <li class="tile tile--{{ tile.tone }}{{ ' tile--zero' if not tile.count }}">
+      {% if tile.href and tile.count %}<a href="{{ tile.href }}">{% endif %}
+      <span class="tile__n">{{ tile.count }}</span>
+      <span class="tile__label">{{ tile.label }}</span>
+      {% if tile.href and tile.count %}</a>{% endif %}
+      <span class="tile__caption">{{ tile.caption }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+
+  {% if overview.closed %}
+  <details class="dash__closed">
+    <summary>Closed cases ({{ overview.closed | sum(attribute="count") }})</summary>
+    <p class="muted">These need nothing from anyone. They are listed because a case that
+    simply disappears from the queue looks like a case that was lost.</p>
+    <ul>
+      {% for tile in overview.closed %}
+      <li><b>{{ tile.count }} {{ tile.label }}</b> — <span class="muted">{{ tile.caption }}</span></li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</section>
+{% endif %}
+
 <section class="section" aria-labelledby="awaiting-h">
   <span class="section__step">Waiting on you</span>
   <h2 id="awaiting-h">Awaiting human approval</h2>

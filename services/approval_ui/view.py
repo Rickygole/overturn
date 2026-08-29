@@ -562,3 +562,190 @@ def approved_but_not_sent(case: CaseRecord) -> str | None:
         or case.last_error
         or ("The case was returned for human review after approval, with no reason recorded.")
     )
+
+
+# --------------------------------------------------------------------------- #
+# The dashboard
+# --------------------------------------------------------------------------- #
+
+# Every status a case can hold, grouped by who it is actually waiting on. The
+# three queues below already showed the cases a human can act on; nothing showed
+# the rest, so a case that was quarantined or declined simply vanished from the
+# interface and looked like it had never existed. A clerk asking "where did
+# CASE-002 go?" deserves an answer on the page rather than in the logs.
+WAITING_ON_CLERK = CaseStatus.AWAITING_APPROVAL
+WAITING_ON_CLINICIAN = CaseStatus.APPROVED
+SENT_BACK = CaseStatus.NEEDS_HUMAN_REVIEW
+
+IN_FLIGHT_STATUSES: frozenset[CaseStatus] = frozenset(
+    {
+        CaseStatus.RECEIVED,
+        CaseStatus.SCREENING,
+        CaseStatus.EXTRACTED,
+        CaseStatus.RETRIEVING,
+        CaseStatus.MAPPING,
+        CaseStatus.DRAFTING,
+        CaseStatus.VERIFYING,
+    }
+)
+
+WITH_PAYER_STATUSES: frozenset[CaseStatus] = frozenset(
+    {
+        CaseStatus.SUBMITTED,
+        CaseStatus.PAYER_RESPONDED,
+        CaseStatus.ESCALATED,
+    }
+)
+
+# Closed states, in the order a person would want to read them: the good outcome
+# first, then the ordinary ones, then the two that mean something went wrong.
+CLOSED_STATUSES: tuple[tuple[CaseStatus, str, str], ...] = (
+    (CaseStatus.OVERTURNED, "Overturned", "The payer reversed the denial."),
+    (CaseStatus.UPHELD, "Upheld", "The payer kept the denial after appeal."),
+    (
+        CaseStatus.DECLINED_NO_BASIS,
+        "Declined — no basis",
+        "No applicable policy, or the record did not support an honest argument. "
+        "Nothing was drafted.",
+    ),
+    (
+        CaseStatus.QUARANTINED,
+        "Quarantined",
+        "Screening found an injected instruction in the document. No agent read it.",
+    ),
+    (CaseStatus.FAILED, "Failed", "The pipeline could not finish this case."),
+)
+
+
+# Ten days is the point at which a clerk should be told without being asked.
+# It matches the amber band in `deadline_view`, deliberately: two places
+# disagreeing about what counts as urgent is worse than either threshold.
+URGENT_WITHIN_DAYS = 10
+
+
+@dataclass(frozen=True)
+class Tile:
+    """One number on the dashboard, and the sentence that makes it mean something."""
+
+    label: str
+    count: int
+    caption: str
+    href: str | None
+    tone: str  # "act" | "wait" | "quiet"
+
+
+@dataclass(frozen=True)
+class Overview:
+    """The whole workload in one glance."""
+
+    tiles: list[Tile]
+    closed: list[Tile]
+    urgent: list[dict[str, object]]
+    total: int
+    actionable: int
+
+
+def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
+    """Count every case by who it is waiting on, and surface the deadlines.
+
+    Reads every case rather than issuing one query per status. That is the right
+    trade at this size and the wrong one at ten thousand cases, where this should
+    become counters maintained on write.
+    """
+    by_status: dict[CaseStatus, list[CaseRecord]] = {}
+    for case in cases:
+        by_status.setdefault(case.status, []).append(case)
+
+    def held(*statuses: CaseStatus) -> list[CaseRecord]:
+        out: list[CaseRecord] = []
+        for status in statuses:
+            out.extend(by_status.get(status, []))
+        return out
+
+    clerk = held(WAITING_ON_CLERK)
+    clinician = held(WAITING_ON_CLINICIAN)
+    back = held(SENT_BACK)
+    in_flight = held(*IN_FLIGHT_STATUSES)
+    with_payer = held(*WITH_PAYER_STATUSES)
+
+    tiles = [
+        Tile(
+            "Waiting on you",
+            len(clerk),
+            "Drafted, verified, and needing a clerk's decision.",
+            "#awaiting-h",
+            "act",
+        ),
+        Tile(
+            "Waiting on a clinician",
+            len(clinician),
+            "A clerk has signed. Nothing sends until the clinician co-signs.",
+            "#cosign-h",
+            "act" if clinician else "quiet",
+        ),
+        Tile(
+            "Sent back to you",
+            len(back),
+            "The fleet could not finish these, or a reviewer rejected the draft.",
+            "#review-h",
+            "act" if back else "quiet",
+        ),
+        Tile(
+            "Agents still working",
+            len(in_flight),
+            "Screening, mapping, drafting or verifying right now.",
+            None,
+            "wait",
+        ),
+        Tile(
+            "With the payer",
+            len(with_payer),
+            "Submitted and inside the response window. Lifecycle escalates on its own.",
+            None,
+            "wait",
+        ),
+    ]
+
+    closed = [
+        Tile(label, len(by_status.get(status, [])), caption, None, "quiet")
+        for status, label, caption in CLOSED_STATUSES
+        if by_status.get(status)
+    ]
+
+    # Deadline pressure only means anything on a case someone can still act on.
+    # A quarantined case has no appeal to file and no clock to miss.
+    open_cases = clerk + clinician + back
+    urgent: list[dict[str, object]] = []
+    for case in open_cases:
+        deadline = case.denial.appeal_deadline if case.denial else None
+        seen = deadline_view(deadline, today)
+        if seen.days is not None and seen.days <= URGENT_WITHIN_DAYS:
+            urgent.append(
+                {
+                    "case_id": case.case_id,
+                    "patient": (
+                        case.denial.patient_name
+                        if case.denial and case.denial.patient_name
+                        else NOT_STATED
+                    ),
+                    "deadline": seen,
+                    "waiting_on": _waiting_on(case.status),
+                }
+            )
+    urgent.sort(key=lambda row: row["deadline"].days)  # type: ignore[union-attr,index]
+
+    return Overview(
+        tiles=tiles,
+        closed=closed,
+        urgent=urgent,
+        total=len(cases),
+        actionable=len(clerk) + len(clinician) + len(back),
+    )
+
+
+def _waiting_on(status: CaseStatus) -> str:
+    if status == WAITING_ON_CLERK:
+        return "your decision"
+    if status == WAITING_ON_CLINICIAN:
+        return "the clinician's co-sign"
+    return "human review"
