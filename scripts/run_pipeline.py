@@ -21,6 +21,7 @@ from agents.orchestrator.deps import build_fleet
 from agents.orchestrator.pipeline import Pipeline
 from core.audit import read_case_trail
 from core.config import get_settings
+from core.llm import build_llm
 from core.store import MemoryStore, build_store
 
 REPO = Path(__file__).resolve().parents[1]
@@ -42,8 +43,21 @@ def load_denial(case_id: str) -> SourceDocument:
     )
 
 
+def _llm():
+    """Honour the configured backend.
+
+    This used to hardcode the offline handlers, which meant `OVERTURN_LLM_BACKEND=vertex`
+    silently produced an offline run — byte-identical output, and a very
+    convincing false success.
+    """
+    settings = get_settings()
+    if settings.llm_backend in {"vertex", "adk"} or settings.runtime_mode == "cloud":
+        return build_llm()
+    return build_offline_llm()
+
+
 def run_case(case_id: str, store: MemoryStore) -> None:
-    fleet = build_fleet(store=store, llm=build_offline_llm())
+    fleet = build_fleet(store=store, llm=_llm())
     pipeline = Pipeline(fleet)
 
     print(f"\n{BOLD}{'=' * 78}{RESET}")

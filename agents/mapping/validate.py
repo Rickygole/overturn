@@ -197,6 +197,42 @@ def _drops_a_leading_negation(quote: str, source: str) -> bool:
     return False
 
 
+def normalise_locator(locator: str) -> str:
+    """Canonical form of a chart locator.
+
+    The chart renders locators inside brackets — ``[enc/2026-05-19/endocrinology]``
+    — and a model asked to copy one back frequently copies the brackets with it,
+    or wraps it in quotes, or keeps the trailing punctuation of the line it sat
+    on. None of that is fabrication and none of it should cost a case its
+    evidence, but a bare dictionary lookup treats all of it as a locator that
+    does not exist.
+
+    That failure was invisible offline, because the offline fixtures were
+    authored with exact keys. Against a real model every single locator missed,
+    every satisfied verdict was downgraded for want of evidence, and a case that
+    plainly qualified came out `declined_no_basis`.
+    """
+    return locator.strip().strip("[]()<>\"'` ,.;:").strip()
+
+
+def resolve_locator(locator: str, chart_text: dict[str, str]) -> str | None:
+    """The chart key this locator refers to, or None if there is no such place.
+
+    Tolerant about formatting, strict about identity: a locator that does not
+    name a real location in the chart still resolves to nothing.
+    """
+    if locator in chart_text:
+        return locator
+
+    wanted = normalise_locator(locator).lower()
+    if not wanted:
+        return None
+    for key in chart_text:
+        if normalise_locator(key).lower() == wanted:
+            return key
+    return None
+
+
 def quote_is_present(quote: str, locator: str, chart_text: dict[str, str]) -> bool:
     """Whether the quote appears at the locator, and still means what it meant.
 
@@ -204,9 +240,10 @@ def quote_is_present(quote: str, locator: str, chart_text: dict[str, str]) -> bo
     same property, and the gap between them does not require changing a single
     word — it only requires stopping early.
     """
-    source = chart_text.get(locator)
-    if source is None:
+    key = resolve_locator(locator, chart_text)
+    if key is None:
         return False
+    source = chart_text[key]
     if normalise(quote) not in normalise(source):
         return False
     return not _drops_a_leading_negation(quote, source)
@@ -263,7 +300,12 @@ def sanitise_matrix(
 
         surviving = []
         for evidence in verdict.evidence:
-            if evidence.locator not in chart_text:
+            resolved = resolve_locator(evidence.locator, chart_text)
+            if resolved is not None and resolved != evidence.locator:
+                # Canonicalise, so the stored citation is one a person can
+                # actually follow back into the chart.
+                evidence = evidence.model_copy(update={"locator": resolved})
+            if resolved is None:
                 adjustments.append(
                     f"{verdict.criterion_id}: dropped evidence citing "
                     f"{evidence.locator!r}, which is not in the chart"
