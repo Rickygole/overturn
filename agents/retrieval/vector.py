@@ -1,4 +1,15 @@
-"""Vector retrieval over the policy corpus, and why it is not the default.
+"""Vector retrieval over the policy corpus — built, tested, and NOT WIRED IN.
+
+**Read this before citing it as a capability.** `build_retriever` below has no
+caller. `RetrievalAgent.__init__` takes `build_index()` — the TF-IDF index — in
+every mode, including cloud. This module is exercised by its tests and by
+nothing else.
+
+That is a deliberate state and not an oversight, for the reasons below, but it
+has already caused one incorrect claim in a submission document: someone read
+`build_retriever`, saw that it selects the hybrid in cloud mode, confirmed that
+`infra/deploy.sh` sets cloud mode, and concluded the deployed system runs hybrid
+retrieval. Both facts were right and the conclusion was wrong.
 
 The serverless index is reachable on this project — `docs/PLATFORM_PROBE.md`
 records the probe. This module uses it. The lexical retriever in `lexical.py`

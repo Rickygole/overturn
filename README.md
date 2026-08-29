@@ -18,6 +18,22 @@ on its own when the payer's response deadline passes in silence.
 A human approves before anything is transmitted. That gate is a design decision,
 not a limitation.
 
+**Everything here is synthetic.** The patients, the payer ("Northbeck Health
+Plan"), its policies, and every denial letter are invented for this project.
+No real patient data and no real insurer appear anywhere — see "Data sources
+and compliance" below.
+
+**Live on Google Cloud:** the human approval interface is hosted at
+[`https://overturn-approval-kruy6aauaq-uc.a.run.app`](https://overturn-approval-kruy6aauaq-uc.a.run.app),
+gated by a single shared password rather than a Google account —
+**`northbeck-appeals-2026`** — because it renders what looks like a medical
+record and an open URL with no door at all would undercut the point of the
+project. `overturn-ingest` and `overturn-scheduler` are also live but
+deliberately private: Pub/Sub and Cloud Scheduler invoke them, not a browser,
+so a 403 from either of those two `.run.app` URLs is correct, not a broken
+deployment. See [`docs/RUNBOOK.md`](docs/RUNBOOK.md) for how all three were
+deployed.
+
 > **Overturn does not decide whether care is appropriate.** It determines whether
 > the documentation in a chart matches criteria the payer has already published.
 > That is a documentation-matching problem, not a clinical one, and the
@@ -41,8 +57,8 @@ Built for the Google + Devpost **All Things Agentic Hackathon**, track:
 | Document store (Firestore + offline) | done |
 | Policy corpus | done — 6 policies, 42 sections, 113 citable identifiers |
 | Patient charts | done — Synthea base plus authored encounters |
-| Seven agents | in progress |
-| Cloud deployment | pending |
+| Seven agents | done |
+| Cloud deployment | done — three Cloud Run services, live (see above) |
 
 ---
 
@@ -431,3 +447,9 @@ or binaries rather than as dependencies are called out above: Synthea
   available on the project, resolved on day one before anything was designed
 - [`docs/MODEL_CHOICES.md`](docs/MODEL_CHOICES.md) — which agent uses which
   model, and the constraint that ruled out every Pro-tier option
+- [`docs/SCREENING_LAYERS.md`](docs/SCREENING_LAYERS.md) — what each of
+  Sentinel's three detection layers actually caught when measured against a
+  poisoned letter, including the one that missed
+- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — how the live Cloud Run deployment
+  above was built, and the non-obvious failures that cost real time getting
+  there
