@@ -35,6 +35,7 @@ from core.schemas.sentinel import ScreeningResult, ThreatFinding
 from core.schemas.verification import VerificationFinding, VerificationResult
 from core.state import CaseRepository
 from core.store import MemoryStore
+from services.approval_ui import view
 from services.approval_ui.app import create_app
 
 CASE_ID = "CASE-003"
@@ -1156,3 +1157,142 @@ class TestTransmissionFailure:
         assert "Approved, but not transmitted" in html
         assert "died before recording the outcome" in html
         assert "Nothing has reached Northbeck Health Plan" in html
+
+
+class TestDashboard:
+    """The glance that comes before the reading.
+
+    The three queue tables say what is waiting on a person. They never said how
+    much, and they never showed a case nobody has to act on -- so a quarantined
+    or declined case vanished from the interface and looked lost.
+    """
+
+    TODAY = date(2026, 8, 29)
+
+    def _case(self, case_id, status, days=None, patient="A. Patient"):
+        from core.schemas.denial import DenialExtraction
+
+        case = CaseRecord(case_id=case_id, source_document_uri=f"gs://b/{case_id}.txt")
+        if days is not None:
+            case.denial = DenialExtraction(
+                payer_name="Northbeck Health Plan",
+                patient_name=patient,
+                denial_reason_text="Not medically necessary.",
+                appeal_deadline=self.TODAY + timedelta(days=days),
+                source_document_uri=f"gs://b/{case_id}.txt",
+            )
+        case.transition(status, actor="test")
+        return case
+
+    def _overview(self, *cases):
+        return view.overview(list(cases), today=self.TODAY)
+
+    def test_it_counts_each_queue_separately(self):
+        result = self._overview(
+            self._case("A", CaseStatus.AWAITING_APPROVAL, 5),
+            self._case("B", CaseStatus.AWAITING_APPROVAL, 6),
+            self._case("C", CaseStatus.APPROVED, 7),
+            self._case("D", CaseStatus.NEEDS_HUMAN_REVIEW, 8),
+        )
+        counts = {tile.label: tile.count for tile in result.tiles}
+        assert counts["Waiting on you"] == 2
+        assert counts["Waiting on a clinician"] == 1
+        assert counts["Sent back to you"] == 1
+        assert result.actionable == 4
+        assert result.total == 4
+
+    def test_cases_the_agents_still_hold_are_counted_but_not_actionable(self):
+        result = self._overview(
+            self._case("A", CaseStatus.DRAFTING, 5),
+            self._case("B", CaseStatus.VERIFYING, 5),
+            self._case("C", CaseStatus.SCREENING, 5),
+        )
+        counts = {tile.label: tile.count for tile in result.tiles}
+        assert counts["Agents still working"] == 3
+        assert result.actionable == 0
+        assert result.total == 3
+
+    def test_a_quarantined_case_is_shown_rather_than_vanishing(self):
+        """The bug this exists to fix: it appeared in no queue at all."""
+        result = self._overview(self._case("CASE-002", CaseStatus.QUARANTINED, 15))
+        closed = {tile.label: tile.count for tile in result.closed}
+        assert closed["Quarantined"] == 1
+        assert result.total == 1
+        assert result.actionable == 0
+
+    def test_closed_states_with_no_cases_are_left_off(self):
+        """An empty row is noise. Absence of a state is not information."""
+        result = self._overview(self._case("A", CaseStatus.OVERTURNED))
+        assert [tile.label for tile in result.closed] == ["Overturned"]
+
+    def test_urgent_lists_only_open_cases_soonest_first(self):
+        result = self._overview(
+            self._case("FAR", CaseStatus.AWAITING_APPROVAL, 40),
+            self._case("SOON", CaseStatus.AWAITING_APPROVAL, 2),
+            self._case("MID", CaseStatus.NEEDS_HUMAN_REVIEW, 9),
+        )
+        assert [row["case_id"] for row in result.urgent] == ["SOON", "MID"]
+
+    def test_a_closed_case_never_counts_as_urgent(self):
+        """A quarantined case has no appeal to file and no clock to miss."""
+        result = self._overview(self._case("CASE-002", CaseStatus.QUARANTINED, 1))
+        assert result.urgent == []
+
+    def test_a_case_with_no_stated_deadline_is_not_urgent(self):
+        result = self._overview(self._case("A", CaseStatus.AWAITING_APPROVAL, None))
+        assert result.urgent == []
+
+    def test_it_says_who_each_urgent_case_is_waiting_on(self):
+        result = self._overview(
+            self._case("A", CaseStatus.AWAITING_APPROVAL, 1),
+            self._case("B", CaseStatus.APPROVED, 2),
+            self._case("C", CaseStatus.NEEDS_HUMAN_REVIEW, 3),
+        )
+        assert [row["waiting_on"] for row in result.urgent] == [
+            "your decision",
+            "the clinician's co-sign",
+            "human review",
+        ]
+
+    def test_the_urgent_threshold_matches_the_deadline_chip(self):
+        """Two places disagreeing about 'urgent' is worse than either threshold."""
+        edge = self._overview(self._case("A", CaseStatus.AWAITING_APPROVAL, view.URGENT_WITHIN_DAYS))
+        past = self._overview(
+            self._case("B", CaseStatus.AWAITING_APPROVAL, view.URGENT_WITHIN_DAYS + 1)
+        )
+        assert len(edge.urgent) == 1
+        assert past.urgent == []
+
+    def test_an_overdue_case_is_urgent(self):
+        result = self._overview(self._case("A", CaseStatus.AWAITING_APPROVAL, -3))
+        assert [row["case_id"] for row in result.urgent] == ["A"]
+        assert result.urgent[0]["deadline"].tone == "danger"
+
+    def test_an_empty_system_still_produces_a_dashboard(self):
+        result = self._overview()
+        assert result.total == 0
+        assert result.actionable == 0
+        assert result.closed == []
+        assert result.urgent == []
+        assert [tile.count for tile in result.tiles] == [0, 0, 0, 0, 0]
+
+
+class TestDashboardOnThePage:
+    def test_the_queue_page_leads_with_the_counts(self, client):
+        html = client.get("/queue").text
+        assert "need" in html and "a person" in html
+        assert "Waiting on you" in html
+
+    def test_a_broken_count_does_not_take_away_the_queue(self, monkeypatch):
+        """The queue is the screen a clerk works from. Losing the summary is
+        not a reason to lose the work."""
+        from services.approval_ui import app as app_module
+
+        def explode(_service):
+            raise RuntimeError("counting fell over")
+
+        monkeypatch.setattr(app_module.view, "overview", explode)
+        store = MemoryStore()
+        response = TestClient(create_app(store)).get("/queue")
+        assert response.status_code == 200
+        assert "Awaiting human approval" in response.text
