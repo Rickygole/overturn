@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Architecture — Overturn</title>
+<meta name="description" content="Seven ADK agents on Vertex AI, wired through Cloud Run, Pub/Sub, Firestore and Cloud Storage — and the four guardrails that matter.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='%238f3216' stroke-width='3'/%3E%3Cpath d='M16 6a10 10 0 0 1 0 20' stroke='%238f3216' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+<script>
+  try{var t=localStorage.getItem("overturn-theme");
+      if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}
+</script>
+</head>
+<body>
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="wordmark" href="index.html">Overturn</a>
+    <nav class="nav" aria-label="Sections">
+      <a href="how-it-works.html">How it works</a>
+      <a href="demo.html">See it run</a>
+      <a href="evidence.html">Evidence</a>
+      <a href="architecture.html" aria-current="page">Architecture</a>
+    </nav>
+    <div class="theme" role="group" aria-label="Colour theme">
+      <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-mode="light" aria-pressed="false">Light</button>
+      <button type="button" data-mode="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+<p class="muted" style="font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin:0 0 .5rem">Architecture</p>
+<h1>How it is built</h1>
+<p class="lede">Seven agents on Google&rsquo;s Agent Development Kit, running Gemini on Vertex
+AI, wired together through Cloud Run and Pub/Sub with Firestore as the case record. A letter
+dropped in a bucket is the only input.</p>
+
+<figure>
+  <img src="architecture.svg" alt="A denial letter lands in Cloud Storage, which notifies Pub/Sub, which invokes the orchestrator on Cloud Run. The orchestrator runs Sentinel, Intake, Retrieval, Mapping, Drafting and Verification in sequence against Vertex AI, writing to Firestore at each step, then hands the case to the approval UI for two human signatures. Lifecycle runs separately on a Cloud Scheduler trigger.">
+  <figcaption>Cloud Storage &rarr; Pub/Sub &rarr; Cloud Run &rarr; seven agents on Vertex AI
+    &rarr; Firestore, with a dead-letter topic on the subscription and Cloud Trace spans on every
+    agent invocation. <a href="architecture.svg">Open the diagram full size &rarr;</a></figcaption>
+</figure>
+
+<h2>The agents</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th>Agent</th><th>Model</th><th>Job</th><th>Cannot</th></tr></thead>
+  <tbody>
+    <tr><td><b>Sentinel</b></td><td><code>gemma-4-26b</code></td><td>Screen every incoming document for injected instructions before anything reads it</td><td class="muted">Read the chart</td></tr>
+    <tr><td><b>Intake</b></td><td><code>gemini-3.5-flash</code></td><td>Extract claim, patient, denial reason and policy id, each with its source offset</td><td class="muted">Reach the policy store</td></tr>
+    <tr><td><b>Retrieval</b></td><td><code>gemini-3.5-flash</code></td><td>Find the payer policy the letter cites; stop the case if none applies</td><td class="muted">Write to the case</td></tr>
+    <tr><td><b>Mapping</b></td><td><code>gemini-3.5-flash</code></td><td>Rule on each criterion against the chart, with the locator that supports it</td><td class="muted">Draft prose</td></tr>
+    <tr><td><b>Drafting</b></td><td><code>gemini-3.7-flash</code></td><td>Write the appeal from the matrix and the retrieved policy text</td><td class="muted">Retrieve anything</td></tr>
+    <tr><td><b>Verification</b></td><td><code>gemini-3.5-flash</code></td><td>Resolve every citation and quote against source; reject with reasons</td><td class="muted">Edit the letter</td></tr>
+    <tr><td><b>Lifecycle</b></td><td><code>gemini-3.5-flash</code></td><td>Hold the case for weeks, track the response clock, escalate a level when it runs out</td><td class="muted">Submit anything</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="muted" style="font-size:.92rem">The <b>Cannot</b> column is the design. Firestore has no
+collection-level IAM, so a per-agent access gateway enforces scoping in code: each agent gets
+exactly the reads and writes its job needs, and a call outside that set is refused rather than
+logged. Drafting having no retrieval tool is what makes an invented fact traceable &mdash; there
+is no source it could plausibly have come from.</p>
+
+<h2>The four things that keep it safe</h2>
+<div class="grid">
+  <div class="card"><h3>Screening before reading</h3><p class="muted" style="margin:0">Three
+    layers &mdash; deterministic rules, Model Armor, and a guard model &mdash; scan every
+    document as data before any agent treats it as instructions. A finding quarantines the
+    case.</p></div>
+  <div class="card"><h3>An adversary, not a reviewer</h3><p class="muted" style="margin:0">A
+    separate agent on a separate model resolves every citation and quote against the source. It
+    can reject and explain; it cannot edit its way to a pass.</p></div>
+  <div class="card"><h3>A cap that means it</h3><p class="muted" style="margin:0">Three drafting
+    attempts. Past that the case goes to a human with the rejection reasons attached and
+    <em>nothing is sent</em>. Not sending is a designed outcome.</p></div>
+  <div class="card"><h3>Two signatures, one draft</h3><p class="muted" style="margin:0">A clerk
+    confirms the paper trail; a clinician co-signs the medicine. Both must land on the same
+    draft attempt &mdash; revise the letter and both are void.</p></div>
+</div>
+
+<h2>Running under failure</h2>
+<p>An agent pipeline that retries is an agent pipeline that will do something twice. Every action
+that is not safely repeatable &mdash; submitting an appeal, recording a signature, escalating a
+level &mdash; is claimed through an idempotency guard keyed on
+<code>case_id:action_type:attempt</code>, with create-only claims and leases, so a redelivered
+Pub/Sub message resumes rather than repeats. The subscription has a dead-letter topic. Every
+agent invocation emits an OpenTelemetry span to Cloud Trace, so a case that went wrong can be
+walked step by step afterward.</p>
+<div class="notice">
+  A failed transmission used to leave an approved appeal that nothing could send and nothing
+  could close &mdash; a case in a state with no exit. Recovering from that is now an explicit
+  path rather than a manual database edit. The interesting bugs in a system like this are all
+  shaped like that one.
+</div>
+
+<h2>Google Cloud</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th>Service</th><th>What it does here</th></tr></thead>
+  <tbody>
+    <tr><td>Vertex AI</td><td>Gemini 3.5 and 3.7 Flash, Gemma as the guard model, and <code>text-embedding-005</code></td></tr>
+    <tr><td>Agent Development Kit</td><td>The agent runtime &mdash; tool binding, structured output, and the orchestration between the seven</td></tr>
+    <tr><td>Cloud Run</td><td>Three services: ingest, orchestrator, approval queue</td></tr>
+    <tr><td>Pub/Sub</td><td>Case events between services, with a dead-letter topic</td></tr>
+    <tr><td>Firestore</td><td>The case record &mdash; state, drafts, verification history, signatures</td></tr>
+    <tr><td>Cloud Storage</td><td>Where a denial letter lands; the bucket notification starts everything</td></tr>
+    <tr><td>Cloud Scheduler</td><td>Wakes Lifecycle to check response clocks</td></tr>
+    <tr><td>Cloud Trace</td><td>A span per agent invocation</td></tr>
+    <tr><td>Model Armor</td><td>One of Sentinel&rsquo;s three screening layers</td></tr>
+    <tr><td>Secret Manager</td><td>The session signing key for the approval queue</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="muted" style="font-size:.92rem">Eight service accounts, one per agent role, so the
+gateway&rsquo;s in-code scoping is backed by real identity boundaries wherever the platform can
+express them.</p>
+
+<div class="callout">
+  <p style="margin:0"><b>One platform detail worth recording, because it cost a day.</b>
+  Gemini 3.x is served only from the <code>global</code> endpoint. Every regional endpoint
+  returns 404 while the Model Garden catalogue lists the models as generally available in those
+  regions. Infrastructure stays in <code>us-central1</code>; model calls go to
+  <code>global</code>. The two are configured separately for this reason.</p>
+</div>
+
+<div class="next">
+  <a href="evidence.html">&larr; Evidence</a>
+  <a href="https://github.com/rickygole/overturn">Read the source &rarr;</a>
+</div>
+</main>
+<footer>
+  <div class="wrap">
+    <p style="margin:0">Overturn &middot; built for the All Things Agentic Hackathon &middot;
+      <a href="https://github.com/rickygole/overturn">source on GitHub</a></p>
+    <p style="margin:.4rem 0 0">Northbeck Health Plan is a fictional payer. Every patient,
+      chart, and policy document in this project is synthetic. Overturn drafts administrative
+      appeal correspondence for a human to review, sign, and send. It is not medical advice
+      and it transmits nothing on its own.</p>
+  </div>
+</footer>
+<script src="app.js"></script>
+</body>
+</html>
