@@ -16,12 +16,15 @@ for site malfunctions, and deadline-day load on Devpost is a real risk.
 | **Architecture diagram** | [`architecture.svg`](architecture.svg), embedded in [`ARCHITECTURE.md`](ARCHITECTURE.md) | ☐ |
 | **Demo video** | ≤4 min, **public** on YouTube, captions on | ☐ |
 
-Optional, not a required field but worth having ready: a public project website
-at `https://rickygole.github.io/overturn/`, served by GitHub Pages from the
-`docs/` folder on `main` (`docs/index.html`). GitHub Pages is not enabled yet —
-turning it on is Settings → Pages → Deploy from a branch → `main` → `/docs`, a
-one-time setting change in the repo, not a deploy step. Do this deliberately,
-not as part of a script, and only once `docs/index.html` is final.
+**There is exactly one URL.** The site and the review queue are one Cloud Run
+service: the public pages at `/`, the queue at `/queue` behind the app
+password. `docs/*.html` is served by that process, not by GitHub Pages.
+
+Pages was briefly enabled as a mirror and has been turned off deliberately, so
+that no second address for this project exists to be found, indexed, or handed
+to a judge alongside the real one. If it is ever re-enabled it becomes a second
+copy of the same claims, drifting independently of the deployment -- which is
+the exact failure this project has already had to clean up once.
 
 ### Testing notes for judges
 
