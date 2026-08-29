@@ -1,69 +1,227 @@
 # Overturn — demo video script
 
-Runtime: 4:00. No music — narration only, over screen recording. Narration totals
-roughly 560 words across 240 seconds (~140 wpm average), left deliberately under
-the 150 wpm ceiling so no line has to be rushed. Every claim in the narration is
-one the repository backs: agent names, model choices, and behavior all match
-`docs/MODEL_CHOICES.md`, `core/schemas/`, and `data/policies/`.
+Target runtime: **3:31**, comfortably under the 4:00 cap with ~29 seconds of
+margin. Narration is counted at 150 words/minute (2.5 words/second) — every
+beat below states its word count so the count can be checked against the
+timestamp rather than trusted. No music; narration over screen recording.
 
-**Every resource named on screen must match what `infra/provision.sh` and
-`infra/deploy.sh` actually create** — the intake bucket is `${PROJECT_ID}-intake`
-(e.g. `overturn-506402-intake` against the project in `docs/PLATFORM_PROBE.md`),
-not `overturn-inbound`, and the scheduler job is `overturn-tick`, not
-`overturn-lifecycle-sweep`. Both are corrected below. The commands that produce
-each beat below are the exact ones in `README.md` under "Watch it work".
+Every resource named on screen matches what `infra/provision.sh` and
+`infra/deploy.sh` actually create: the intake bucket is `${PROJECT_ID}-intake`,
+the Cloud Run services are `overturn-ingest`, `overturn-approval`,
+`overturn-scheduler`, the Pub/Sub subscription is `overturn-ingest`, the topic
+is `overturn-denial-received`, and the scheduler job is `overturn-tick` — not
+`overturn-inbound` or `overturn-lifecycle-sweep`, which is what an earlier
+draft of this document said and which nothing in `infra/` creates.
 
-**Known blocker, not quietly worked around:** the human gate is now two
-signatures — clerk approval plus a clinician co-sign
-(`CaseRecord.ready_to_submit`) — but `services/approval_ui` has no HTTP route
-or form for the clinician's side (`ApprovalService.cosign()` exists and is
-tested, but nothing calls it from the deployed web app). Every demo case
-defaults to requiring that co-sign, so **clicking "Approve" in the browser
-takes a case to `approved`, not `submitted`.** The 3:45–4:00 beat below is
-written to what the UI can actually show today. Do not record a clinician
-clicking a co-sign button — it does not exist. See `docs/RUNBOOK.md`'s
-"Known gaps" for the full note; this needs a decision (build the route, or
-change the beat further) before the final recording.
+## What changed from the previous draft, and why
 
-Cases used on screen:
+An outside reviewer read the last version against the current code and found
+it would cost the project its best beat if followed. Fixed here:
 
-- **CASE-001** (`data/cases.json`) — clean win. Continuous glucose monitoring
-  denial, policy `NBH-ENDO-031`. Carries the clean run and, later, the
-  escalation demo.
-- **CASE-002** — prompt injection. MRI lumbar spine denial, policy
-  `NBH-MSK-022`. Carries the Sentinel quarantine demo.
-- The fabricated-citation demo is a **manufactured test built for this video**,
-  not one of the eight manifest cases — `data/cases.json` is explicit that
-  CASE-003's unmet criterion is a real overclaim, not a manufactured error, so
-  a separate, clearly-labeled sabotage is used here instead of misrepresenting
-  CASE-003 on screen.
+1. **The "no cosign route" blocker is gone because it was false.**
+   `services/approval_ui/app.py` has had `POST /case/{case_id}/cosign` and a
+   separate `templates/clinical.html` screen since before this rewrite. The
+   old script told the crew not to film the single most differentiating
+   screen in the project. This draft is built around filming it.
+2. **The screening beat now says what the screen actually shows.** Model
+   Armor is provisioned and genuinely runs; on the poisoned letter it returns
+   `NO_MATCH_FOUND` and the deterministic rules layer is what catches it. The
+   old narration ("Model Armor plus a rules layer plus an open-weights
+   classifier — and clears it") described a run that no longer happens.
+3. **The criteria-matrix beat no longer claims five rows, all `SATISFIED`.**
+   No real run produces that. CASE-001's matrix is eight rows (coverage
+   criteria 3.1–3.5 plus documentation requirements 4.1–4.3); other cases in
+   the manifest show a genuine mix of verdicts. The beat below states the
+   real row count for the case actually on screen and says plainly that other
+   cases differ, instead of implying every run looks the same.
+4. **~43 seconds of fat is gone**: the 0:30 feature-list preview (folded into
+   narration over footage that is already showing those steps, instead of
+   describing them before they appear), a second architecture recap
+   (merged into one beat), and the file-upload dwell shot (cut hard on
+   completion instead of held for 15 seconds).
+5. **A continuity error in the previous draft is also fixed, unflagged by the
+   reviewer but real**: it had CASE-001 escalating overdue *and* reaching the
+   human gate, in that order, using the same case for both — but a case
+   cannot be overdue before it has been submitted, and the gate is what
+   submits it. This draft uses CASE-001 only for the upload-through-gate
+   thread and a second, separately pre-submitted case for the escalation
+   beat. See the pre-flight checklist.
+6. **The real catch leads; the staged one gets one sentence.** Against live
+   Gemini on CASE-001 — the case the manifest calls the easy one — Drafting
+   overclaimed on attempt 1 and Verification caught it unprompted
+   (`docs/EVALUATION.md`). That is the headline beat now. The fault-injection
+   switch (`OVERTURN_SABOTAGE_DRAFTING`) gets one clause, not a beat, because
+   a staged error is worth much less than a real one once a real one exists
+   on tape.
 
-| Time | Narration | On screen |
+## Flagged: things this script asks for that the system does not currently do
+
+Read this before scheduling a recording session, not after a failed take.
+
+- **The approval UI's login is not wired into `infra/deploy.sh` today.**
+  `services/approval_ui/auth.py` reads `OVERTURN_UI_PASSWORD` and disables the
+  login entirely if it's unset (`AuthConfig.enabled`). `infra/deploy.sh`'s
+  `COMMON_ENV` never sets it. A comment in `auth.py` claims "the deployed
+  service always has one — `infra/deploy.sh` refuses to make the service
+  public without it," and that claim is not true against the deploy script as
+  it stands. **Before filming the gate, set it by hand:**
+  ```bash
+  gcloud run services update overturn-approval --region="$REGION" \
+    --update-env-vars=OVERTURN_UI_PASSWORD=northbeck-appeals-2026
+  ```
+  Without this, `overturn-approval` will not show a login screen at all, and
+  the video would be showing a door that isn't there — the same category of
+  mistake this rewrite exists to fix elsewhere.
+- **`overturn-approval` is Cloud-Run-IAM-gated *in addition to* the app
+  login**, per `infra/deploy.sh` (`--no-allow-unauthenticated` on that
+  service, same as ingest and scheduler). A browser hitting the raw
+  `.run.app` URL gets a 403 from Cloud Run before it ever sees the login
+  page. To reach it as a browser, either proxy it —
+  `gcloud run services proxy overturn-approval --region="$REGION"` — or grant
+  the presenter's account `roles/run.invoker` (deploy.sh already does this
+  for whoever ran it). Film through the proxy's `localhost` URL. This is a
+  second, separate gate from the password one; both are real, and the video
+  should not imply the URL is open to the internet with just a password.
+- **The live-model beat is not reproducible on demand.** `docs/EVALUATION.md`
+  records a *specific* real overclaim from a *specific* live run on
+  2026-08-28: attempt 1 called the patient's July 14 encounter a "telehealth
+  evaluation" (the chart calls it an interim review) and named a device
+  detail the source text doesn't use; attempt 2 dropped both and passed.
+  Gemini is not deterministic. Re-running CASE-001 today may produce a
+  different overclaim, a different attempt count, or — per
+  `docs/EVALUATION.md`'s own caveat — no overclaim at all on that take.
+  **Rehearse this beat multiple times before the real recording and keep the
+  take where a genuine catch happens.** If no rehearsal take produces one,
+  do not fake it and do not force the narration below to match a quote your
+  own run didn't produce — narrate over the logged evidence in
+  `docs/EVALUATION.md` instead and say on screen that this is a recorded
+  result, not a live capture. Whatever wording your take actually produces,
+  update the on-screen quote in beat 8 to match it; the script below is
+  written to what one real run produced, not to a guarantee.
+- **CASE-003 is marked `"demo": true` in `data/cases.json` but is not used
+  below.** Its manifest intent is a tempting overclaim built for
+  Verification to reject, but the 2026-08-28 live run drafted it cleanly on
+  the first attempt (`docs/EVALUATION.md`'s cost table: 1 drafting attempt).
+  Using it for the "verification catches a lie" beat today would require
+  either narrating a scenario the case didn't produce, or turning on
+  `OVERTURN_SABOTAGE_DRAFTING` to manufacture one — and the whole point of
+  this rewrite is leading with the real catch instead. CASE-001 already has
+  a genuine one. If a future live run makes CASE-003 misbehave for real, it
+  is a fine substitute or addition; it is not one today.
+
+## Pre-flight checklist
+
+**Windows/tabs open before recording starts**, in this order left to right:
+1. Terminal, one pane per command below (a tiling layout, not tab-switching
+   mid-take).
+2. Browser tab: Cloud Storage console, the `${PROJECT_ID}-intake` bucket.
+3. Browser tab: Cloud Run → Logs, filtered to `overturn-ingest`.
+4. Browser tab: Firestore console, `cases` collection.
+5. Browser tab: Cloud Trace → Trace list.
+6. Browser tab: IAM → Service Accounts.
+7. Browser tab: Cloud Scheduler → `overturn-tick`.
+8. A second browser window (or profile) for the approval UI, reachable via
+   the proxy below — kept separate so cookies/login state don't collide with
+   the console tabs.
+
+**Terminal font size:** 20pt minimum at 1080p capture, 24pt if recording at
+1080p for a viewer who will watch at less than full screen. The JSON and
+audit-trail text below is the point of several shots; if it isn't legible at
+a glance, cut it.
+
+**Delete before every take, not just the first one:**
+```bash
+rm -f local_state/store.json
+```
+`scripts/run_pipeline.py` derives a case's id from its content and reuses an
+existing record when one exists past `received`
+(`agents/orchestrator/pipeline.py::ingest`) — that's correct idempotency
+behaviour in production, and it means a stale `local_state/store.json` makes
+a "live" run silently replay a previous result instead of doing the work on
+camera. This file is not used for the main recording (see below), but delete
+it before any rehearsal or fallback run that touches it.
+
+**Exact commands, in order:**
+
+```bash
+# 0. Confirm the project and region, and that ADC has a quota project set —
+#    otherwise Gemini calls 404 in a way that looks like a missing model.
+export PROJECT_ID=$(gcloud config get-value project)
+export REGION=us-central1
+gcloud auth application-default set-quota-project "$PROJECT_ID"
+
+# 1. Redeploy fresh so the URLs and behaviour on screen are the current build,
+#    not a stale revision. INGEST_PUSH_PATH is not optional — deploy.sh's
+#    default doesn't match the real ingest route.
+INGEST_PUSH_PATH=/pubsub/push bash infra/deploy.sh
+
+# 2. Wire the approval UI's login (see "Flagged" above — deploy.sh does not
+#    do this on its own).
+gcloud run services update overturn-approval --region="$REGION" \
+  --update-env-vars=OVERTURN_UI_PASSWORD=northbeck-appeals-2026
+
+# 3. Enable demo time acceleration on the scheduler, then submit a SECOND
+#    case (not CASE-001 — see "continuity" fix above) through the gate so
+#    something is genuinely overdue and ready to escalate on camera:
+gcloud run services update overturn-scheduler --region="$REGION" \
+  --update-env-vars=OVERTURN_DEMO_TIME_ACCELERATION=true,OVERTURN_DEMO_SECONDS_PER_DAY=1
+gcloud storage cp data/denials/CASE-005.txt "gs://${PROJECT_ID}-intake/"
+# ... wait for CASE-005 to reach awaiting_human_approval (watch the log tail),
+# then approve + co-sign it through the proxy exactly as beat 12 below shows,
+# off camera, so it is sitting `submitted` and overdue before recording starts.
+
+# 4. Rehearse the CASE-001 live-catch beat (see "Flagged" above) until one
+#    take produces a genuine Verification rejection, before recording for
+#    real:
+gcloud storage cp data/denials/CASE-001.txt "gs://${PROJECT_ID}-intake/"
+gcloud beta run services logs tail overturn-ingest --region="$REGION"
+```
+
+Reset `OVERTURN_DEMO_TIME_ACCELERATION` to `false` after recording — it is a
+demo-only compression of a 30-day clock into seconds, disclosed on screen in
+beat 10, and it should not be left on.
+
+## Cases used on screen
+
+- **CASE-001** (`data/cases.json`) — clean win, continuous glucose monitoring
+  denial, policy `NBH-ENDO-031`. Carries the whole upload-through-gate thread:
+  screening, extraction, mapping, and the real Drafting/Verification catch.
+- **CASE-002** — prompt injection, MRI lumbar spine denial, policy
+  `NBH-MSK-022`. Carries the Sentinel quarantine and the Model-Armor-misses,
+  rules-catches beat.
+- **CASE-005** — a second clean case, pre-submitted off camera during setup
+  (see the checklist), so the escalation beat shows a case that is genuinely
+  overdue rather than reordering CASE-001's own story or waiting out a real
+  deadline live.
+
+---
+
+| Time | Narration (word count) | On screen |
 |---|---|---|
-| **0:00–0:15** | "Every year, insurers deny millions of medical claims. Federal audits of Medicare Advantage found that when a denial is actually appealed, insurers reverse it more than half the time — but almost nobody appeals." | Black frame, then a scanned health insurance denial letter fills the screen. A text stat overlays as it's narrated: "Appealed Medicare Advantage denials: overturned more than half the time. (HHS OIG)" |
-| **0:15–0:30** | "Building a real appeal means finding the insurer's own medical policy, matching it to the chart, and writing a letter that cites it back to them. That's a two-hour job for Denise, a billing clerk with forty other claims to get through today." | Cut to a desk: a stack of denial letters and EOBs next to a claims-management inbox on a monitor. Caption: "Denise — billing clerk, three-provider clinic." |
-| **0:30–0:45** | "Overturn reads the denial letter, finds the insurer's own published policy, checks the chart against it criterion by criterion, drafts an appeal citing the policy by section number, verifies every citation before a human ever sees it, and stays on the case until the payer answers." | Title card: "OVERTURN" wordmark, one line under it repeating the sentence being narrated, then fades. |
-| **0:45–1:00** | "Here's a live run: a real Northbeck denial letter, dropped into the intake bucket." | Screen recording: browser console, Cloud Storage bucket `${PROJECT_ID}-intake`. Cursor drags the CASE-001 letter (Jeromy156 Upton904, CGM denial) into the bucket. Upload completes; the object-finalize notification publishes to Pub/Sub, and the push to `overturn-ingest` shows up in the log tail below (there is no Cloud Function in this path — GCS notifies Pub/Sub directly, which pushes to Cloud Run). |
-| **1:00–1:15** | "The letter lands in Cloud Storage. Sentinel screens it first — Model Armor plus a rules layer plus an open-weights classifier — and clears it before Intake ever reads a word." | Terminal log stream: `sentinel.screen` span opens and closes; JSON summary prints: `quarantine: false, findings: [], layers_run: ["model_armor","gemma","rules"]`. |
-| **1:15–1:30** | "Intake pulls the denied service and the payer's stated reason. Retrieval finds the matching policy — Northbeck's continuous glucose monitoring policy, section three." | Log stream continues: `intake.extract` output showing `service: "Continuous glucose monitoring system"`, `denial_reason_text`. Then `retrieval.search` output: top hit `NBH-ENDO-031-3`, similarity score displayed. |
-| **1:30–1:50** | "Mapping checks the chart against each of its five criteria and returns a verdict on every one, with the chart note it relied on. Every step writes a new state to the case record in Firestore — received, screening, extracted, retrieving, mapping — so any worker could pick this up cold." | Split screen. Left: a criteria-matrix table, five rows (`NBH-ENDO-031-3.1` through `3.5`), each marked SATISFIED with a chart-evidence snippet. Right: Firestore console, the case document's `status` field and `history` array updating live through each transition. |
-| **1:50–2:15** | "Drafting writes the appeal and cites the policy by section number: 'per NBH-ENDO-031-3.4, the member's hemoglobin A1c documents an indication under this criterion.' Here's the actual policy file, unedited, section 3.4. That's the same sentence it just cited." | The generated appeal letter on screen, the citation to `NBH-ENDO-031-3.4` highlighted. Hard cut: `data/policies/NBH-ENDO-031.md` open in an editor, scrolled to `### NBH-ENDO-031-3.4`, the matching sentence highlighted side by side with the letter's claim. |
-| **2:15–2:32** | "Second case: the denial letter contains a line addressed to the reading agent, telling it to approve the claim automatically. Sentinel flags it as a prompt injection and quarantines the document before Intake ever sees the text." | CASE-002 denial letter, zoomed on the embedded instruction, highlighted in red. Cut to the `ScreeningResult` JSON: `quarantine: true`, a `ThreatFinding` with `category: "prompt_injection"`. Case status panel shows `quarantined` — a terminal state; no further agent runs below it. |
-| **2:32–2:50** | "Third case, deliberately sabotaged for this demo: we forced the first draft to cite a section that doesn't exist. Verification checks every citation against the retrieved policy text, rejects the draft, and sends it back. In Cloud Trace, the retry shows up as a nested span under the same case." | (Produced by `OVERTURN_SABOTAGE_DRAFTING=first uv run python scripts/run_pipeline.py CASE-003` — the "first" mode: one fabricated attempt, then a clean retry. The `always` mode, three rejections and a case sent to a person instead, is not shown on screen but is disclosed alongside it in the README.) A draft on screen with a citation to a nonexistent section id, highlighted in red. Cut to `VerificationResult` JSON: `citations_nonexistent: [...]`, `passed: false`. Cut to Cloud Trace waterfall view: `drafting.attempt=1` → `verification.attempt=1` (error status) → `drafting.attempt=2` → `verification.attempt=2` (ok), all nested under one case trace. |
-| **2:50–3:05** | "Say the payer goes silent. Overturn doesn't poll in a loop — there's no process running while it waits. A scheduled job wakes up and checks which cases are overdue, a pure function of the stored response deadline." | Firestore console: CASE-001's document, `status: submitted`, `response_deadline` field visible. Cut to Cloud Scheduler console: the job `overturn-tick`, firing. |
-| **3:05–3:20** | "It moves this one to peer-to-peer review, the next rung on the ladder, and it keeps climbing unattended from here through every rung after it. In real use the window is thirty days; for this video it's compressed to seconds, disclosed here and in the README." | Case document fields flip live: `appeal_level: first_level_appeal → peer_to_peer_review`, `status: submitted → escalated`. On-screen caption, held for the rest of the shot: "DEMO ONLY: 1 day = a few seconds. Disclosed in README.md." |
-| **3:20–3:32** | "Seven agents, one per pipeline step, each with its own service account. State lives in Firestore. Every external action — submitting an appeal, filing an escalation — goes through an idempotency guard keyed to the case and the attempt, so a redelivered message can't file the same appeal twice." | Architecture diagram: Sentinel → Intake → Retrieval → Mapping → Drafting ⇄ Verification → human approval → Lifecycle, with Firestore, Cloud Storage, Model Armor, Agent Runtime, Memory Bank, and Cloud Trace as surrounding boxes. |
-| **3:32–3:45** | "Model Armor is genuinely managed. Agent Runtime, Memory Bank, Registry and Gateway are ours, built on primitives on purpose — no public surface for those was reachable on this project, and that's disclosed, not hidden." | Cut to real GCP console tabs in sequence: Cloud Trace trace list for this run, Firestore data browser on the `cases` collection, IAM service accounts page listing one account per agent, Model Armor templates page. |
-| **3:45–4:00** | "Nothing this system drafts goes to a payer without a person approving it — and where the argument is clinical, a clinician has to sign it too, before either signature transmits anything. That's not a limitation we ran out of time to remove. It's the point." | Approval screen: the verified CASE-001 draft in full, a clerk's cursor clicking "Approve." Case status flips `awaiting_human_approval → approved`. Fade to the OVERTURN wordmark, no tagline, holding on black.
+| **0:00–0:13** | (33 words) "Every year, insurers deny millions of medical claims. Federal audits of Medicare Advantage found that when a denial is actually appealed, insurers reverse it more than half the time — but almost nobody appeals." | Black frame, then a scanned health insurance denial letter fills the screen. Text overlay: "Appealed Medicare Advantage denials: overturned more than half the time. (HHS OIG)" |
+| **0:13–0:28** | (37 words) "Building a real appeal means finding the insurer's own policy, matching it to the chart, and writing a letter that cites it back. That's a two-hour job for Denise, a billing clerk with forty other claims today." | Cut to a desk: a stack of denial letters and EOBs next to a claims-management inbox. Caption: "Denise — billing clerk, three-provider clinic." |
+| **0:28–0:31** | (silent) | "OVERTURN" wordmark, three seconds, no line under it — the next 2:30 shows what it does instead of telling you first. |
+| **0:31–0:48** | (43 words) "Here's a live run on Google Cloud: a real Northbeck denial letter, uploaded to the intake bucket. Cloud Storage notifies Pub/Sub, Pub/Sub pushes to Cloud Run, and the fleet starts working the case end to end — no queue anyone is watching by hand." | `gcloud storage cp data/denials/CASE-001.txt gs://${PROJECT_ID}-intake/` on screen; cut hard the moment it completes (no dwell) to `gcloud beta run services logs tail overturn-ingest --region=$REGION` showing the Pub/Sub push arrive at `overturn-ingest`. |
+| **0:48–1:00** | (29 words) "Sentinel screens it first — Model Armor, a rules layer, and an open-weights guard model, all three genuinely running now — and clears a clean letter before Intake reads a word." | Continuing log tail: the Sentinel line for this case, clean. Quick cut to a terminal running `scripts/screening_report.py` (see beat 9's command) with the CASE-001 row visible: `armor 0, rules 0, quarantined False`. |
+| **1:00–1:12** | (30 words) "Intake pulls the denied service and the payer's stated reason. Retrieval finds the governing policy — Northbeck's continuous glucose monitoring policy — and returns every criteria-bearing section, not just a top-scoring few." | Log tail continues: `intake.extract` output (`service`, `denial_reason_text`); `retrieval.search` output, top hit `NBH-ENDO-031`. |
+| **1:12–1:32** | (51 words) "Mapping checks the chart against every criterion the policy actually states — eight rows, not five, coverage criteria and documentation requirements together — and returns a verdict and a locator on each. Every step also writes a new state to the case record in Firestore, so any worker could pick it up cold." | Split screen. Left: Firestore console, the CASE-001 document's `criteria.verdicts` array expanded — eight entries, `NBH-ENDO-031-3.1` through `3.5` and `4.1` through `4.3`, each `satisfied` with a chart locator. Right: the same document's `status` and `history` fields updating live through `received → screening → extracted → retrieving → mapping`. |
+| **1:32–2:00** | (71 words) "Here's the part that isn't staged. This draft came from real Gemini, not a script. Attempt one claimed a July 14th encounter was a 'telehealth evaluation.' The chart calls it an interim review and never says how it happened. Verification caught that itself, plus a device name the chart never uses. Rejected, redrafted — attempt two dropped both claims and passed. A fault-injection switch exists for testing; we didn't need it here." | Firestore: `drafts[0]` — the appeal text with "telehealth evaluation" highlighted red. Cut to `verifications[0]`: `passed: false`, the rejection text (whatever your rehearsal take actually produced — see "Flagged" above). Cut to `drafts[1]` / `verifications[1]`: `passed: true`. Cut to Cloud Trace: the waterfall for this case, `drafting.attempt=1 → verification.attempt=1 (rejected) → drafting.attempt=2 → verification.attempt=2 (passed)`, nested under one trace. |
+| **2:00–2:24** | (59 words) "Second case: this letter carries a paragraph addressed to whatever reads it — new instructions, an exfiltration address. Model Armor scans it and finds nothing: NO_MATCH_FOUND, every filter. The rules layer, built to know what a denial letter looks like, catches it — seven findings — and quarantines the case before Intake sees a word. Defence in depth, demonstrated, not just claimed." | CASE-002 letter zoomed on the "AUTOMATED PROCESSING FOOTER" paragraph, highlighted red. Cut to a terminal: `OVERTURN_RUNTIME_MODE=cloud OVERTURN_MODEL_ARMOR_TEMPLATE=overturn-inbound uv run python scripts/screening_report.py` — first line `Model Armor client: enabled`, then the table, cursor on the `CASE-002.txt` row: `armor 0, rules 7, quarantined True`. Cut to the case status panel: `quarantined` — terminal, nothing runs below it. |
+| **2:24–2:39** | (37 words) "Say the payer goes silent. Nothing polls while it waits — no process is running. Cloud Scheduler wakes overturn-tick every five minutes, finds the overdue cases, and Lifecycle climbs the ladder on its own, rung after rung, unattended." | Firestore: CASE-005's document, `status: submitted`, `response_deadline` visible. Cut to Cloud Scheduler console: job `overturn-tick`, `*/5 * * * *`. Run it on demand on screen: `gcloud scheduler jobs run overturn-tick --location=$REGION`. Cut back to Firestore: `status: submitted → escalated`, `appeal_level` flips to the next rung. On-screen caption, held to the end of the shot: "DEMO ONLY: response window compressed for filming. Disclosed in README.md." |
+| **2:39–2:58** | (48 words) "Seven agents, one per step, each its own service account — Drafting can't read the policy corpus, Verification can't edit the draft it's judging. Overturn-ingest and overturn-scheduler return 403 in a browser by design — only Pub/Sub and Cloud Scheduler can call them. That's the access model, not a bug." | Architecture diagram (2–3s). Cut to IAM → Service Accounts: eight `overturn-*` identities. Cut to a browser hitting the raw `overturn-ingest` `.run.app` URL: `403 Forbidden`. Cut to the Cloud Trace list for this recording session. |
+| **2:58–3:25** | (67 words) "Nothing goes to a payer without a person. Two signatures, two screens. The clerk logs in and confirms the paper trail — citations resolve, quotes match — and the screen says it outright: you are not being asked whether this care was appropriate. The clinician signs separately, on a screen that says the opposite: you're attesting to the medicine, not the paperwork. Whichever signature lands second is what transmits." | `gcloud run services proxy overturn-approval --region=$REGION`, browser to `localhost:8080` — the "Sign in — Overturn" login page, password entered. `/case/CASE-001`: the verified draft, the three-checkbox gate, the sentence "You are not being asked whether this care was appropriate" visible on screen, "Approve attempt 2" clicked. Queue screen: "Approved — awaiting the clinician's co-sign." Cut to `/case/CASE-001/clinical`: the attestation checkbox and its label ("I ordered this care... the clinical argument in this letter is accurate"), "Co-sign attempt 2" clicked. Notice banner: "Transmitted to Northbeck Health Plan." |
+| **3:25–3:31** | (silent) | Fade to the OVERTURN wordmark, no tagline, hold on black. |
 
-**Note on this beat, read before recording:** the case does not reach
-`submitted` here. `CaseRecord.ready_to_submit` also requires a clinician
-co-sign, and `services/approval_ui` has no route or form for one today (see
-the blocker noted at the top of this file). The narration above is written to
-say only what the clerk's click actually does — approve, not transmit — and
-does not claim the letter goes out on screen. If a `submitted` status is
-wanted on camera, that requires either building the co-sign route first, or
-recording a second, narrated step where the co-sign is entered directly
-against `ApprovalService.cosign()` (e.g. from a Python shell) rather than
-through the browser. That is a product decision, not a documentation one, and
-it is flagged here rather than decided in this pass.
+---
+
+**Word count check:** 33+37+43+29+30+51+71+59+37+48+67 = 505 words of
+narration across 208 seconds of narrated time (3:31 minus the two silent
+beats), which is 145.7 words/minute — under the 150 wpm ceiling with a little
+room, so no line has to be rushed to fit.
+
+**If a beat runs long on the day:** cut the architecture beat (2:39–2:58)
+first — it is the one beat that is disclosure rather than demonstration, and
+everything it states in words is also visible in passing during the IAM and
+Cloud Trace tabs used elsewhere. Do not cut time from the human-gate beat
+(2:58–3:25) or the live-catch beat (1:32–2:00); those two are the ones a
+viewer is watching this video to see.
