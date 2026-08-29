@@ -16,9 +16,9 @@ A denial letter is an untrusted document from an outside party, and appealing it
 
 > ### The problem
 
-A denial letter lands on Denise's desk. She's the billing clerk for a three-provider clinic, and this is the fortieth one this month. Doing this right means finding the insurer's own medical policy, checking the patient's chart against it criterion by criterion, and writing a letter that cites the policy back to them, chapter and section. That's a two-hour job, and Denise has forty other things to bill today, so the honest math is: most of these claims never get appealed, winnable or not.
+A denial letter lands on Denise's desk. She's the billing clerk for a three-provider clinic, and this is the fortieth one this month. Doing this right means finding the insurer's own medical policy, checking the patient's chart against it criterion by criterion, and writing a letter that cites the policy back to them, chapter and section. That's a forty-minute job, and Denise has forty other things to bill today, so the honest math is: most of these claims never get appealed, winnable or not.
 
-Overturn does the two-hour job in minutes. It finds the payer's published policy, checks the chart against it, drafts the appeal, verifies its own citations against the real policy text before anyone reads them, and keeps the case alive for the weeks it takes the payer to respond — escalating on its own if they go quiet. A person still approves everything before it goes out.
+Overturn does the forty-minute job in minutes. It finds the payer's published policy, checks the chart against it, drafts the appeal, verifies its own citations against the real policy text before anyone reads them, and keeps the case alive for the weeks it takes the payer to respond — escalating on its own if they go quiet. A person still approves everything before it goes out.
 
 ## Devpost — Features and functionality
 
@@ -50,7 +50,7 @@ Underneath the agents:
 
 ## LinkedIn post (#AllThingsAgenticHackathon)
 
-A billing clerk gets a health insurance denial letter. Writing a real appeal means finding the insurer's own medical policy, checking the chart against it criterion by criterion, and citing the policy back to them — a two-hour job most clinics don't have time for, so winnable claims die unappealed.
+A billing clerk gets a health insurance denial letter. Writing a real appeal means finding the insurer's own medical policy, checking the chart against it criterion by criterion, and citing the policy back to them — a forty-minute job most clinics don't have time for, so winnable claims die unappealed.
 
 I built Overturn for the Google/Devpost All Things Agentic Hackathon. It reads the denial, retrieves the payer's own published policy, maps the chart against it, drafts an appeal that cites real section numbers, and then verifies every citation against the source text before a human ever sees the draft — a fabricated citation gets the draft rejected and rewritten, not sent. The case doesn't end at submission: state lives in Firestore, and a scheduled job wakes it up to escalate if the payer goes silent for weeks. A human approves before anything is transmitted.
 
