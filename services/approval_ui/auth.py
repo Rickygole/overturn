@@ -21,10 +21,13 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 import time
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 COOKIE_NAME = "overturn_session"
 SESSION_HOURS = 12
@@ -50,12 +53,30 @@ class AuthConfig:
 
 
 def load_config() -> AuthConfig:
+    """Resolve the door's configuration once, at startup.
+
+    The signing secret must be supplied wherever more than one instance can
+    serve a request. Generating one per process is fine on a laptop — it logs
+    you out on restart, which is an annoyance and never a security failure — and
+    it is broken on Cloud Run: a session minted by one instance is rejected by
+    the next, so the login appears to accept the password and then silently
+    refuse to let you in. Nothing in the logs says why.
+
+    So a missing secret is a warning, not a silent default, and
+    `infra/deploy.sh` sets one from Secret Manager.
+    """
     password = os.getenv("OVERTURN_UI_PASSWORD", "").strip()
-    # A signing secret that changes on restart is fine: it logs everyone out,
-    # which is a mild annoyance and never a security failure. Deriving it from
-    # the password would mean the cookie leaks a fact about the password.
-    secret = os.getenv("OVERTURN_UI_SECRET", "").strip() or secrets.token_hex(32)
-    return AuthConfig(password=password, secret=secret)
+    secret = os.getenv("OVERTURN_UI_SECRET", "").strip()
+
+    if password and not secret:
+        logger.warning(
+            "OVERTURN_UI_PASSWORD is set but OVERTURN_UI_SECRET is not. Sessions "
+            "will be signed with a per-process key, so any deployment serving "
+            "more than one instance will reject logins issued by another. Set "
+            "OVERTURN_UI_SECRET to a stable value."
+        )
+
+    return AuthConfig(password=password, secret=secret or secrets.token_hex(32))
 
 
 def _sign(payload: str, secret: str) -> str:
