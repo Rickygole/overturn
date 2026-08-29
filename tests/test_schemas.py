@@ -343,3 +343,74 @@ class TestFirestoreRoundTrip:
     )
     def test_each_contract_round_trips(self, model):
         assert type(model).model_validate(model.to_firestore()) == model
+
+
+class TestUnevaluatedCriteriaCountAgainstTheCase:
+    """`unmapped_criteria` was recorded and then ignored by the decision.
+
+    Retrieval returns whole policies rather than top-k sections precisely so
+    that a criteria list cannot have silent holes in it. Counting only the
+    evaluated rows put the hole back one stage later: a matrix with one
+    satisfied criterion and twenty Mapping never reached reported an appealable
+    basis, and a skipped criterion could never cause a decline.
+    """
+
+    def _row(self, cid: str, v: CriterionVerdictValue) -> CriterionVerdict:
+        return CriterionVerdict(
+            criterion_id=cid,
+            criterion_text="t",
+            section_id="NBH-CARD-014-3",
+            verdict=v,
+            evidence=(
+                [ChartEvidence(locator="note 2026-03-14", quote="documented")]
+                if v == CriterionVerdictValue.SATISFIED
+                else []
+            ),
+            reasoning="r",
+            confidence=0.8,
+        )
+
+    def _matrix(self, satisfied: int, failed: int, unevaluated: int) -> CriteriaMatrix:
+        rows = [self._row(f"s{i}", CriterionVerdictValue.SATISFIED) for i in range(satisfied)]
+        rows += [self._row(f"f{i}", CriterionVerdictValue.NOT_SATISFIED) for i in range(failed)]
+        return CriteriaMatrix(
+            case_id="c1",
+            verdicts=rows,
+            unmapped_criteria=[f"u{i}" for i in range(unevaluated)],
+        )
+
+    def test_one_satisfied_row_cannot_carry_twenty_unknowns(self):
+        """The case this was written for."""
+        assert self._matrix(satisfied=1, failed=0, unevaluated=20).has_appealable_basis is False
+
+    def test_unknowns_that_could_flip_the_decision_block_it(self):
+        assert self._matrix(satisfied=2, failed=1, unevaluated=11).has_appealable_basis is False
+
+    def test_unknowns_that_could_not_flip_the_decision_do_not_block_it(self):
+        """Eight satisfied against six unknowns still holds in the worst case."""
+        assert self._matrix(satisfied=8, failed=0, unevaluated=6).has_appealable_basis is True
+
+    def test_full_coverage_is_unchanged(self):
+        """The rule must not move where there is nothing unevaluated."""
+        assert self._matrix(satisfied=3, failed=2, unevaluated=0).has_appealable_basis is True
+        assert self._matrix(satisfied=1, failed=1, unevaluated=0).has_appealable_basis is True
+        assert self._matrix(satisfied=0, failed=3, unevaluated=0).has_appealable_basis is False
+
+    def test_the_boundary_is_worst_case_not_majority(self):
+        """Exactly enough satisfied rows to survive every unknown failing."""
+        assert self._matrix(satisfied=3, failed=1, unevaluated=2).has_appealable_basis is True
+        assert self._matrix(satisfied=3, failed=1, unevaluated=3).has_appealable_basis is False
+
+    def test_the_counts_are_reported_not_just_used(self):
+        """A clerk should be able to see the coverage the decision rested on."""
+        matrix = self._matrix(satisfied=8, failed=0, unevaluated=6)
+        assert matrix.evaluated_count == 8
+        assert matrix.unevaluated_count == 6
+
+    def test_the_new_counts_survive_a_storage_round_trip(self):
+        """Computed fields must not leak into Firestore and break the reload."""
+        matrix = self._matrix(satisfied=2, failed=0, unevaluated=1)
+        stored = matrix.to_firestore()
+        for computed in ("evaluated_count", "unevaluated_count", "has_appealable_basis"):
+            assert computed not in stored
+        assert CriteriaMatrix.model_validate(stored).unevaluated_count == 1

@@ -80,15 +80,41 @@ class CriteriaMatrix(OverturnModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
+    def evaluated_count(self) -> int:
+        """Criteria Mapping actually reached a verdict on."""
+        return len(self.verdicts)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def unevaluated_count(self) -> int:
+        """Criteria in the policy that Mapping could not rule on at all."""
+        return len(self.unmapped_criteria)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def has_appealable_basis(self) -> bool:
         """Whether there is anything worth writing an appeal about.
 
-        One satisfied criterion is not a case. We require that the satisfied
-        rows outnumber the outright failures, otherwise the honest action is to
-        decline and tell the clerk why.
+        One satisfied criterion is not a case. The satisfied rows must at least
+        match the outright failures, otherwise the honest action is to decline
+        and tell the clerk why.
+
+        Unevaluated criteria count against the case, and this is the part that
+        was wrong until 29 August. `unmapped_criteria` was recorded and then
+        played no part in the decision, so a matrix with one satisfied row and
+        twenty criteria Mapping never reached still reported an appealable
+        basis. Retrieval returns whole policies precisely so that a criteria
+        list cannot have silent holes in it; counting only the evaluated rows
+        put the hole back one stage later.
+
+        The rule is to decide under the worst case for what we do not know: if
+        every unevaluated criterion turned out to be unmet, would there still
+        be a basis? If not, we do not know that there is one, and saying so is
+        the same refusal `insufficient_documentation` makes at the level of a
+        single criterion.
         """
         failed = sum(1 for v in self.verdicts if v.verdict == CriterionVerdictValue.NOT_SATISFIED)
-        return self.satisfied_count > 0 and self.satisfied_count >= failed
+        return self.satisfied_count > 0 and self.satisfied_count >= failed + self.unevaluated_count
 
     def appealable_verdicts(self) -> list[CriterionVerdict]:
         """Exactly what Drafting is allowed to see."""
