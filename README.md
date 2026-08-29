@@ -69,7 +69,7 @@ runtime — so this table cannot drift from what the code does. Regenerate with
 
 | Agent | Service account | Model | Returns | Reads | Writes |
 |---|---|---|---|---|---|
-| `sentinel` | `overturn-sentinel` | `gemma-4-26b-a4b-it-maas` | `ScreeningResult` | `audit_events`, `cases`, `quarantine` | `audit_events`, `quarantine` |
+| `sentinel` | `overturn-sentinel` | `gemma-4-26b-a4b-it-maas` | `—` | `audit_events`, `cases`, `quarantine` | `audit_events`, `quarantine` |
 | `intake` | `overturn-intake` | `gemini-3.5-flash` | `DenialExtraction` | `audit_events`, `cases` | `audit_events`, `cases` |
 | `retrieval` | `overturn-retrieval` | `gemini-3.5-flash` | `RetrievalResult` | `audit_events`, `cases`, `policy_sections` | `audit_events`, `cases` |
 | `mapping` | `overturn-mapping` | `gemini-3.5-flash` | `CriteriaMatrix` | `audit_events`, `cases` | `audit_events`, `cases` |
@@ -259,7 +259,7 @@ the access gateway, the audit trail and the trace spans are all the real thing.
 git clone https://github.com/Rickygole/overturn.git
 cd overturn
 uv sync                # needs uv; see https://docs.astral.sh/uv/
-uv run pytest -q       # 401 tests, a few seconds
+uv run pytest -q       # 402 tests, a few seconds
 ```
 
 Verified from a clean clone on 2026-08-23. If those two commands do not both

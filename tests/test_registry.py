@@ -60,7 +60,19 @@ class TestDerivation:
         for entry in build_catalogue():
             expected = BUILDERS[entry.agent_id](settings)
             assert entry.model == expected.model
-            assert entry.output_contract == expected.output_schema.__name__
+            schema = getattr(expected, "output_schema", None)
+            assert entry.output_contract == (schema.__name__ if schema else None)
+
+    def test_only_sentinel_has_no_bound_output_contract(self):
+        """Every agent is schema-bound except the one whose model ignores it.
+
+        Gemma accepts JSON mode and disregards a bound schema, so binding one
+        produced valid JSON that failed validation and took the whole screening
+        layer down with it. That is a real property of the fleet and the
+        catalogue should state it.
+        """
+        unbound = {e.agent_id for e in build_catalogue() if e.output_contract is None}
+        assert unbound == {"sentinel"}
 
     def test_the_orchestrator_is_not_published(self):
         """It is the router, not a service anyone should call directly."""

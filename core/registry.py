@@ -122,9 +122,13 @@ def build_catalogue() -> list[RegisteredAgent]:
         if (builder := BUILDERS.get(agent.value)) is not None:
             definition = builder(settings)
             model = definition.model
-            output_contract = (
-                definition.output_schema.__name__ if definition.output_schema else None
-            )
+            schema = getattr(definition, "output_schema", None)
+            # Sentinel deliberately has none: Gemma does not honour a bound
+            # schema, so its shape is described in the instruction and parsed
+            # tolerantly instead. The catalogue should say that rather than
+            # crash on it, because "no bound contract" is a real fact about an
+            # agent that a caller needs.
+            output_contract = schema.__name__ if schema is not None else None
 
         fingerprint = hashlib.sha256(
             "|".join([agent.value, str(model), str(output_contract), *reads, *writes]).encode()

@@ -41,7 +41,7 @@ from agents.intake.prompts import INTAKE_SYSTEM
 from agents.lifecycle.prompts import LIFECYCLE_SYSTEM
 from agents.mapping.prompts import MAPPING_SYSTEM
 from agents.retrieval.prompts import RETRIEVAL_REFORMULATE_SYSTEM
-from agents.sentinel.prompts import SENTINEL_SYSTEM
+from agents.sentinel.prompts import GEMMA_GUARD_SYSTEM
 from agents.verification.prompts import ASSERTION_SYSTEM, CITATION_SYSTEM
 from core.config import Settings, get_settings
 from core.llm import LlmRequest, LlmResponse, ModelUnavailable
@@ -50,7 +50,6 @@ from core.schemas.denial import DenialExtraction
 from core.schemas.draft import AppealDraft
 from core.schemas.lifecycle import EscalationDecision
 from core.schemas.policy import RetrievalResult
-from core.schemas.sentinel import ScreeningResult
 from core.schemas.verification import VerificationResult
 
 APP_NAME = "overturn"
@@ -75,14 +74,32 @@ def _agent(
 
 
 def sentinel_agent(settings: Settings | None = None) -> LlmAgent:
+    """Sentinel's guard layer, which is the one agent NOT bound to a schema.
+
+    Gemma accepts JSON mode but does not honour a bound `output_schema` the way
+    Gemini does — Gemini enforces the shape on the wire, Gemma ignores it. Bound
+    to `ScreeningResult` it returns valid JSON containing only an excerpt, and
+    the response then fails validation and the whole layer is recorded as
+    unavailable.
+
+    It is also asked for fields it cannot possibly know: `document_uri` and
+    `content_sha256` are facts about the request, and the model is never shown
+    them. So the shape is described in the instruction, which Gemma does follow,
+    and parsed tolerantly on the way back — see
+    `agents/sentinel/agent.py::_parse_guard_response`, which the non-ADK path
+    already uses.
+    """
     s = settings or get_settings()
-    return _agent(
-        "sentinel",
-        "Screens untrusted inbound documents for prompt injection, instruction "
-        "content, tool poisoning and unexpected PII. Can halt the pipeline.",
-        SENTINEL_SYSTEM,
-        ScreeningResult,
-        s.model_guard,
+    return LlmAgent(
+        name="sentinel",
+        description=(
+            "Screens untrusted inbound documents for prompt injection, instruction "
+            "content, tool poisoning and unexpected PII. Can halt the pipeline."
+        ),
+        instruction=GEMMA_GUARD_SYSTEM,
+        model=s.model_guard,
+        disallow_transfer_to_parent=True,
+        disallow_transfer_to_peers=True,
     )
 
 
