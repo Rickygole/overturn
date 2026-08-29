@@ -193,7 +193,7 @@ Expect `FIRESTORE_NATIVE`.
 ```bash
 gcloud run services list --region="$REGION" --filter="metadata.name:overturn"
 ```
-All three should show `Ready: True`. All three now answer `GET /healthz`
+All three should show `Ready: True`. All three now answer `GET /health` (Cloud Run reserves `/healthz`)
 (`overturn-approval` also keeps `/health` as an alias for the same handler).
 Health checks stay reachable regardless of the approval UI's login — Cloud
 Run probes them before anything else, and a health check behind a login
@@ -384,3 +384,19 @@ and deleting Firestore data is a one-way door this script doesn't open for you.
   transmits. This was a real gap in an earlier state of this repository — a
   case would sit at `approved` with no way to reach `submitted` from the
   deployed web UI — and it no longer is.
+
+## Things that will waste your afternoon
+
+### `/healthz` returns a Google 404 on Cloud Run
+
+**Symptom.** `curl https://<service>.run.app/healthz` returns an HTML page
+titled `Error 404 (Not Found)!!1`, while the same route answers locally. The
+container logs show no request at all.
+
+**Cause.** Cloud Run's front end reserves `/healthz` and answers it itself. The
+request never reaches the container, so nothing in the application can fix it
+and nothing in the logs explains it.
+
+**What to use.** `/health`, which all three services answer with
+`{"status":"ok","service":...}`. `/healthz` is still registered for anywhere
+else this runs, but nothing behind Cloud Run should depend on it.

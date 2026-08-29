@@ -60,7 +60,15 @@ def create_app(
     app.state.pipeline = pipeline
     app.state.settings = settings
 
+    # Two paths, one handler, and /health is the one that works.
+    #
+    # Cloud Run's front end reserves /healthz and answers it with its own 404
+    # before the request reaches the container. Verified against the deployed
+    # service: /health returns our JSON, /healthz returns Google's error page.
+    # /healthz is kept for anywhere else this runs, but nothing should depend
+    # on it behind Cloud Run.
     @app.get("/healthz")
+    @app.get("/health")
     def healthz() -> JSONResponse:
         # No datastore touch: a Firestore hiccup should not get the revision
         # killed for a check that was never asking about Firestore.
