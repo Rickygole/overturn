@@ -182,3 +182,96 @@ class TestReadmeClaims:
         assert claimed.group(1) == actual.group(1), (
             f"README quickstart says {claimed.group(1)} tests, {actual.group(1)} run"
         )
+
+
+# --------------------------------------------------------------------------- #
+# The published site
+# --------------------------------------------------------------------------- #
+#
+# Everything above guards the markdown. The site under docs/*.html is the
+# surface a judge actually reads, and until 29 August it had no harness at all
+# -- which is how it came to assert a provenance feature that does not exist,
+# an ADK responsibility our own code disclaims, and a test count seven behind
+# the truth. A claim is not safer for being written in HTML.
+
+SITE_PAGES = sorted((DOCS).glob("*.html"))
+
+
+def _site_text() -> dict[Path, str]:
+    return {page: page.read_text() for page in SITE_PAGES}
+
+
+def test_there_is_a_site_to_check():
+    """A guard on the guard: if the pages move, these tests must not pass vacuously."""
+    assert SITE_PAGES, "no docs/*.html found — the tests below would be checking nothing"
+
+
+@pytest.mark.parametrize("page", SITE_PAGES, ids=lambda p: p.name)
+def test_the_site_does_not_claim_source_offsets(page: Path):
+    """`DenialExtraction` carries no offset, span, or locator.
+
+    Intake returns typed fields, not character positions. Provenance is this
+    project's whole thesis, which makes a fabricated provenance feature the
+    single worst claim the site could carry.
+    """
+    text = page.read_text().lower()
+    for phrase in ("character offset", "source offset", "offset in the source"):
+        assert phrase not in text, f"{page.name} claims {phrase!r}; DenialExtraction has no such field"
+
+
+@pytest.mark.parametrize("page", SITE_PAGES, ids=lambda p: p.name)
+def test_the_site_does_not_credit_adk_with_orchestration(page: Path):
+    """`agents/adk_fleet.py` disclaims exactly this.
+
+    ADK owns every model call. The orchestration is ours, deliberately, because
+    a Runner session cannot survive the multi-week gap a real appeal takes.
+    """
+    text = page.read_text().lower()
+    if "agent development kit" not in text and "adk" not in text:
+        return
+    for phrase in ("tool binding", "orchestration between the seven"):
+        assert phrase not in text, (
+            f"{page.name} credits ADK with {phrase!r}; adk_fleet.py says the opposite "
+            f"and binds no tools to any agent"
+        )
+
+
+@pytest.mark.parametrize("page", SITE_PAGES, ids=lambda p: p.name)
+def test_the_site_test_count_matches_the_readme(page: Path):
+    """The count is allowed to appear on the site; it is not allowed to drift.
+
+    The README count is already pinned to the collected total by
+    ``test_the_quickstart_test_count_is_current``, so matching the README is
+    enough to keep the site honest without collecting twice.
+    """
+    claimed = re.findall(r"([0-9]{3,4})\s+tests\b", page.read_text())
+    if not claimed:
+        return
+    readme = re.search(r"([0-9]{3,4})\s+tests", (REPO / "README.md").read_text())
+    assert readme, "README no longer states a test count for the site to match"
+    for number in claimed:
+        assert number == readme.group(1), (
+            f"{page.name} says {number} tests; README says {readme.group(1)}"
+        )
+
+
+@pytest.mark.parametrize("page", SITE_PAGES, ids=lambda p: p.name)
+def test_the_site_names_the_cloud_run_services_that_exist(page: Path):
+    """infra/deploy.sh deploys overturn-ingest, overturn, overturn-scheduler.
+
+    There is no orchestrator service. Naming one also erases the scheduler,
+    which is the service that makes the multi-week escalation claim real.
+    """
+    text = page.read_text().lower()
+    match = re.search(r"three services:([^<.]*)", text)
+    if not match:
+        return
+    listed = match.group(1)
+    assert "orchestrator" not in listed, (
+        f"{page.name} lists an 'orchestrator' Cloud Run service; deploy.sh deploys "
+        f"overturn-ingest, overturn, overturn-scheduler"
+    )
+    assert "scheduler" in listed, (
+        f"{page.name} enumerates three Cloud Run services without the scheduler -- "
+        f"the one that makes the multi-week escalation claim real"
+    )

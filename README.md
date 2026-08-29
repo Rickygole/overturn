@@ -49,7 +49,7 @@ Built for the Google + Devpost **All Things Agentic Hackathon**, track:
 
 | Layer | State |
 |---|---|
-| Typed inter-agent contracts | done — 39 exported models, strict, round-trip tested |
+| Typed inter-agent contracts | done — 30 exported models across 40 exported names, strict, round-trip tested |
 | Per-agent access gateway | done |
 | Idempotency guard | done — leases, replay, payload-drift detection |
 | Append-only audit log | done |
@@ -275,7 +275,7 @@ the access gateway, the audit trail and the trace spans are all the real thing.
 git clone https://github.com/Rickygole/overturn.git
 cd overturn
 uv sync                # needs uv; see https://docs.astral.sh/uv/
-uv run pytest -q       # 462 tests, a few seconds
+uv run pytest -q       # 483 tests, a few seconds
 ```
 
 Verified from a clean clone on 2026-08-23. If those two commands do not both

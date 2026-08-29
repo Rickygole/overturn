@@ -45,7 +45,13 @@ appeal.
 **Drafting and Verification cycle.** Drafting writes from the satisfied criteria
 only. Verification checks every citation three ways: does the section id exist in
 the retrieved set (Python set membership), does the quoted text support the claim
-(model), and is every clinical assertion backed by a row in the matrix (Python).
+(model), and is every clinical assertion backed by a row in the matrix (also a
+model call -- `verify_assertions` in `agents/verification/agent.py`, not a
+lookup). Two of the three checks are model calls; only the first is decided in
+Python. This paragraph said "(Python)" for the third one until 29 August, which
+mattered because the sentence the trust argument rests on -- a model cannot be
+wrong about a question it is never asked -- was attached to a question that is,
+in fact, asked.
 A rejection returns *specific* findings, which become the next attempt's revision
 instructions — telling a writer only that it failed produces the same draft
 again. Three attempts is the budget. On the third rejection the case goes to

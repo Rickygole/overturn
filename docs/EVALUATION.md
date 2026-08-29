@@ -245,12 +245,19 @@ A few things worth being precise about here:
   something fatal before Gemma would have run, and Sentinel is built to skip
   paying a model to agree with a settled quarantine decision. That design
   choice is visible directly in this table as the cheapest row.
-- The four cases that produced a sent appeal (CASE-001, CASE-003, CASE-005,
-  CASE-006) cost **143,165 input / 36,579 output tokens combined** — an
-  average of roughly **44,936 tokens per successful appeal** across this
-  sample. CASE-007 cost 55,494 tokens and produced no appeal at all: the price
-  of the safety cap holding on a hard input, paid in tokens rather than in a
-  bad letter going out.
+- The four cases that produced a letter fit to put in front of a human
+  (CASE-001, CASE-003, CASE-005, CASE-006) cost **143,165 input / 36,579
+  output tokens combined** — an average of roughly **44,936 tokens per
+  approvable appeal** across this sample. CASE-007 cost 55,494 tokens and
+  produced no letter at all: the price of the safety cap holding on a hard
+  input, paid in tokens rather than in a bad letter going out.
+
+  To be exact about what "produced" means here, because an earlier version of
+  this line said "produced a sent appeal" and that was wrong in the
+  overclaiming direction: all four reached `awaiting_human_approval` and
+  **nothing was transmitted**. `scripts/evaluate.py` has no transmission path
+  at all — it does not approve, co-sign, or submit, because the two signatures
+  are the one thing in this system a harness has no business simulating.
 
 This document deliberately stops at tokens rather than converting to dollars.
 Vertex AI's per-model rate for `gemini-3.5-flash`, `gemini-3.7-flash`, and

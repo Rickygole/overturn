@@ -1,8 +1,13 @@
 """Lexical retrieval over the policy corpus.
 
-A vector path exists in `agents/retrieval/vector.py` and is selected in cloud
-mode. This module is the default anyway, for three reasons that are all worth
-more than they cost:
+A vector path exists in `agents/retrieval/vector.py`. It is built and tested
+and **has no caller** -- `RetrievalAgent.__init__` takes the TF-IDF index in
+every mode, cloud included. Read that module's own header before citing it as
+a capability; an earlier version of this sentence claimed it was selected in
+cloud mode, which was wrong and reached a submission document once already.
+
+This module is what actually runs, for three reasons all worth more than they
+cost:
 
   * The pipeline has to run with no network and no bill. A retriever that only
     works against a hosted index means the end-to-end run only works when
