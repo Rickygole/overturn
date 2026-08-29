@@ -32,6 +32,15 @@ from core.schemas.enums import CaseStatus
 from core.state import CaseNotFound
 from core.store import DocumentStore, build_store
 from services.approval_ui import view
+from services.approval_ui.auth import (
+    COOKIE_NAME,
+    SESSION_HOURS,
+    issue_session,
+    load_config,
+    password_matches,
+    path_is_public,
+    session_is_valid,
+)
 from services.approval_ui.service import (
     REVIEWABLE_STATUS,
     ApprovalError,
@@ -372,6 +381,83 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
     # runbook documents /healthz, so a single service answering only /health is
     # a documented endpoint that 404s — exactly the kind of small inconsistency
     # that makes a reader doubt the parts they cannot check.
+    auth = load_config()
+
+    @app.middleware("http")
+    async def require_session(request: Request, call_next):
+        """One door in front of everything that shows a case.
+
+        Health checks stay outside it — Cloud Run probes them before anything
+        else, and a health check behind a login reports the service unhealthy
+        the moment the login works.
+        """
+        if not auth.enabled or path_is_public(request.url.path):
+            return await call_next(request)
+        if session_is_valid(request.cookies.get(COOKIE_NAME), auth):
+            return await call_next(request)
+        return RedirectResponse("/login", status_code=303)
+
+    @app.get("/login")
+    def login_form(request: Request) -> Response:
+        if not auth.enabled or session_is_valid(request.cookies.get(COOKIE_NAME), auth):
+            return RedirectResponse("/", status_code=303)
+        return templates.TemplateResponse(request, "login.html", {"error": None})
+
+    @app.post("/login")
+    def login(request: Request, password: Annotated[str, Form()] = "") -> Response:
+        if not password_matches(password, auth):
+            # Deliberately vague, and deliberately not rate limited here —
+            # Cloud Run sits behind Google's edge and this is a single shared
+            # credential for synthetic data, not an account system.
+            return templates.TemplateResponse(
+                request,
+                "login.html",
+                {"error": "That password is not correct."},
+                status_code=401,
+            )
+        response = RedirectResponse("/", status_code=303)
+        response.set_cookie(
+            COOKIE_NAME,
+            issue_session(auth),
+            max_age=SESSION_HOURS * 3600,
+            httponly=True,
+            # Secure only where the connection is. A Secure cookie over http is
+            # silently dropped by the browser, which on a local run looks
+            # exactly like a login that accepts the password and then refuses
+            # to let you in. Cloud Run is always https.
+            secure=request.url.scheme == "https",
+            samesite="lax",
+        )
+        return response
+
+    @app.post("/theme")
+    def set_theme(
+        request: Request,
+        mode: Annotated[str, Form()] = "auto",
+        back: Annotated[str, Form()] = "/",
+    ) -> Response:
+        """Remember a colour choice, without JavaScript.
+
+        The page ships no script — there is a test asserting that — so the
+        preference is a cookie and a redirect rather than localStorage. It also
+        means the choice survives with scripting disabled, which is the same
+        reason the rest of this interface works without it.
+        """
+        # Only ever redirect within this app. `back` comes from a form field.
+        target = back if back.startswith("/") and not back.startswith("//") else "/"
+        response = RedirectResponse(target, status_code=303)
+        if mode in ("light", "dark"):
+            response.set_cookie("overturn_theme", mode, max_age=60 * 60 * 24 * 365, samesite="lax")
+        else:
+            response.delete_cookie("overturn_theme")
+        return response
+
+    @app.post("/logout")
+    def logout() -> Response:
+        response = RedirectResponse("/login", status_code=303)
+        response.delete_cookie(COOKIE_NAME)
+        return response
+
     @app.get("/healthz")
     @app.get("/health")
     def health() -> JSONResponse:

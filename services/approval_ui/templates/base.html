@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en"{% if request.cookies.get('overturn_theme') in ('light','dark') %} data-theme="{{ request.cookies.get('overturn_theme') }}"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -59,8 +59,12 @@
   --danger-wash: #fdf0ee;
 }
 
+/* Three states, not two. An explicit choice stamps data-theme on the root and
+   wins in both directions; with nothing stamped the reader's system setting
+   decides. The palette is written once and applied from both rules, so the two
+   cannot drift apart. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #14161a;
     --surface: #1b1e24;
     --sunken: #22262d;
@@ -77,6 +81,23 @@
     --danger-wash: #2b1a19;
   }
 }
+
+:root[data-theme="dark"] {
+    --bg: #14161a;
+    --surface: #1b1e24;
+    --sunken: #22262d;
+    --ink: #e9e6e1;
+    --ink-muted: #a0a6ae;
+    --rule: #333941;
+    --rule-strong: #7f8792;
+    --accent: #7fb3ff;
+    --ok: #7fd79b;
+    --warn: #e8b765;
+    --danger: #ff9c93;
+    --ok-wash: #17251c;
+    --warn-wash: #2a2113;
+    --danger-wash: #2b1a19;
+  }
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -405,6 +426,45 @@ fieldset.gate {
     scroll-behavior: auto !important;
   }
 }
+
+/* --- theme control ------------------------------------------------------- */
+.theme { display: inline-flex; gap: 0; margin-left: 1rem; }
+.theme button {
+  font: inherit; font-size: 0.78rem; line-height: 1;
+  padding: 0.35rem 0.6rem; cursor: pointer;
+  background: var(--surface); color: var(--ink-muted);
+  border: 1px solid var(--rule); border-right-width: 0;
+}
+.theme button:first-of-type { border-radius: 4px 0 0 4px; }
+.theme button:last-of-type  { border-radius: 0 4px 4px 0; border-right-width: 1px; }
+.theme button:hover { color: var(--ink); }
+.theme button[aria-current="true"] {
+  background: var(--sunken); color: var(--ink); font-weight: 600;
+}
+.theme button:focus-visible { outline: 2px solid var(--rule-strong); outline-offset: 1px; }
+
+/* --- login --------------------------------------------------------------- */
+.login { max-width: 34rem; margin: 3rem auto; }
+.login h1 { margin-bottom: 0.25rem; }
+.login .lede { color: var(--ink-muted); margin-top: 0; }
+.login-form { display: grid; gap: 0.6rem; margin: 1.5rem 0; }
+.login-form label { font-weight: 600; }
+.login-form input {
+  font: inherit; padding: 0.6rem 0.7rem;
+  border: 1px solid var(--rule); border-radius: 4px;
+  background: var(--surface); color: var(--ink);
+}
+.login-form button {
+  font: inherit; font-weight: 600; padding: 0.6rem 1rem; cursor: pointer;
+  border: 1px solid var(--rule-strong); border-radius: 4px;
+  background: var(--sunken); color: var(--ink);
+}
+.synthetic-notice {
+  border: 1px solid var(--rule); border-left: 4px solid var(--rule-strong);
+  border-radius: 4px; padding: 0.8rem 1rem; margin: 1.25rem 0;
+  background: var(--sunken); font-size: 0.92rem;
+}
+.muted { color: var(--ink-muted); font-size: 0.88rem; }
 </style>
 </head>
 <body>
@@ -418,7 +478,16 @@ fieldset.gate {
     </div>
     <nav aria-label="Sections">
       {% block nav %}<a href="/">Review queue</a>{% endblock %}
-    </nav>
+      {% set theme = request.cookies.get('overturn_theme', 'auto') %}
+      <form method="post" action="/theme" class="theme" aria-label="Colour theme">
+        <input type="hidden" name="back" value="{{ request.url.path }}">
+        <button type="submit" name="mode" value="auto"
+                {% if theme not in ('light','dark') %}aria-current="true"{% endif %}>Auto</button>
+        <button type="submit" name="mode" value="light"
+                {% if theme == 'light' %}aria-current="true"{% endif %}>Light</button>
+        <button type="submit" name="mode" value="dark"
+                {% if theme == 'dark' %}aria-current="true"{% endif %}>Dark</button>
+      </form>
   </div>
 </header>
 

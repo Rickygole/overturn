@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Sign in — Overturn{% endblock %}
+{% block content %}
+<div class="login">
+  <h1>Overturn</h1>
+  <p class="lede">
+    Appeals review for Northbeck Health Plan denials.
+  </p>
+
+  <div class="synthetic-notice" role="note">
+    <strong>Demonstration system.</strong> Every patient, payer, policy and
+    denial letter behind this login is synthetic. Northbeck Health Plan does not
+    exist. Nothing here is medical, legal, or insurance advice, and no appeal is
+    transmitted to any real insurer.
+  </div>
+
+  {% if error %}
+  <p class="field-error" role="alert" id="login-error">{{ error }}</p>
+  {% endif %}
+
+  <form method="post" action="/login" class="login-form">
+    <label for="password">Access password</label>
+    <input type="password" id="password" name="password" required autofocus
+           autocomplete="current-password"
+           {% if error %}aria-invalid="true" aria-describedby="login-error"{% endif %}>
+    <button type="submit">Sign in</button>
+  </form>
+
+  <p class="muted">
+    The credential is published in the project README — this is a hackathon
+    submission, and a judge is meant to get in.
+  </p>
+</div>
+{% endblock %}
