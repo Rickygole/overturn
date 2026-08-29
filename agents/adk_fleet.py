@@ -26,6 +26,7 @@ renders the same definitions the pipeline executes.
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -207,6 +208,19 @@ class AdkBackend:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         self._runners: dict[str, InMemoryRunner] = {}
+
+        # ADK builds its own model client internally rather than accepting one,
+        # and it decides which API to talk to from the environment. Without
+        # these it takes the Gemini Developer API path and fails with "No API
+        # key was provided" — on a machine holding perfectly good Application
+        # Default Credentials for Vertex AI.
+        #
+        # Set here rather than only in infra/deploy.sh so the behaviour does not
+        # depend on how the process happened to be launched. Existing values are
+        # respected: an operator who set them deliberately outranks this.
+        os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "true")
+        os.environ.setdefault("GOOGLE_CLOUD_PROJECT", self.settings.project_id)
+        os.environ.setdefault("GOOGLE_CLOUD_LOCATION", self.settings.model_location)
 
     def _runner(self, agent_name: str) -> InMemoryRunner:
         if agent_name not in self._runners:
