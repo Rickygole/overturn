@@ -403,19 +403,6 @@ fieldset.gate {
 .stack-5 { margin-top: var(--s5); }
 .stack-6 { margin-top: var(--s6); }
 
-/* --- utilities ----------------------------------------------------------
-   The only things a template ever needs to vary: weight, a smaller note, a
-   rule, and a step on the spacing scale. Nothing here takes an arbitrary value.
-------------------------------------------------------------------------- */
-
-.normal { font-weight: 400; }
-.meta { max-width: none; font-size: var(--text-sm); }
-.note { margin-top: var(--s2); font-size: var(--text-sm); color: var(--ink-muted); }
-.divider { border: 0; border-top: 1px solid var(--rule); margin: var(--s4) 0; }
-.stack-4 { margin-top: var(--s4); }
-.stack-5 { margin-top: var(--s5); }
-.stack-6 { margin-top: var(--s6); }
-
 .foot { border-top: 1px solid var(--rule); margin-top: var(--s8); padding-block: var(--s5); color: var(--ink-muted); font-size: var(--text-sm); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -443,28 +430,191 @@ fieldset.gate {
 }
 .theme button:focus-visible { outline: 2px solid var(--rule-strong); outline-offset: 1px; }
 
-/* --- login --------------------------------------------------------------- */
-.login { max-width: 34rem; margin: 3rem auto; }
-.login h1 { margin-bottom: 0.25rem; }
-.login .lede { color: var(--ink-muted); margin-top: 0; }
-.login-form { display: grid; gap: 0.6rem; margin: 1.5rem 0; }
-.login-form label { font-weight: 600; }
-.login-form input {
-  font: inherit; padding: 0.6rem 0.7rem;
-  border: 1px solid var(--rule); border-radius: 4px;
-  background: var(--surface); color: var(--ink);
+/* --- the wordmark, used where a page has no section title ---------------- */
+.wordmark {
+  display: inline-flex; align-items: baseline; gap: 0.4rem;
+  font-size: var(--text-lg); font-weight: 660; letter-spacing: -0.02em;
+  color: var(--ink);
 }
-.login-form button {
-  font: inherit; font-weight: 600; padding: 0.6rem 1rem; cursor: pointer;
-  border: 1px solid var(--rule-strong); border-radius: 4px;
-  background: var(--sunken); color: var(--ink);
+.masthead p.wordmark { margin: 0; font-size: var(--text-lg); color: var(--ink); }
+.wordmark::before {
+  content: ""; width: 0.45rem; height: 0.45rem; border-radius: 50%;
+  background: var(--ok); flex: none; align-self: center;
 }
-.synthetic-notice {
-  border: 1px solid var(--rule); border-left: 4px solid var(--rule-strong);
-  border-radius: 4px; padding: 0.8rem 1rem; margin: 1.25rem 0;
-  background: var(--sunken); font-size: 0.92rem;
+
+/* --- sign in -------------------------------------------------------------
+   Two columns: what this system is on the left, the door on the right. The
+   left column exists because a judge arriving cold needs to know, before they
+   type anything, that everything behind this screen is invented. That
+   disclosure is a requirement, so it is laid out as content rather than
+   appended as a disclaimer.
+------------------------------------------------------------------------- */
+
+.signin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 25rem);
+  gap: var(--s6) var(--s7);
+  align-items: start;
+  padding-block: var(--s6) var(--s7);
 }
-.muted { color: var(--ink-muted); font-size: 0.88rem; }
+/* Source order is what a narrow screen gets: what this is, the disclosure,
+   the door, then the detail. Wide screens move the door into its own column
+   without changing that order for a screen reader. */
+.signin__intro  { grid-column: 1; grid-row: 1; min-width: 0; }
+.door           { grid-column: 2; grid-row: 1 / span 2; }
+.signin__detail { grid-column: 1; grid-row: 2; min-width: 0; }
+
+@media (max-width: 62rem) {
+  .signin { grid-template-columns: minmax(0, 1fr); gap: var(--s6); padding-block: var(--s5) var(--s6); }
+  .signin__intro, .door, .signin__detail { grid-column: 1; grid-row: auto; }
+}
+.signin__eyebrow {
+  font-family: var(--mono); font-size: var(--text-xs);
+  letter-spacing: 0.11em; text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 0 0 var(--s3);
+}
+.signin h1 {
+  font-size: var(--text-2xl);
+  line-height: 1.12;
+  max-width: 17ch;
+  margin-bottom: var(--s4);
+}
+.signin__lede {
+  font-size: var(--text-md);
+  line-height: 1.55;
+  color: var(--ink-muted);
+  max-width: 48ch;
+  margin-bottom: var(--s5);
+}
+.signin__detail h2 {
+  font-size: var(--text-base);
+  color: var(--ink-muted);
+  font-weight: 600;
+  margin-bottom: var(--s3);
+}
+
+/* What is behind the door, named before it is opened. */
+.behind { list-style: none; margin: 0; padding: 0; max-width: 48ch; }
+.behind li {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, auto) 1fr;
+  gap: var(--s2) var(--s5);
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--rule);
+  font-size: var(--text-sm);
+  max-width: none;
+  margin: 0;
+}
+.behind b {
+  font-family: var(--mono); font-weight: 600;
+  font-size: var(--text-xs); letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--ink-muted);
+  padding-top: 0.15em;
+}
+.behind span { color: var(--ink); }
+@media (max-width: 34rem) {
+  .behind li { grid-template-columns: 1fr; gap: var(--s1); }
+}
+
+/* The compliance disclosure. Bordered and titled, so it reads as part of the
+   record rather than as small print someone bolted on. */
+.synthetic {
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--warn-wash);
+  padding: var(--s4) var(--s5);
+  max-width: 52ch;
+}
+.synthetic h2 {
+  font-size: var(--text-base);
+  margin-bottom: var(--s3);
+  color: var(--ink);
+}
+.synthetic p { font-size: var(--text-sm); color: var(--ink); margin-bottom: var(--s3); max-width: none; }
+.synthetic ul { margin: 0 0 var(--s3); padding-left: var(--s5); }
+.synthetic li { font-size: var(--text-sm); margin-bottom: var(--s1); max-width: none; }
+.synthetic p:last-child, .synthetic ul:last-child { margin-bottom: 0; }
+
+/* --- the door ----------------------------------------------------------- */
+
+.door {
+  border: 2px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--s5);
+  position: sticky;
+  top: var(--s5);
+}
+@media (max-width: 62rem) { .door { position: static; } }
+.door h2 { font-size: var(--text-lg); margin-bottom: var(--s2); }
+.door__note { font-size: var(--text-sm); color: var(--ink-muted); margin-bottom: var(--s5); }
+
+/* Two channels on the failure, not one: the sentence says what happened and
+   the dashed rule says it without colour. */
+.door .field-error {
+  margin: 0 0 var(--s4);
+  padding: var(--s2) var(--s3);
+  border: 2px dashed var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-wash);
+}
+
+.door__form { margin: 0; }
+.door__form label { font-size: var(--text-sm); }
+.door__form input[type="password"] {
+  font: inherit;
+  width: 100%;
+  padding: var(--s3);
+  color: var(--ink);
+  background: var(--bg);
+  border: 2px solid var(--rule-strong);
+  border-radius: var(--radius);
+}
+.door__form input[type="password"]:focus-visible { border-color: var(--accent); }
+.door__submit {
+  font: inherit; font-weight: 660;
+  width: 100%;
+  margin-top: var(--s4);
+  padding: 0.7em 1.5em;
+  cursor: pointer;
+  border: 2px solid var(--ok);
+  border-radius: var(--radius);
+  background: var(--ok);
+  color: var(--surface);
+  transition: background-color 160ms ease-out, color 160ms ease-out;
+}
+.door__submit:hover { background: var(--surface); color: var(--ok); }
+
+/* The credential is published deliberately. Presenting it as a labelled field
+   of the demonstration, rather than as a footnote, is the difference between
+   "a judge is meant to get in" and "someone left this lying around". */
+.key {
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--rule);
+}
+.key dl { margin: 0; }
+.key dt {
+  font-family: var(--mono); font-size: var(--text-xs);
+  letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: var(--s2);
+}
+.key dd { margin: 0 0 var(--s3); }
+.key dd:last-child { margin-bottom: 0; }
+.key code {
+  display: inline-block;
+  font-family: var(--mono); font-size: var(--text-base); font-weight: 600;
+  background: var(--sunken);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  padding: 0.25em 0.6em;
+  user-select: all;
+  word-break: break-all;
+}
+.key p { font-size: var(--text-sm); color: var(--ink-muted); margin: var(--s3) 0 0; }
 </style>
 </head>
 <body>
@@ -472,12 +622,16 @@ fieldset.gate {
 
 <header class="masthead">
   <div class="wrap masthead__inner">
+    {# A page whose own heading is its title (the login) replaces this block
+       rather than printing a second h1 above its own. #}
+    {% block masthead_id %}
     <div>
       <h1>{% block masthead %}Appeal review{% endblock %}</h1>
       <p>No appeal leaves this system without a decision recorded on this screen.</p>
     </div>
+    {% endblock %}
     <nav aria-label="Sections">
-      {% block nav %}<a href="/">Review queue</a>{% endblock %}
+      {% block nav %}<a href="/queue">Review queue</a>{% endblock %}
       {% set theme = request.cookies.get('overturn_theme', 'auto') %}
       <form method="post" action="/theme" class="theme" aria-label="Colour theme">
         <input type="hidden" name="back" value="{{ request.url.path }}">
@@ -488,6 +642,7 @@ fieldset.gate {
         <button type="submit" name="mode" value="dark"
                 {% if theme == 'dark' %}aria-current="true"{% endif %}>Dark</button>
       </form>
+    </nav>
   </div>
 </header>
 

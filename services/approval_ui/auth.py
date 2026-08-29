@@ -112,7 +112,27 @@ def password_matches(supplied: str, config: AuthConfig) -> bool:
 # before anything else and must never be behind a login.
 # Choosing a colour is not a privileged act, and the login page has the control
 # on it like every other page.
-PUBLIC_PATHS = frozenset({"/login", "/health", "/healthz", "/theme"})
+#
+# The public site is served from this same process (see SITE_FILES in app.py) so
+# that the whole product lives at one hostname: a reader arrives at the landing
+# page, reads how it works, and signs in without the address ever changing. Those
+# pages describe the system and contain no case data, so they sit outside the
+# door alongside the login screen. Everything that renders a case stays behind it.
+SITE_PATHS = frozenset(
+    {
+        "/",
+        "/index.html",
+        "/how-it-works.html",
+        "/demo.html",
+        "/evidence.html",
+        "/architecture.html",
+        "/styles.css",
+        "/app.js",
+        "/architecture.svg",
+    }
+)
+
+PUBLIC_PATHS = frozenset({"/login", "/health", "/healthz", "/theme"}) | SITE_PATHS
 
 
 def path_is_public(path: str) -> bool:

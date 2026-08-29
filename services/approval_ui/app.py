@@ -19,7 +19,13 @@ from typing import Annotated, Any
 from urllib.parse import quote
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.templating import Jinja2Templates
 
 from core.idempotency import (
@@ -49,6 +55,25 @@ from services.approval_ui.service import (
 )
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
+
+# The public site ships from this process too, so the product has one address.
+# `docs/` is also what GitHub Pages publishes, which makes that deployment an
+# exact mirror rather than a second thing to keep in sync.
+SITE_DIR = Path(__file__).resolve().parents[2] / "docs"
+
+# An explicit allowlist rather than a mounted directory. `docs/` also holds the
+# project's markdown, which has no business being served, and a fixed mapping
+# means a traversal attempt has nothing to traverse to.
+SITE_FILES: dict[str, tuple[str, str]] = {
+    "index.html": ("index.html", "text/html; charset=utf-8"),
+    "how-it-works.html": ("how-it-works.html", "text/html; charset=utf-8"),
+    "demo.html": ("demo.html", "text/html; charset=utf-8"),
+    "evidence.html": ("evidence.html", "text/html; charset=utf-8"),
+    "architecture.html": ("architecture.html", "text/html; charset=utf-8"),
+    "styles.css": ("styles.css", "text/css; charset=utf-8"),
+    "app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "architecture.svg": ("architecture.svg", "image/svg+xml"),
+}
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +214,7 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
 
     # -- routes ------------------------------------------------------------- #
 
-    @app.get("/", response_class=HTMLResponse)
+    @app.get("/queue", response_class=HTMLResponse)
     def queue(request: Request) -> Response:
         # Approved-and-waiting is its own list. Without it a case the clerk has
         # signed sits in `approved`, which appears in neither of the other two
@@ -400,7 +425,7 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
     @app.get("/login")
     def login_form(request: Request) -> Response:
         if not auth.enabled or session_is_valid(request.cookies.get(COOKIE_NAME), auth):
-            return RedirectResponse("/", status_code=303)
+            return RedirectResponse("/queue", status_code=303)
         return templates.TemplateResponse(request, "login.html", {"error": None})
 
     @app.post("/login")
@@ -473,6 +498,37 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
             {"case_id": exc.args[0] if exc.args else ""},
             status_code=404,
         )
+
+    # -- the public site ----------------------------------------------------- #
+    #
+    # The site and the queue are one deployment so the product has one address:
+    # a reader lands on the front page, reads how the system works, signs in and
+    # reaches the queue without the hostname ever changing.
+
+    def _site_file(asset: str) -> Response:
+        filename, media_type = SITE_FILES[asset]
+        path = SITE_DIR / filename
+        if not path.is_file():
+            # Only reachable if the image was built without docs/. Say so rather
+            # than 404ing silently: the symptom otherwise (site gone, queue
+            # perfectly fine) points nowhere near the Dockerfile.
+            logger.error("site asset %s is missing from %s", filename, SITE_DIR)
+            return Response("This page is not available in this build.", status_code=404)
+        return FileResponse(path, media_type=media_type)
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def landing() -> Response:
+        """The front door — the same page GitHub Pages serves at the site root."""
+        return _site_file("index.html")
+
+    # Declared last on purpose. `/{asset}` matches any single path segment, so
+    # it would swallow `/login` and `/queue` if it came first; FastAPI resolves
+    # in declaration order and that ordering is the whole safeguard.
+    @app.get("/{asset}", include_in_schema=False)
+    def site_asset(asset: str) -> Response:
+        if asset not in SITE_FILES:
+            return Response("Not found", status_code=404, media_type="text/plain")
+        return _site_file(asset)
 
     return app
 
@@ -575,22 +631,14 @@ def _notice(decided: str | None, replay: int, transmit_failed: int = 0) -> dict[
 
 
 def _landing_path(service: ApprovalService) -> str:
-    """Where a reviewer lands after signing in.
+    """Where a reviewer lands after signing in: the queue.
 
-    The queue is the obvious answer and the wrong one for a first impression.
-    Someone opening this for the first time should arrive at the case that best
-    shows what the system does, and the most instructive case is the one that
-    took the most attempts — that is a case where Verification rejected a draft
-    and made it try again, which is the whole argument for the product.
-
-    Falls back to the queue when nothing is waiting, and never raises: a broken
-    landing page must not become a broken login.
+    This used to pick the single most instructive case and drop the reviewer
+    straight into it, on the theory that a first-time visitor should see the
+    product working rather than a list. That was the wrong instinct twice over.
+    A clerk signing in wants their work, not a curated exhibit, and dropping
+    someone into one case with no sense of what else is waiting is precisely
+    what made the interface feel scattered. The queue is the honest front page:
+    it shows the whole workload, and every case is one click away.
     """
-    try:
-        waiting = service.awaiting_approval()
-        if waiting:
-            best = max(waiting, key=lambda case: len(case.drafts))
-            return f"/case/{best.case_id}"
-    except Exception:  # noqa: BLE001 - a queue read must never block signing in
-        logger.exception("could not choose a landing case; falling back to the queue")
-    return "/"
+    return "/queue"
