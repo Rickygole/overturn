@@ -1,0 +1,100 @@
+/* Shared across every page. One palette, defined once.
+   Three theme states: an explicit choice stamps data-theme on the root and wins
+   in both directions; with nothing stamped, the reader's system setting decides. */
+:root{
+  --bg:#faf8f5; --surface:#fff; --sunken:#f2efe9; --ink:#16181c; --ink-muted:#5f646c;
+  --rule:#e0dbd2; --rule-firm:#b9b2a6; --accent:#8f3216; --ok:#2f6b3f; --warn:#8a5a10;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1114; --surface:#181b20; --sunken:#1f232a; --ink:#f0ece6; --ink-muted:#9aa1aa;
+    --rule:#2c3138; --rule-firm:#7b838d; --accent:#e08b6a; --ok:#7fc08f; --warn:#e0b46a;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1114; --surface:#181b20; --sunken:#1f232a; --ink:#f0ece6; --ink-muted:#9aa1aa;
+  --rule:#2c3138; --rule-firm:#7b838d; --accent:#e08b6a; --ok:#7fc08f; --warn:#e0b46a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+     font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased}
+.wrap{max-width:54rem;margin:0 auto;padding:0 1.25rem}
+h1,h2,h3{line-height:1.22;letter-spacing:-.02em}
+h1{font-size:clamp(1.9rem,4.6vw,2.7rem);margin:0 0 .6rem}
+h2{font-size:clamp(1.25rem,2.8vw,1.6rem);margin:3rem 0 .9rem}
+h3{font-size:1.05rem;margin:1.8rem 0 .4rem}
+p{margin:0 0 1rem;max-width:38em}
+a{color:var(--accent);text-underline-offset:3px}
+code,pre{font-family:var(--mono);font-size:.85em}
+pre{background:var(--sunken);border:1px solid var(--rule);border-radius:6px;
+    padding:.95rem 1.1rem;overflow-x:auto;line-height:1.55}
+code:not(pre code){background:var(--sunken);padding:.1em .35em;border-radius:3px}
+.muted{color:var(--ink-muted)}
+.lede{font-size:1.1rem;color:var(--ink-muted);max-width:36em}
+
+/* Masthead and navigation, identical on every page. */
+.masthead{border-bottom:1px solid var(--rule);background:var(--surface);
+          position:sticky;top:0;z-index:5}
+.masthead__inner{display:flex;align-items:center;justify-content:space-between;
+                 gap:1rem;padding:.7rem 0;flex-wrap:wrap}
+.wordmark{font-weight:700;letter-spacing:-.02em;text-decoration:none;color:var(--ink)}
+.nav{display:flex;gap:.15rem;flex-wrap:wrap}
+.nav a{font-size:.86rem;padding:.3rem .6rem;border-radius:5px;
+       text-decoration:none;color:var(--ink-muted)}
+.nav a:hover{color:var(--ink);background:var(--sunken)}
+.nav a[aria-current="page"]{color:var(--ink);background:var(--sunken);font-weight:650}
+.theme{display:inline-flex}
+.theme button{font:inherit;font-size:.76rem;padding:.28rem .55rem;cursor:pointer;
+  background:transparent;color:var(--ink-muted);border:1px solid var(--rule);border-right-width:0}
+.theme button:first-child{border-radius:5px 0 0 5px}
+.theme button:last-child{border-radius:0 5px 5px 0;border-right-width:1px}
+.theme button[aria-pressed="true"]{background:var(--sunken);color:var(--ink);font-weight:600}
+.theme button:focus-visible,.nav a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+main{padding:2.5rem 0 1rem}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.89rem}
+th,td{text-align:left;padding:.5rem .65rem;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted)}
+.yes{color:var(--ok);font-weight:650}
+.no{color:var(--warn);font-weight:650}
+
+.notice{border:1px solid var(--rule);border-left:4px solid var(--rule-firm);
+        background:var(--sunken);border-radius:6px;padding:.85rem 1.05rem;
+        margin:1.4rem 0;font-size:.93rem}
+.callout{border:1px solid var(--rule);border-left:4px solid var(--accent);
+         background:var(--surface);border-radius:6px;padding:1.05rem 1.2rem;margin:1.5rem 0}
+.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));margin:1.4rem 0}
+.card{border:1px solid var(--rule);border-radius:6px;padding:.95rem 1.1rem;
+      background:var(--surface);min-width:0}
+.card h3{margin-top:0}
+
+/* The pipeline, as a spine. Step 9 is deliberately empty of output. */
+ol.steps{list-style:none;counter-reset:s;padding:0;margin:1.5rem 0}
+ol.steps>li{counter-increment:s;position:relative;padding:0 0 1.5rem 2.8rem;
+            border-left:2px solid var(--rule);margin-left:1rem}
+ol.steps>li:last-child{border-left-color:transparent}
+ol.steps>li::before{content:counter(s);position:absolute;left:-1.05rem;top:-.15rem;
+  width:2rem;height:2rem;border-radius:99px;display:grid;place-items:center;
+  background:var(--surface);border:2px solid var(--rule-firm);
+  font-size:.8rem;font-weight:700;font-family:var(--mono);color:var(--ink)}
+ol.steps b{display:block;margin-bottom:.15rem;font-size:1.02rem}
+.gap{border-left-style:dashed !important;min-height:3rem}
+
+figure{margin:1.5rem 0}
+figure img{max-width:100%;height:auto;border:1px solid var(--rule);border-radius:6px;background:#fff}
+figcaption{font-size:.85rem;color:var(--ink-muted);margin-top:.5rem;max-width:38em}
+
+.next{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;
+      margin:3rem 0 0;padding-top:1.2rem;border-top:1px solid var(--rule)}
+.next a{font-weight:650;text-decoration:none}
+.btn{display:inline-block;padding:.7rem 1.3rem;border-radius:99px;text-decoration:none;
+     font-weight:650;background:var(--ink);color:var(--bg);border:1px solid var(--ink)}
+.btn--ghost{background:transparent;color:var(--ink);border-color:var(--rule-firm)}
+footer{margin-top:3rem;border-top:1px solid var(--rule);background:var(--surface);
+       padding:1.5rem 0;font-size:.86rem;color:var(--ink-muted)}
+.placeholder{border:2px dashed var(--rule);border-radius:6px;padding:2.2rem 1rem;
+             text-align:center;color:var(--ink-muted);background:var(--sunken)}
+@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
