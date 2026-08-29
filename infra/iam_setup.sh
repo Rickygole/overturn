@@ -165,6 +165,12 @@ grant_topic   overturn-lifecycle "${INTAKE_TOPIC}" "roles/pubsub.publisher"
 # --- Orchestrator: the Cloud Run surface. Subscribes to intake, invokes agents,
 #     reads secrets for the payer endpoint.
 grant_project overturn-orchestrator "roles/aiplatform.user"
+# The Cloud Run services run as this identity and execute every agent in-process,
+# so it needs what those agents need. Granting Model Armor only to the sentinel
+# identity was correct on paper and wrong in fact: the deployed screening layer
+# reported "unavailable(HTTPError)" while the sentinel service account, which
+# nothing runs as, held the permission.
+grant_project overturn-orchestrator "roles/modelarmor.user"
 grant_project overturn-orchestrator "roles/run.invoker"
 grant_project overturn-orchestrator "roles/secretmanager.secretAccessor"
 grant_topic   overturn-orchestrator "${INTAKE_TOPIC}" "roles/pubsub.subscriber"

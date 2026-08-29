@@ -134,7 +134,20 @@ class SentinelAgent(OverturnAgent[ScreeningRequest, ScreeningResult]):
             armor = build_armor(self.settings)
             return armor.screen(text), f"model_armor:{armor.name}"
         except Exception as exc:
-            return [], f"model_armor:unavailable({type(exc).__name__})"
+            # Carry the detail. An exception class name is not diagnosable: a
+            # 403 from a missing IAM grant, a 404 from a template that was never
+            # created, and a timeout all arrive as the same word, and the audit
+            # log is the only place anyone will look.
+            detail = type(exc).__name__
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status is not None:
+                body = ""
+                try:
+                    body = (exc.response.text or "")[:160].replace("\n", " ")
+                except Exception:
+                    pass
+                detail = f"HTTP {status}: {body}" if body else f"HTTP {status}"
+            return [], f"model_armor:unavailable({detail})"
 
     def _guard_model(self, text: str, rec: Recording) -> tuple[list[ThreatFinding], str]:
         """A Gemma pass over the document, for what patterns miss.
