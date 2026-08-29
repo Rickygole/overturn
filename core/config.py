@@ -25,7 +25,25 @@ class Settings(BaseSettings):
 
     # --- Google Cloud placement -------------------------------------------------
     project_id: str = Field(default="overturn-local", description="Google Cloud project id.")
-    location: str = Field(default="us-central1", description="Vertex AI / Cloud Run region.")
+    location: str = Field(
+        default="us-central1",
+        description="Region for infrastructure: Cloud Run, buckets, Pub/Sub, Firestore.",
+    )
+    model_location: str = Field(
+        default="global",
+        description="Region for generative calls, which is not the same thing.\n\n"
+        "Gemini 3.x is served only from the global endpoint on this project. Every "
+        "regional endpoint returns 404 NOT_FOUND for `gemini-3.5-flash` while the "
+        "Model Garden catalogue lists it as GA, which reads exactly like the model "
+        "not existing rather than like the wrong endpoint. Since the hackathon "
+        "requires Gemini 3.5 or newer, getting this wrong is not a performance "
+        "detail — it is a disqualification that looks like a missing feature.",
+    )
+    embedding_location: str = Field(
+        default="us-central1",
+        description="Embeddings are served regionally; the global endpoint does not "
+        "carry text-embedding-005.",
+    )
 
     # --- Models -----------------------------------------------------------------
     # Flash carries the extraction and screening work; Pro is reserved for the one
@@ -45,7 +63,11 @@ class Settings(BaseSettings):
         description="Open-weights model backing the Sentinel screening pass, "
         "alongside Model Armor and a deterministic rule layer.",
     )
-    embedding_model: str = Field(default="gemini-embedding-001")
+    embedding_model: str = Field(
+        default="text-embedding-005",
+        description="gemini-embedding-001 is not served from either endpoint on "
+        "this project; text-embedding-005 is, regionally.",
+    )
     model_armor_template: str = Field(
         default="",
         description="Model Armor template id backing Sentinel's second layer. Empty "

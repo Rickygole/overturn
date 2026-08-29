@@ -177,10 +177,19 @@ class VertexBackend:
         from google import genai
 
         settings = get_settings()
+        self._settings = settings
+        self._project = project_id or settings.project_id
+        # Generative calls go to the model endpoint, which is not the region the
+        # infrastructure lives in. See Settings.model_location.
         self._client = genai.Client(
             vertexai=True,
-            project=project_id or settings.project_id,
-            location=location or settings.location,
+            project=self._project,
+            location=location or settings.model_location,
+        )
+        self._embedding_client = genai.Client(
+            vertexai=True,
+            project=self._project,
+            location=settings.embedding_location,
         )
 
     @retry(
@@ -234,7 +243,7 @@ class VertexBackend:
         )
 
     def embed(self, texts: list[str], model: str) -> list[list[float]]:
-        result = self._client.models.embed_content(model=model, contents=texts)
+        result = self._embedding_client.models.embed_content(model=model, contents=texts)
         return [list(e.values) for e in result.embeddings]
 
 

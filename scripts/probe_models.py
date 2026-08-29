@@ -12,7 +12,7 @@ from google import genai
 from google.genai import types
 
 PROJECT = "overturn-506402"
-LOCATION = "us-central1"
+LOCATION = "global"  # Gemini 3.x is served only from the global endpoint
 
 CANDIDATES = [
     # Confirmed present in the us-central1 Model Garden catalog on 2026-08-22.
