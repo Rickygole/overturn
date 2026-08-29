@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overturn — appeals that verify their own citations</title>
+<meta name="description" content="An agent fleet that drafts health insurance denial appeals, verifies every policy citation before a human sees the letter, and escalates on its own for weeks.">
+<style>
+:root {
+  --bg:#fbfaf8; --surface:#fff; --sunken:#f2efea; --ink:#1b1d21; --ink-muted:#5c6169;
+  --rule:#ddd8d0; --rule-strong:#8b8578; --accent:#8f3216; --ok:#2f6b3f; --warn:#8a5a10;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#14161a; --surface:#1b1e24; --sunken:#22262d; --ink:#e9e6e1; --ink-muted:#a0a6ae;
+    --rule:#333941; --rule-strong:#7f8792; --accent:#e08b6a; --ok:#7fc08f; --warn:#e0b46a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#14161a; --surface:#1b1e24; --sunken:#22262d; --ink:#e9e6e1; --ink-muted:#a0a6ae;
+  --rule:#333941; --rule-strong:#7f8792; --accent:#e08b6a; --ok:#7fc08f; --warn:#e0b46a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+     font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased}
+.wrap{max-width:56rem;margin:0 auto;padding:0 1.25rem}
+h1,h2,h3{line-height:1.25;letter-spacing:-0.01em}
+h1{font-size:clamp(2rem,5vw,3rem);margin:0 0 .5rem}
+h2{font-size:clamp(1.35rem,3vw,1.8rem);margin:3.5rem 0 1rem;padding-top:1.5rem;border-top:1px solid var(--rule)}
+h3{font-size:1.1rem;margin:2rem 0 .5rem}
+p{margin:0 0 1rem}
+a{color:var(--accent);text-underline-offset:3px}
+code,pre{font-family:var(--mono);font-size:.86em}
+pre{background:var(--sunken);border:1px solid var(--rule);border-radius:6px;
+    padding:1rem;overflow-x:auto;line-height:1.5}
+code:not(pre code){background:var(--sunken);padding:.1em .35em;border-radius:3px}
+.muted{color:var(--ink-muted)}
+.lede{font-size:1.15rem;color:var(--ink-muted);max-width:44rem}
+
+header.top{border-bottom:1px solid var(--rule);background:var(--surface)}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.75rem 0}
+.brand{font-weight:700;letter-spacing:-.02em}
+.theme{display:inline-flex}
+.theme button{font:inherit;font-size:.78rem;padding:.3rem .55rem;cursor:pointer;
+  background:var(--surface);color:var(--ink-muted);border:1px solid var(--rule);border-right-width:0}
+.theme button:first-child{border-radius:4px 0 0 4px}
+.theme button:last-child{border-radius:0 4px 4px 0;border-right-width:1px}
+.theme button[aria-pressed="true"]{background:var(--sunken);color:var(--ink);font-weight:600}
+
+.hero{padding:3.5rem 0 1rem}
+.badges{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.5rem 0}
+.badge{font-size:.8rem;padding:.25rem .6rem;border:1px solid var(--rule);
+       border-radius:99px;color:var(--ink-muted);background:var(--surface)}
+.cta{display:flex;flex-wrap:wrap;gap:.75rem;margin:1.75rem 0}
+.btn{display:inline-block;padding:.65rem 1.1rem;border-radius:6px;text-decoration:none;
+     font-weight:600;border:1px solid var(--rule-strong);color:var(--ink);background:var(--surface)}
+.btn--primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+.notice{border:1px solid var(--rule);border-left:4px solid var(--rule-strong);
+        background:var(--sunken);border-radius:6px;padding:.9rem 1.1rem;margin:1.5rem 0;font-size:.94rem}
+.callout{border:1px solid var(--rule);border-left:4px solid var(--accent);
+         background:var(--surface);border-radius:6px;padding:1.1rem 1.25rem;margin:1.5rem 0}
+
+table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.9rem}
+.scroll{overflow-x:auto}
+th,td{text-align:left;padding:.5rem .6rem;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-muted)}
+.yes{color:var(--ok);font-weight:600}
+.no{color:var(--warn);font-weight:600}
+
+ol.steps{list-style:none;counter-reset:s;padding:0;margin:1.5rem 0}
+ol.steps li{counter-increment:s;position:relative;padding:0 0 1.4rem 3rem;
+            border-left:1px solid var(--rule);margin-left:1rem}
+ol.steps li:last-child{border-left-color:transparent}
+ol.steps li::before{content:counter(s);position:absolute;left:-1rem;top:0;
+  width:2rem;height:2rem;border-radius:99px;display:grid;place-items:center;
+  background:var(--surface);border:1px solid var(--rule-strong);
+  font-size:.85rem;font-weight:700;font-family:var(--mono)}
+ol.steps b{display:block;margin-bottom:.15rem}
+.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));margin:1.5rem 0}
+.card{border:1px solid var(--rule);border-radius:6px;padding:1rem 1.1rem;background:var(--surface)}
+.card h3{margin-top:0}
+figure{margin:1.5rem 0}
+figure img{max-width:100%;height:auto;border:1px solid var(--rule);border-radius:6px;background:#fff}
+figcaption{font-size:.85rem;color:var(--ink-muted);margin-top:.5rem}
+footer{margin-top:4rem;border-top:1px solid var(--rule);background:var(--surface);
+       padding:2rem 0;font-size:.9rem;color:var(--ink-muted)}
+.placeholder{border:2px dashed var(--rule);border-radius:6px;padding:2.5rem 1rem;
+             text-align:center;color:var(--ink-muted);background:var(--sunken)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap topbar">
+    <span class="brand">Overturn</span>
+    <div class="theme" role="group" aria-label="Colour theme">
+      <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-mode="light" aria-pressed="false">Light</button>
+      <button type="button" data-mode="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section class="hero">
+  <h1>Appeals that verify their own citations</h1>
+  <p class="lede">
+    Overturn turns a health insurance denial letter into a policy-cited appeal —
+    checking every citation against the insurer's own published policy before a
+    human ever reads the draft, and staying on the case for the weeks it takes a
+    payer to answer.
+  </p>
+
+  <div class="badges">
+    <span class="badge">7 agents</span>
+    <span class="badge">Gemini 3.5 &amp; 3.7 Flash</span>
+    <span class="badge">Gemma</span>
+    <span class="badge">Google ADK</span>
+    <span class="badge">Cloud Run · Pub/Sub · Firestore</span>
+    <span class="badge">434 tests</span>
+  </div>
+
+  <div class="cta">
+    <a class="btn btn--primary" href="https://github.com/Rickygole/overturn">Source on GitHub</a>
+    <a class="btn" href="https://overturn-approval-kruy6aauaq-uc.a.run.app">Open the live app</a>
+  </div>
+
+  <div class="notice">
+    <strong>Everything here is synthetic.</strong> Northbeck Health Plan is an
+    invented insurer, its policies were written for this project, and the
+    patients come from <a href="https://github.com/synthetichealth/synthea">Synthea</a>.
+    No real patient data was used or consulted. Nothing on this page is medical,
+    legal, or insurance advice, and no appeal is transmitted to any real insurer.
+    <br><br>
+    Live app password: <code>northbeck-appeals-2026</code>
+  </div>
+</section>
+
+<h2>The problem</h2>
+<p>
+  A denial letter lands on a billing clerk's desk. Doing this properly means
+  finding the insurer's own medical policy, checking the patient's chart against
+  it criterion by criterion, and writing a letter that cites the policy back to
+  them by section number.
+</p>
+<p>
+  That is a two-hour job, and there are forty other things to bill today. So most
+  denials are never appealed — and a large share of the ones that <em>are</em>
+  appealed get overturned, which means many of the claims nobody appealed were
+  winnable. The bottleneck was never judgment. It is that the labour cost of one
+  appeal exceeds the value of one claim.
+</p>
+
+<h2>What happens when a letter arrives</h2>
+<p class="muted">This is the demo, in order. Every line below is something the running system does.</p>
+
+<ol class="steps">
+  <li><b>A letter lands in a bucket.</b>
+    Cloud Storage notifies Pub/Sub, which pushes to a private Cloud Run service.
+    Nothing polls; the letter's arrival is what starts everything.</li>
+  <li><b>Sentinel screens it before anything reads it.</b>
+    A denial letter is a document from an outside party, so it is treated as
+    hostile. Three independent detectors: deterministic rules, Google Model
+    Armor, and a Gemma pass. Any of them can halt the pipeline.</li>
+  <li><b>Intake reads it.</b>
+    Payer, claim number, service denied, stated reason, appeal deadline. Every
+    field is nullable — a null is recoverable, an invented claim number is not.</li>
+  <li><b>Retrieval finds the rule they denied under.</b>
+    It returns the <em>whole</em> governing policy rather than the top-scoring
+    fragments, because a criteria list truncated by rank has silent holes in it.</li>
+  <li><b>Mapping does the real work.</b>
+    For each numbered criterion: does the chart document what the payer asked
+    for? Each verdict carries a chart quote and a pointer to where it came from.
+    This is a documentation question, never a clinical one.</li>
+  <li><b>Drafting writes the appeal</b> from the satisfied criteria only. It has
+    no access to the policy corpus at all, so it cannot go looking for supporting
+    material it was not given.</li>
+  <li><b>Verification checks it three ways.</b>
+    Does every cited section exist — a set-membership test in Python, because a
+    model cannot be wrong about a question it is never asked. Does the source text
+    actually say what the letter claims. Does the letter assert any fact the chart
+    does not support. Any failure sends it back with the specific reason. Three
+    strikes and it goes to a person with nothing sent.</li>
+  <li><b>Two humans sign.</b>
+    The clerk confirms the paper trail. The ordering clinician signs the clinical
+    argument, on a separate screen. Neither alone transmits anything.</li>
+  <li><b>Then nothing happens for weeks.</b>
+    No process runs. The entire state is one Firestore document. Cloud Scheduler
+    wakes a job, finds cases past their payer deadline, and climbs the appeal
+    ladder on its own — first level, peer-to-peer, second level, external review.</li>
+</ol>
+
+<h2>The moment that matters</h2>
+<div class="callout">
+  <p>
+    On a real run against Gemini, Drafting overclaimed. It wrote that a
+    14 July 2026 encounter was a <em>telehealth evaluation</em> and named a
+    provider the chart does not name. Nobody prompted this and nothing was
+    injected — the model simply reached slightly past its evidence, which is
+    exactly what these systems do.
+  </p>
+  <p><strong>Verification caught it.</strong></p>
+<pre>drafting      attempt 1: 8 citation(s), 6 clinical assertion(s)
+verification  attempt 1 REJECTED: 1 unsupported citation, 2 ungrounded assertions
+              "The medical record does not mention that this evaluation was
+               telehealth, nor does it identify 'Dr. Castellanos' as the provider."
+drafting      attempt 2: 6 citation(s)
+verification  attempt 2 REJECTED: 2 ungrounded assertion(s)
+drafting      attempt 3: 6 citation(s)
+verification  attempt 3 PASSED — awaiting human approval</pre>
+  <p class="muted" style="margin-bottom:0">
+    A fault-injection switch exists to demonstrate the same loop deliberately.
+    It is not what produced this. A safety net that has caught something real is
+    worth more than one that has only ever been tested.
+  </p>
+</div>
+
+<h2>Does it actually get the right answer?</h2>
+<p>
+  The failure worth worrying about is not a crash. It is a confident,
+  well-cited, entirely irrelevant appeal — and nothing that asserts on status
+  codes would notice one. So correctness is measured, against both a
+  deterministic offline backend and real models, and both columns are published.
+</p>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Case</th><th>Scenario</th><th>Expected</th><th>Offline</th><th>Live</th></tr></thead>
+  <tbody>
+    <tr><td><code>CASE-001</code></td><td>clean win</td><td>awaiting approval</td><td class="yes">match</td><td class="yes">match</td></tr>
+    <tr><td><code>CASE-002</code></td><td>prompt injection</td><td>quarantined</td><td class="yes">match</td><td class="yes">match</td></tr>
+    <tr><td><code>CASE-003</code></td><td>verification catch</td><td>awaiting approval</td><td class="yes">match</td><td class="yes">match</td></tr>
+    <tr><td><code>CASE-004</code></td><td>no governing policy</td><td>declined</td><td class="yes">match</td><td class="yes">match</td></tr>
+    <tr><td><code>CASE-005</code></td><td>clean win</td><td>awaiting approval</td><td class="yes">match</td><td class="yes">match</td></tr>
+    <tr><td><code>CASE-006</code></td><td>undocumented criterion</td><td>declined</td><td class="yes">match</td><td class="no">differs</td></tr>
+    <tr><td><code>CASE-007</code></td><td>scanned fax</td><td>awaiting approval</td><td class="yes">match</td><td class="no">differs</td></tr>
+    <tr><td><code>CASE-008</code></td><td>second denial</td><td>declined</td><td class="yes">match</td><td class="yes">match</td></tr>
+  </tbody>
+</table>
+</div>
+
+<pre>offline   8/8 outcomes   8/8 grounded   29 citations checked   0 fabricated
+live      6/8 outcomes   8/8 grounded   44 model calls, 266k tokens</pre>
+
+<p>
+  Zero fabricated citations and zero unlocatable chart quotes, in both columns.
+  The two live cases that differ are
+  <a href="EVALUATION.md">written up rather than smoothed over</a> — one is a
+  genuine disagreement about clinical documentation, and one is the attempt cap
+  correctly refusing to send.
+</p>
+
+<h2>Architecture</h2>
+<figure>
+  <img src="architecture.svg" alt="Overturn fleet architecture: seven agents behind a per-agent access gateway, entering through Cloud Storage and Pub/Sub into Cloud Run, with a Drafting–Verification retry loop, a two-signature human gate, and a scheduled escalation path.">
+  <figcaption>
+    Two absences are drawn on purpose. Drafting has no line to the policy corpus,
+    so it cannot look for material it was not handed. Verification has no write
+    line to the draft, so it cannot edit what it is judging. Neither is a rule
+    anyone has to remember — the handle each agent receives will not perform the
+    call. <a href="ARCHITECTURE.md">Full architecture notes</a>.
+  </figcaption>
+</figure>
+
+<h2>What we found building it</h2>
+<div class="grid">
+  <div class="card">
+    <h3>Model Armor missed the injection</h3>
+    <p>
+      All four filters ran, <code>EXECUTION_SUCCESS</code>,
+      <code>NO_MATCH_FOUND</code>. The deterministic rules layer caught it.
+      Judged as a prompt the payload is unremarkable business correspondence;
+      what makes it an attack is that a payer does not address a section to an
+      automated claims agent.
+    </p>
+    <p class="muted">
+      Defence in depth is usually asserted and rarely demonstrated. This is why
+      the consequence of a finding is decided in Python and not by whichever
+      detector spoke last. <a href="SCREENING_LAYERS.md">The measurement</a>.
+    </p>
+  </div>
+  <div class="card">
+    <h3>Gemini 3.5 is global-endpoint only</h3>
+    <p>
+      Every regional endpoint returns <code>404 NOT_FOUND</code> for
+      <code>gemini-3.5-flash</code> while the Model Garden catalogue lists it GA.
+      That reads exactly like the model not existing rather than like the wrong
+      endpoint — and the contest requires 3.5 or newer, so it was a
+      disqualification wearing the costume of a missing feature.
+    </p>
+  </div>
+  <div class="card">
+    <h3>No Pro-tier model clears the floor</h3>
+    <p>
+      Every Gemini 3.x Pro identifier in the catalogue is preview and numbered
+      <em>below</em> 3.5. So "use Pro for the hard call" became "use the newest
+      GA Flash", and the reasoning was written down rather than quietly falling
+      back to a 2.5 model that would have been disqualifying.
+      <a href="MODEL_CHOICES.md">Model choices</a>.
+    </p>
+  </div>
+  <div class="card">
+    <h3>The clerk is the wrong signatory</h3>
+    <p>
+      A billing clerk cannot competently judge whether "the chart documents that
+      the contraindication was addressed" is fair. So the gate is two signatures:
+      the clerk confirms the paper trail, the ordering clinician signs the
+      medicine. Neither alone transmits.
+    </p>
+  </div>
+</div>
+
+<h2>Demo video</h2>
+<div class="placeholder">Video embed goes here once filmed.</div>
+
+<h2>Try it</h2>
+<pre>git clone https://github.com/Rickygole/overturn.git
+cd overturn &amp;&amp; uv sync
+uv run pytest -q                                    # 434 tests, a few seconds
+uv run python scripts/run_pipeline.py CASE-001      # a clean case, end to end
+uv run python scripts/run_pipeline.py CASE-002      # the poisoned letter
+uv run python scripts/evaluate.py                   # the scorecard above</pre>
+<p class="muted">
+  Nothing there needs a cloud project, an API key, or a network connection. The
+  whole seven-agent pipeline runs offline and deterministically; only the
+  generative calls are answered locally.
+</p>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>
+      Built for the Google &amp; Devpost All Things Agentic Hackathon, track:
+      The Fortified Enterprise Fleet.
+      <a href="https://github.com/Rickygole/overturn">Repository</a> ·
+      <a href="ARCHITECTURE.md">Architecture</a> ·
+      <a href="EVALUATION.md">Evaluation</a> ·
+      <a href="SCREENING_LAYERS.md">Screening layers</a> ·
+      <a href="BLOG_POST.md">Write-up</a>
+    </p>
+    <p>Apache-2.0. Synthetic data throughout. Not medical, legal, or insurance advice.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var KEY = "overturn-theme";
+  var root = document.documentElement;
+  var buttons = document.querySelectorAll(".theme button");
+  function apply(mode) {
+    if (mode === "light" || mode === "dark") root.setAttribute("data-theme", mode);
+    else root.removeAttribute("data-theme");
+    buttons.forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.mode === (mode || "auto")));
+    });
+  }
+  var saved = null;
+  // Storage can throw outright in a private window or with site data blocked,
+  // so a failure here must leave the page working on the system preference.
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  apply(saved || "auto");
+  buttons.forEach(function (b) {
+    b.addEventListener("click", function () {
+      var mode = b.dataset.mode;
+      apply(mode);
+      try {
+        if (mode === "auto") localStorage.removeItem(KEY);
+        else localStorage.setItem(KEY, mode);
+      } catch (e) {}
+    });
+  });
+})();
+</script>
+</body>
+</html>
