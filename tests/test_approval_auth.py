@@ -228,3 +228,58 @@ class TestBothPalettesAreDefined:
             Path(__file__).resolve().parents[1] / "services/approval_ui/templates/base.html"
         ).read_text()
         assert "background" in css.split("body {")[1].split("}")[0]
+
+
+class TestWhereYouLandAfterSigningIn:
+    """The queue is the obvious landing page and the wrong first impression.
+
+    Someone opening this for the first time should arrive at the case that best
+    shows what the system does — the one where Verification rejected a draft and
+    made it try again, which is the whole argument for the product.
+    """
+
+    def _seed(self, store, case_id: str, attempts: int) -> None:
+        from core.gateway import GatewayHandle
+        from core.schemas.case import CaseRecord
+        from core.schemas.draft import AppealDraft
+        from core.schemas.enums import AgentName, CaseStatus
+        from core.state import CaseRepository
+
+        case = CaseRecord(case_id=case_id, source_document_uri=f"gs://b/{case_id}.txt")
+        case.drafts = [
+            AppealDraft(case_id=case_id, attempt=n, subject_line="s", body="b" * 60)
+            for n in range(1, attempts + 1)
+        ]
+        case.transition(CaseStatus.AWAITING_APPROVAL, actor="test")
+        CaseRepository(store, GatewayHandle(AgentName.ORCHESTRATOR)).create(case)
+
+    def test_it_lands_on_the_case_that_took_the_most_attempts(self, monkeypatch):
+        monkeypatch.setenv("OVERTURN_UI_PASSWORD", PASSWORD)
+        monkeypatch.setenv("OVERTURN_UI_SECRET", "s" * 64)
+        store = MemoryStore()
+        self._seed(store, "CASE-EASY", attempts=1)
+        self._seed(store, "CASE-HARD", attempts=3)
+
+        client = TestClient(create_app(store), follow_redirects=False)
+        response = client.post("/login", data={"password": PASSWORD})
+        assert response.headers["location"] == "/case/CASE-HARD"
+
+    def test_it_falls_back_to_the_queue_when_nothing_is_waiting(self, monkeypatch):
+        monkeypatch.setenv("OVERTURN_UI_PASSWORD", PASSWORD)
+        monkeypatch.setenv("OVERTURN_UI_SECRET", "s" * 64)
+        client = TestClient(create_app(MemoryStore()), follow_redirects=False)
+        assert client.post("/login", data={"password": PASSWORD}).headers["location"] == "/"
+
+    def test_a_failing_queue_read_does_not_break_signing_in(self, monkeypatch):
+        """A broken landing page must not become a broken login."""
+        monkeypatch.setenv("OVERTURN_UI_PASSWORD", PASSWORD)
+        monkeypatch.setenv("OVERTURN_UI_SECRET", "s" * 64)
+
+        class Exploding(MemoryStore):
+            def query(self, *args, **kwargs):
+                raise RuntimeError("firestore is unhappy")
+
+        client = TestClient(create_app(Exploding()), follow_redirects=False)
+        response = client.post("/login", data={"password": PASSWORD})
+        assert response.status_code == 303
+        assert response.headers["location"] == "/"

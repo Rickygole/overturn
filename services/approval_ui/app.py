@@ -415,7 +415,7 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
                 {"error": "That password is not correct."},
                 status_code=401,
             )
-        response = RedirectResponse("/", status_code=303)
+        response = RedirectResponse(_landing_path(service), status_code=303)
         response.set_cookie(
             COOKIE_NAME,
             issue_session(auth),
@@ -572,3 +572,25 @@ def _notice(decided: str | None, replay: int, transmit_failed: int = 0) -> dict[
             "body": "The case has been returned for human review.",
         }
     return None
+
+
+def _landing_path(service: ApprovalService) -> str:
+    """Where a reviewer lands after signing in.
+
+    The queue is the obvious answer and the wrong one for a first impression.
+    Someone opening this for the first time should arrive at the case that best
+    shows what the system does, and the most instructive case is the one that
+    took the most attempts — that is a case where Verification rejected a draft
+    and made it try again, which is the whole argument for the product.
+
+    Falls back to the queue when nothing is waiting, and never raises: a broken
+    landing page must not become a broken login.
+    """
+    try:
+        waiting = service.awaiting_approval()
+        if waiting:
+            best = max(waiting, key=lambda case: len(case.drafts))
+            return f"/case/{best.case_id}"
+    except Exception:  # noqa: BLE001 - a queue read must never block signing in
+        logger.exception("could not choose a landing case; falling back to the queue")
+    return "/"
