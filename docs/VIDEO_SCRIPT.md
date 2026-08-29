@@ -7,7 +7,7 @@ timestamp rather than trusted. No music; narration over screen recording.
 
 Every resource named on screen matches what `infra/provision.sh` and
 `infra/deploy.sh` actually create: the intake bucket is `${PROJECT_ID}-intake`,
-the Cloud Run services are `overturn-ingest`, `overturn-approval`,
+the Cloud Run services are `overturn-ingest`, `overturn`,
 `overturn-scheduler`, the Pub/Sub subscription is `overturn-ingest`, the topic
 is `overturn-denial-received`, and the scheduler job is `overturn-tick` — not
 `overturn-inbound` or `overturn-lifecycle-sweep`, which is what an earlier
@@ -58,30 +58,21 @@ it would cost the project its best beat if followed. Fixed here:
 
 Read this before scheduling a recording session, not after a failed take.
 
-- **The approval UI's login is not wired into `infra/deploy.sh` today.**
-  `services/approval_ui/auth.py` reads `OVERTURN_UI_PASSWORD` and disables the
-  login entirely if it's unset (`AuthConfig.enabled`). `infra/deploy.sh`'s
-  `COMMON_ENV` never sets it. A comment in `auth.py` claims "the deployed
-  service always has one — `infra/deploy.sh` refuses to make the service
-  public without it," and that claim is not true against the deploy script as
-  it stands. **Before filming the gate, set it by hand:**
-  ```bash
-  gcloud run services update overturn-approval --region="$REGION" \
-    --update-env-vars=OVERTURN_UI_PASSWORD=northbeck-appeals-2026
-  ```
-  Without this, `overturn-approval` will not show a login screen at all, and
-  the video would be showing a door that isn't there — the same category of
-  mistake this rewrite exists to fix elsewhere.
-- **`overturn-approval` is Cloud-Run-IAM-gated *in addition to* the app
-  login**, per `infra/deploy.sh` (`--no-allow-unauthenticated` on that
-  service, same as ingest and scheduler). A browser hitting the raw
-  `.run.app` URL gets a 403 from Cloud Run before it ever sees the login
-  page. To reach it as a browser, either proxy it —
-  `gcloud run services proxy overturn-approval --region="$REGION"` — or grant
-  the presenter's account `roles/run.invoker` (deploy.sh already does this
-  for whoever ran it). Film through the proxy's `localhost` URL. This is a
-  second, separate gate from the password one; both are real, and the video
-  should not imply the URL is open to the internet with just a password.
+- **The login is configured and the service is public. Nothing to do before
+  filming.** `infra/open_public.sh` sets `OVERTURN_UI_PASSWORD` and a stable
+  `OVERTURN_UI_SECRET` from Secret Manager, and removes the Cloud Run IAM
+  binding. A previous draft of this document told the presenter to set the
+  password by hand and to film through a proxy; both instructions are now
+  wrong and following them would waste a session.
+
+- **Film the real URL directly — no proxy.** The whole product lives at one
+  address, `https://overturn-kruy6aauaq-uc.a.run.app`: the public site at `/`,
+  and the review queue at `/queue` behind the app password
+  `northbeck-appeals-2026`. Cloud Run's IAM gate has been removed from this
+  one service; `overturn-ingest` and `overturn-scheduler` remain private and
+  invokable only by Pub/Sub and Cloud Scheduler. Showing the address bar is
+  itself part of the proof the rules ask for — a `.run.app` URL on screen.
+
 - **The live-model beat is not reproducible on demand.** `docs/EVALUATION.md`
   records a *specific* real overclaim from a *specific* live run on
   2026-08-28: attempt 1 called the patient's July 14 encounter a "telehealth
@@ -120,9 +111,11 @@ Read this before scheduling a recording session, not after a failed take.
 5. Browser tab: Cloud Trace → Trace list.
 6. Browser tab: IAM → Service Accounts.
 7. Browser tab: Cloud Scheduler → `overturn-tick`.
-8. A second browser window (or profile) for the approval UI, reachable via
-   the proxy below — kept separate so cookies/login state don't collide with
-   the console tabs.
+8. A second browser window (or profile) at
+   `https://overturn-kruy6aauaq-uc.a.run.app` — kept separate so cookies and
+   login state don't collide with the console tabs. No proxy; the URL is
+   public and the address bar showing `.run.app` is itself part of the
+   Google Cloud proof the rules ask for.
 
 **Terminal font size:** 20pt minimum at 1080p capture, 24pt if recording at
 1080p for a viewer who will watch at less than full screen. The JSON and
@@ -155,20 +148,19 @@ gcloud auth application-default set-quota-project "$PROJECT_ID"
 #    default doesn't match the real ingest route.
 INGEST_PUSH_PATH=/pubsub/push bash infra/deploy.sh
 
-# 2. Wire the approval UI's login (see "Flagged" above — deploy.sh does not
-#    do this on its own).
-gcloud run services update overturn-approval --region="$REGION" \
-  --update-env-vars=OVERTURN_UI_PASSWORD=northbeck-appeals-2026
+# 2. Publish the service behind its login. Sets OVERTURN_UI_PASSWORD and a
+#    stable signing secret, and removes the Cloud Run IAM gate on this one
+#    service only.
+SERVICE=overturn bash infra/open_public.sh
 
-# 3. Enable demo time acceleration on the scheduler, then submit a SECOND
-#    case (not CASE-001 — see "continuity" fix above) through the gate so
-#    something is genuinely overdue and ready to escalate on camera:
-gcloud run services update overturn-scheduler --region="$REGION" \
-  --update-env-vars=OVERTURN_DEMO_TIME_ACCELERATION=true,OVERTURN_DEMO_SECONDS_PER_DAY=1
-gcloud storage cp data/denials/CASE-005.txt "gs://${PROJECT_ID}-intake/"
-# ... wait for CASE-005 to reach awaiting_human_approval (watch the log tail),
-# then approve + co-sign it through the proxy exactly as beat 12 below shows,
-# off camera, so it is sitting `submitted` and overdue before recording starts.
+# 3. ALREADY DONE as of 2026-08-29 — verify rather than repeat. Time
+#    acceleration is on (one second per simulated day), all eight letters have
+#    been run through, and two cases were driven through the human gate off
+#    camera: CASE-005 is `submitted`, CASE-006 is `escalated` after Lifecycle
+#    found it overdue. Confirm with the dashboard at /queue before recording:
+#    8 cases, 3 needing a person, 2 with the payer, 3 closed.
+gcloud run services describe overturn --region="$REGION" \
+  --format='value(spec.template.spec.containers[0].env)' | tr ';' '\n' | grep DEMO
 
 # 4. Rehearse the CASE-001 live-catch beat (see "Flagged" above) until one
 #    take produces a genuine Verification rejection, before recording for
@@ -209,7 +201,7 @@ beat 10, and it should not be left on.
 | **2:00–2:24** | (59 words) "Second case: this letter carries a paragraph addressed to whatever reads it — new instructions, an exfiltration address. Model Armor scans it and finds nothing: NO_MATCH_FOUND, every filter. The rules layer, built to know what a denial letter looks like, catches it — seven findings — and quarantines the case before Intake sees a word. Defence in depth, demonstrated, not just claimed." | CASE-002 letter zoomed on the "AUTOMATED PROCESSING FOOTER" paragraph, highlighted red. Cut to a terminal: `OVERTURN_RUNTIME_MODE=cloud OVERTURN_MODEL_ARMOR_TEMPLATE=overturn-inbound uv run python scripts/screening_report.py` — first line `Model Armor client: enabled`, then the table, cursor on the `CASE-002.txt` row: `armor 0, rules 7, quarantined True`. Cut to the case status panel: `quarantined` — terminal, nothing runs below it. |
 | **2:24–2:39** | (37 words) "Say the payer goes silent. Nothing polls while it waits — no process is running. Cloud Scheduler wakes overturn-tick every five minutes, finds the overdue cases, and Lifecycle climbs the ladder on its own, rung after rung, unattended." | Firestore: CASE-005's document, `status: submitted`, `response_deadline` visible. Cut to Cloud Scheduler console: job `overturn-tick`, `*/5 * * * *`. Run it on demand on screen: `gcloud scheduler jobs run overturn-tick --location=$REGION`. Cut back to Firestore: `status: submitted → escalated`, `appeal_level` flips to the next rung. On-screen caption, held to the end of the shot: "DEMO ONLY: response window compressed for filming. Disclosed in README.md." |
 | **2:39–2:58** | (48 words) "Seven agents, one per step, each its own service account — Drafting can't read the policy corpus, Verification can't edit the draft it's judging. Overturn-ingest and overturn-scheduler return 403 in a browser by design — only Pub/Sub and Cloud Scheduler can call them. That's the access model, not a bug." | Architecture diagram (2–3s). Cut to IAM → Service Accounts: eight `overturn-*` identities. Cut to a browser hitting the raw `overturn-ingest` `.run.app` URL: `403 Forbidden`. Cut to the Cloud Trace list for this recording session. |
-| **2:58–3:25** | (67 words) "Nothing goes to a payer without a person. Two signatures, two screens. The clerk logs in and confirms the paper trail — citations resolve, quotes match — and the screen says it outright: you are not being asked whether this care was appropriate. The clinician signs separately, on a screen that says the opposite: you're attesting to the medicine, not the paperwork. Whichever signature lands second is what transmits." | `gcloud run services proxy overturn-approval --region=$REGION`, browser to `localhost:8080` — the "Sign in — Overturn" login page, password entered. `/case/CASE-001`: the verified draft, the three-checkbox gate, the sentence "You are not being asked whether this care was appropriate" visible on screen, "Approve attempt 2" clicked. Queue screen: "Approved — awaiting the clinician's co-sign." Cut to `/case/CASE-001/clinical`: the attestation checkbox and its label ("I ordered this care... the clinical argument in this letter is accurate"), "Co-sign attempt 2" clicked. Notice banner: "Transmitted to Northbeck Health Plan." |
+| **2:58–3:25** | (67 words) "Nothing goes to a payer without a person. Two signatures, two screens. The clerk logs in and confirms the paper trail — citations resolve, quotes match — and the screen says it outright: you are not being asked whether this care was appropriate. The clinician signs separately, on a screen that says the opposite: you're attesting to the medicine, not the paperwork. Whichever signature lands second is what transmits." | Browser to `https://overturn-kruy6aauaq-uc.a.run.app/queue` — the "Sign in — Overturn" login page, password entered. `/case/CASE-001`: the verified draft, the three-checkbox gate, the sentence "You are not being asked whether this care was appropriate" visible on screen, "Approve attempt 2" clicked. Queue screen: "Approved — awaiting the clinician's co-sign." Cut to `/case/CASE-001/clinical`: the attestation checkbox and its label ("I ordered this care... the clinical argument in this letter is accurate"), "Co-sign attempt 2" clicked. Notice banner: "Transmitted to Northbeck Health Plan." |
 | **3:25–3:31** | (silent) | Fade to the OVERTURN wordmark, no tagline, hold on black. |
 
 ---
