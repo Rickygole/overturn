@@ -415,7 +415,7 @@ def test_health_is_cheap_and_does_not_touch_the_datastore(client):
 
 class TestQueue:
     def test_lists_cases_awaiting_approval_with_everything_needed_to_triage(self, client, seeded):
-        html = client.get("/").text
+        html = client.get("/queue").text
 
         assert "Awaiting human approval" in html
         assert CASE_ID in html
@@ -431,13 +431,13 @@ class TestQueue:
         sent_back.needs_human_reason = "Verification exhausted its retries."
         repo.create(sent_back)
 
-        html = client.get("/").text
+        html = client.get("/queue").text
         assert "Needs human review" in html
         assert "CASE-009" in html
         assert "Verification exhausted its retries." in html
 
     def test_empty_queue_says_so_rather_than_showing_an_empty_table(self, client):
-        html = client.get("/").text
+        html = client.get("/queue").text
         assert "Nothing is waiting for a decision" in html
         assert "No case has been sent back" in html
 
@@ -447,7 +447,7 @@ class TestQueue:
         repo.create(urgent)
         repo.create(_case())
 
-        html = client.get("/").text
+        html = client.get("/queue").text
         assert html.index("CASE-URGENT") < html.index(CASE_ID)
 
 
@@ -1094,12 +1094,12 @@ class TestSubmissionGate:
     def test_the_queue_lists_a_case_waiting_on_its_clinician(self, transmitting_client, seeded):
         _approve(transmitting_client)
 
-        html = transmitting_client.get("/").text
+        html = transmitting_client.get("/queue").text
         assert "Approved — awaiting the clinician's co-sign" in html
         assert f'href="/case/{CASE_ID}/clinical"' in html
 
     def test_the_queue_says_so_when_no_case_is_waiting_on_a_signature(self, client):
-        assert "No case is waiting on a signature" in client.get("/").text
+        assert "No case is waiting on a signature" in client.get("/queue").text
 
 
 class TestTransmissionFailure:

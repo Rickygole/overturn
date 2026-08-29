@@ -37,7 +37,9 @@ def guarded(monkeypatch) -> TestClient:
 
 
 class TestTheDoorIsShut:
-    @pytest.mark.parametrize("path", ["/", "/case/CASE-001", "/case/CASE-001/clinical"])
+    @pytest.mark.parametrize(
+        "path", ["/queue", "/case/CASE-001", "/case/CASE-001/clinical"]
+    )
     def test_a_page_showing_a_case_redirects_to_login(self, guarded, path):
         response = guarded.get(path)
         assert response.status_code == 303
@@ -51,6 +53,15 @@ class TestTheDoorIsShut:
     def test_the_login_page_itself_is_reachable(self, guarded):
         assert guarded.get("/login").status_code == 200
 
+    @pytest.mark.parametrize("path", ["/", "/how-it-works.html", "/styles.css"])
+    def test_the_public_site_stays_outside_the_door(self, guarded, path):
+        """The site ships from this process so the product has one address.
+
+        It describes the system and carries no case data, so it sits beside
+        the login screen rather than behind it.
+        """
+        assert guarded.get(path).status_code == 200
+
     @pytest.mark.parametrize("path", ["/health", "/healthz"])
     def test_health_checks_stay_outside_the_door(self, guarded, path):
         """A health check behind a login reports the service unhealthy the
@@ -62,12 +73,12 @@ class TestSigningIn:
     def test_the_right_password_gets_in(self, guarded):
         response = guarded.post("/login", data={"password": PASSWORD})
         assert response.status_code == 303
-        assert response.headers["location"] == "/"
+        assert response.headers["location"] == "/queue"
         assert COOKIE_NAME in response.cookies
 
     def test_the_session_then_works(self, guarded):
         guarded.post("/login", data={"password": PASSWORD})
-        assert guarded.get("/").status_code == 200
+        assert guarded.get("/queue").status_code == 200
 
     def test_the_wrong_password_does_not(self, guarded):
         response = guarded.post("/login", data={"password": "wrong"})
@@ -101,13 +112,13 @@ class TestSigningIn:
     def test_signing_out_clears_the_session(self, guarded):
         guarded.post("/login", data={"password": PASSWORD})
         guarded.post("/logout")
-        assert guarded.get("/").status_code == 303
+        assert guarded.get("/queue").status_code == 303
 
 
 class TestForgery:
     def test_a_made_up_cookie_is_refused(self, guarded):
         guarded.cookies.set(COOKIE_NAME, "99999999999.deadbeef")
-        assert guarded.get("/").status_code == 303
+        assert guarded.get("/queue").status_code == 303
 
     def test_a_tampered_cookie_is_refused(self):
         config = AuthConfig(password=PASSWORD, secret="s" * 64)
@@ -133,7 +144,7 @@ class TestNoPasswordConfigured:
 
     def test_the_interface_is_open_when_no_password_is_set(self):
         client = TestClient(create_app(MemoryStore()), follow_redirects=False)
-        assert client.get("/").status_code == 200
+        assert client.get("/queue").status_code == 200
 
     def test_config_reports_itself_disabled(self):
         assert AuthConfig(password="", secret="x").enabled is False
@@ -144,8 +155,21 @@ class TestPublicPaths:
         assert path_is_public("/login")
         assert path_is_public("/health")
         assert path_is_public("/healthz")
-        assert not path_is_public("/")
+        assert not path_is_public("/queue")
         assert not path_is_public("/case/CASE-001")
+
+    def test_the_marketing_site_is_outside_the_door(self):
+        """The site explains the product and holds no case data.
+
+        It ships from this process so the whole product lives at one address,
+        which only works if someone who has never signed in can read it.
+        """
+        for path in ("/", "/how-it-works.html", "/evidence.html", "/styles.css"):
+            assert path_is_public(path), path
+
+    def test_nothing_that_renders_a_case_is_public(self):
+        for path in ("/queue", "/case/CASE-001", "/case/CASE-001/clinical"):
+            assert not path_is_public(path), path
 
 
 class TestPasswordComparison:
@@ -168,27 +192,27 @@ class TestThemeControl:
         return TestClient(create_app(MemoryStore()), follow_redirects=False)
 
     def test_the_control_is_on_the_page(self, client):
-        html = client.get("/").text
+        html = client.get("/queue").text
         assert 'action="/theme"' in html
         for mode in ("auto", "light", "dark"):
             assert f'value="{mode}"' in html
 
     def test_the_page_still_ships_no_script(self, client):
-        assert "<script" not in client.get("/").text.lower()
+        assert "<script" not in client.get("/queue").text.lower()
 
     @pytest.mark.parametrize("mode", ["light", "dark"])
     def test_choosing_a_theme_sets_a_cookie_and_stamps_the_root(self, client, mode):
         response = client.post("/theme", data={"mode": mode, "back": "/"})
         assert response.status_code == 303
         assert response.cookies.get("overturn_theme") == mode
-        html = client.get("/").text
+        html = client.get("/queue").text
         assert f'<html lang="en" data-theme="{mode}">' in html
 
     def test_auto_clears_the_choice_and_defers_to_the_system(self, client):
         client.post("/theme", data={"mode": "dark", "back": "/"})
         client.post("/theme", data={"mode": "auto", "back": "/"})
         # The CSS legitimately contains data-theme selectors, so check the tag.
-        assert '<html lang="en">' in client.get("/").text
+        assert '<html lang="en">' in client.get("/queue").text
 
     def test_it_returns_you_to_the_page_you_were_on(self, client):
         response = client.post("/theme", data={"mode": "dark", "back": "/case/CASE-001"})
@@ -231,11 +255,13 @@ class TestBothPalettesAreDefined:
 
 
 class TestWhereYouLandAfterSigningIn:
-    """The queue is the obvious landing page and the wrong first impression.
+    """The queue, always.
 
-    Someone opening this for the first time should arrive at the case that best
-    shows what the system does — the one where Verification rejected a draft and
-    made it try again, which is the whole argument for the product.
+    This used to pick the case with the most drafting attempts and drop the
+    reviewer straight into it, to make a first impression. It made the
+    interface feel scattered -- you arrived somewhere specific with no idea
+    what else was waiting -- and it is not what a clerk signing in to do
+    their work actually wants.
     """
 
     def _seed(self, store, case_id: str, attempts: int) -> None:
@@ -253,7 +279,7 @@ class TestWhereYouLandAfterSigningIn:
         case.transition(CaseStatus.AWAITING_APPROVAL, actor="test")
         CaseRepository(store, GatewayHandle(AgentName.ORCHESTRATOR)).create(case)
 
-    def test_it_lands_on_the_case_that_took_the_most_attempts(self, monkeypatch):
+    def test_it_lands_on_the_queue_even_when_cases_are_waiting(self, monkeypatch):
         monkeypatch.setenv("OVERTURN_UI_PASSWORD", PASSWORD)
         monkeypatch.setenv("OVERTURN_UI_SECRET", "s" * 64)
         store = MemoryStore()
@@ -262,13 +288,13 @@ class TestWhereYouLandAfterSigningIn:
 
         client = TestClient(create_app(store), follow_redirects=False)
         response = client.post("/login", data={"password": PASSWORD})
-        assert response.headers["location"] == "/case/CASE-HARD"
+        assert response.headers["location"] == "/queue"
 
-    def test_it_falls_back_to_the_queue_when_nothing_is_waiting(self, monkeypatch):
+    def test_it_lands_on_the_queue_when_nothing_is_waiting(self, monkeypatch):
         monkeypatch.setenv("OVERTURN_UI_PASSWORD", PASSWORD)
         monkeypatch.setenv("OVERTURN_UI_SECRET", "s" * 64)
         client = TestClient(create_app(MemoryStore()), follow_redirects=False)
-        assert client.post("/login", data={"password": PASSWORD}).headers["location"] == "/"
+        assert client.post("/login", data={"password": PASSWORD}).headers["location"] == "/queue"
 
     def test_a_failing_queue_read_does_not_break_signing_in(self, monkeypatch):
         """A broken landing page must not become a broken login."""
@@ -282,4 +308,4 @@ class TestWhereYouLandAfterSigningIn:
         client = TestClient(create_app(Exploding()), follow_redirects=False)
         response = client.post("/login", data={"password": PASSWORD})
         assert response.status_code == 303
-        assert response.headers["location"] == "/"
+        assert response.headers["location"] == "/queue"
