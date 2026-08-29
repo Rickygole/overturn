@@ -54,6 +54,13 @@ class AppealDraft(OverturnModel):
         description="What the letter asks the payer to do.",
     )
     model_used: str | None = None
+    backend_used: str | None = Field(
+        default=None,
+        description="Which backend produced this text: 'vertex'/'adk' for a real "
+        "model, 'scripted' for the offline stub. Recorded separately from "
+        "model_used because the offline backend is handed the configured model "
+        "name and would otherwise let a regex-built stub be presented as Gemini.",
+    )
     revision_feedback_applied: list[str] = Field(
         default_factory=list,
         description="Verification failures from prior attempts that this draft addresses.",

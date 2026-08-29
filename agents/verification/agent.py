@@ -102,6 +102,7 @@ class VerificationAgent(OverturnAgent[VerificationRequest, VerificationResult]):
         unsupported: list[str] = []
         tokens_in = tokens_out = 0
         model_used: str | None = None
+        backend_used: str | None = None
 
         for citation in draft.citations:
             source = resolve_section_text(citation.section_id, request.retrieval)
@@ -121,6 +122,7 @@ class VerificationAgent(OverturnAgent[VerificationRequest, VerificationResult]):
                 model=self.settings.model_flash,
             )
             model_used = response.model
+            backend_used = response.backend
             tokens_in += response.input_tokens or 0
             tokens_out += response.output_tokens or 0
             if result.citations_unsupported or result.findings:
@@ -161,6 +163,7 @@ class VerificationAgent(OverturnAgent[VerificationRequest, VerificationResult]):
                 model=self.settings.model_flash,
             )
             model_used = response.model
+            backend_used = response.backend
             tokens_in += response.input_tokens or 0
             tokens_out += response.output_tokens or 0
             ungrounded = list(result.ungrounded_assertions)
@@ -175,6 +178,7 @@ class VerificationAgent(OverturnAgent[VerificationRequest, VerificationResult]):
             ungrounded_assertions=ungrounded,
             findings=findings,
             checked_by_model=model_used,
+            checked_by_backend=backend_used,
         )
 
         rec.model = model_used

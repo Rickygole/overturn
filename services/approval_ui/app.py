@@ -95,6 +95,9 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
     templates.env.trim_blocks = True
     templates.env.lstrip_blocks = True
     templates.env.filters.update(view.FILTERS)
+    # A global rather than a filter: it takes two arguments, and
+    # `{{ model | attribution(backend) }}` reads worse than calling it.
+    templates.env.globals["attribution"] = view.attribution
 
     app.state.service = service
     app.state.templates = templates

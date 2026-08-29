@@ -53,6 +53,12 @@ class VerificationResult(OverturnModel):
 
     findings: list[VerificationFinding] = Field(default_factory=list)
     checked_by_model: str | None = None
+    checked_by_backend: str | None = Field(
+        default=None,
+        description="'vertex'/'adk' for a real model, 'scripted' for the offline "
+        "stub. The claim that a second model caught an overclaim is only worth "
+        "anything if it is true, so the interface has to be able to tell.",
+    )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

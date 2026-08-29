@@ -61,6 +61,7 @@ class DraftingAgent(OverturnAgent[DraftingBrief, AppealDraft]):
         draft.case_id = case_id
         draft.attempt = request.attempt
         draft.model_used = response.model
+        draft.backend_used = response.backend
         draft.revision_feedback_applied = list(request.revision_instructions)
 
         rec.model = response.model
