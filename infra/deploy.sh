@@ -52,7 +52,11 @@ SCHEDULER_CRON="${SCHEDULER_CRON:-*/5 * * * *}"
 # skipped rather than silently clean when this is unset (see
 # core/config.py:model_armor_template). Set it only after running
 # infra/model_armor_setup.sh, which creates the template under this same id.
-MODEL_ARMOR_TEMPLATE="${MODEL_ARMOR_TEMPLATE:-}"
+# Accept either spelling. The runtime reads OVERTURN_MODEL_ARMOR_TEMPLATE, so
+# that is the name anyone will have in their shell, and silently ignoring it
+# here deploys a service that reports the screening layer as "skipped" while the
+# operator believes they enabled it.
+MODEL_ARMOR_TEMPLATE="${MODEL_ARMOR_TEMPLATE:-${OVERTURN_MODEL_ARMOR_TEMPLATE:-}}"
 
 ORCHESTRATOR_SA="overturn-orchestrator@${PROJECT_ID}.iam.gserviceaccount.com"
 LIFECYCLE_SA="overturn-lifecycle@${PROJECT_ID}.iam.gserviceaccount.com"
