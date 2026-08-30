@@ -53,7 +53,7 @@ though `infra/model_armor_setup.sh` has run and `OVERTURN_MODEL_ARMOR_TEMPLATE`
 is set. Cause: `roles/modelarmor.user` was granted to the `overturn-sentinel`
 service account — correct on paper, since Sentinel is the agent that calls it
 — but nothing runs as `overturn-sentinel` in the deployed system.
-`overturn-approval` and `overturn-ingest` run as `overturn-orchestrator`,
+`overturn` and `overturn-ingest` run as `overturn-orchestrator`,
 which executes every agent in-process, so the grant has to live on the
 identity Cloud Run actually uses. Fix: `infra/iam_setup.sh` now grants
 `roles/modelarmor.user` to `overturn-orchestrator` directly, alongside the
@@ -79,6 +79,34 @@ Cause: `infra/deploy.sh`'s default `INGEST_PUSH_PATH` is `/`, but
 pass `INGEST_PUSH_PATH=/pubsub/push` explicitly on every `deploy.sh` run — it
 is not persisted between invocations, so a redeploy that forgets it silently
 resets the push endpoint back to the broken default.
+
+## A stale duplicate service exists on this project
+
+`gcloud run services list` shows **four** services, not three: `overturn`,
+`overturn-ingest`, `overturn-scheduler` — and `overturn-approval`, which is an
+earlier name for the approval surface. It is still deployed, still bound to
+`allUsers`, and still serving a two-day-old image at
+
+    https://overturn-approval-kruy6aauaq-uc.a.run.app
+
+That URL was handed to a judge in an earlier version of this project and was
+believed removed. It is not. Anything corrected on the live site is still
+standing there, which makes it a second address publishing claims this project
+has since retracted — the exact failure the "there is exactly one URL" rule in
+`docs/SUBMISSION.md` exists to prevent.
+
+Decide deliberately rather than leaving it: either delete it
+
+    gcloud run services delete overturn-approval --region="$REGION" --project="$PROJECT_ID"
+
+or, if it is worth keeping around, at minimum drop its public binding
+
+    gcloud run services remove-iam-policy-binding overturn-approval \
+      --region="$REGION" --project="$PROJECT_ID" \
+      --member=allUsers --role=roles/run.invoker
+
+`infra/teardown.sh` now names it alongside `overturn` so a teardown cannot
+remove the old one and leave the live one billing, which is what it did before.
 
 ## One-time setup, in order
 
@@ -194,15 +222,15 @@ Expect `FIRESTORE_NATIVE`.
 gcloud run services list --region="$REGION" --filter="metadata.name:overturn"
 ```
 All three should show `Ready: True`. All three now answer `GET /health` (Cloud Run reserves `/healthz`)
-(`overturn-approval` also keeps `/health` as an alias for the same handler).
+(`overturn` also keeps `/health` as an alias for the same handler).
 Health checks stay reachable regardless of the approval UI's login — Cloud
 Run probes them before anything else, and a health check behind a login
 reports the service unhealthy the moment the login works:
 ```bash
-gcloud run services proxy overturn-approval --region="$REGION" &
+gcloud run services proxy overturn --region="$REGION" &
 curl -s localhost:8080/healthz   # {"status": "ok", "service": "approval_ui"}
 ```
-Everything else on `overturn-approval` — the queue, a case, the clinical
+Everything else on `overturn` — the queue, a case, the clinical
 co-sign page — goes through the login page first if `OVERTURN_UI_PASSWORD` is
 set on the service. See "The approval UI's login, and what `deploy.sh`
 doesn't do for it" in "Known gaps" below for what that requires beyond a plain
@@ -225,7 +253,7 @@ gcloud scheduler jobs run overturn-tick --location="$REGION"   # fire it once, o
 ```bash
 # Tail all three services at once
 gcloud beta run services logs tail overturn-ingest    --region="$REGION"
-gcloud beta run services logs tail overturn-approval   --region="$REGION"
+gcloud beta run services logs tail overturn   --region="$REGION"
 gcloud beta run services logs tail overturn-scheduler  --region="$REGION"
 
 # Or read recent logs without tailing
@@ -280,9 +308,9 @@ for the proxy command) once the case reaches `awaiting_human_approval`.
       and the IAM service accounts page showing eight distinct identities.
       `bash infra/iam_audit.sh` on screen is the fastest way to prove the
       permission boundaries are enforced, not just described.
-- [ ] Confirm `overturn-approval` is reachable the way you plan to demo it.
+- [ ] Confirm `overturn` is reachable the way you plan to demo it.
       `infra/deploy.sh` deploys it Cloud Run-IAM-gated by default, so either
-      proxy it locally (`gcloud run services proxy overturn-approval
+      proxy it locally (`gcloud run services proxy overturn
       --region="$REGION"`) or grant the presenter's Google account
       `roles/run.invoker` ahead of time (`infra/deploy.sh` already does this
       for whoever ran it). If the plan is to show the public login page
@@ -319,7 +347,7 @@ and deleting Firestore data is a one-way door this script doesn't open for you.
 | Pub/Sub messages piling up in the dead-letter topic | `infra/deploy.sh`'s `INGEST_PUSH_PATH` default (`/`) does not match `services/ingest_handler`'s real route (`POST /pubsub/push`) | Re-run `INGEST_PUSH_PATH=/pubsub/push bash infra/deploy.sh` |
 | Push subscription delivers nothing, no error visible | Pub/Sub's service agent lacks `roles/iam.serviceAccountTokenCreator` on the orchestrator SA | `infra/deploy.sh` grants this every run; re-run it |
 | Cloud Scheduler job fires but `overturn-scheduler` returns 403 | Scheduler's service agent lacks token-creator on the lifecycle SA, or the lifecycle SA lacks `run.invoker` on the service | `infra/deploy.sh` grants both every run; re-run it |
-| `overturn-approval` returns 403 in a browser, no login page at all | It requires Cloud Run IAM auth by design (`infra/deploy.sh` deploys it `--no-allow-unauthenticated`) | `gcloud run services proxy overturn-approval --region="$REGION"`, or grant your account `roles/run.invoker` — or apply the manual public-login step below if the goal is a URL a judge can open with just a password |
+| `overturn` returns 403 in a browser, no login page at all | It requires Cloud Run IAM auth by design (`infra/deploy.sh` deploys it `--no-allow-unauthenticated`) | `gcloud run services proxy overturn --region="$REGION"`, or grant your account `roles/run.invoker` — or apply the manual public-login step below if the goal is a URL a judge can open with just a password |
 | The login page loads, the correct password is accepted, but the next request bounces back to `/login` anyway | `OVERTURN_UI_SECRET` isn't set, so each process (and each Cloud Run instance, if more than one is running) minted its own random signing secret at startup; a session cookie signed by one instance fails validation on another | Set `OVERTURN_UI_SECRET` explicitly to the same value across the service, not just `OVERTURN_UI_PASSWORD` — see the manual step below |
 | `infra/provision.sh` errors instead of skipping an existing resource | The existence check for that resource returned a false negative (permissions, wrong project, transient API error) | Re-run with `set -x` to see which `describe` call failed, or check the resource by hand with the matching command in "Verifying" above |
 | Sentinel's audit log shows `model_armor:skipped_no_text` or `unavailable(HTTPError)` | `OVERTURN_MODEL_ARMOR_TEMPLATE` isn't set, `infra/model_armor_setup.sh` was never run, or `roles/modelarmor.user` is missing on `overturn-orchestrator` specifically (see "Four things that will waste your afternoon" above) | Run `infra/model_armor_setup.sh`, confirm `overturn-orchestrator` (not just `overturn-sentinel`) holds `roles/modelarmor.user` via `infra/iam_audit.sh`, then redeploy with `INGEST_PUSH_PATH=/pubsub/push MODEL_ARMOR_TEMPLATE=overturn-inbound bash infra/deploy.sh` |
@@ -343,7 +371,7 @@ and deleting Firestore data is a one-way door this script doesn't open for you.
   shared password (`OVERTURN_UI_PASSWORD`) plus a signed session cookie
   (`OVERTURN_UI_SECRET`) is the door; unset, `AuthConfig.enabled` is `False`
   and there is no door at all — local dev and the test suite deliberately run
-  that way. As written today, `infra/deploy.sh` deploys `overturn-approval`
+  that way. As written today, `infra/deploy.sh` deploys `overturn`
   with `--no-allow-unauthenticated` and never sets `OVERTURN_UI_PASSWORD` or
   `OVERTURN_UI_SECRET` in its environment — so a fresh `deploy.sh` run
   produces a service that is Cloud Run-IAM-gated **and** has no application
@@ -352,7 +380,7 @@ and deleting Firestore data is a one-way door this script doesn't open for you.
   password" — the state the submission checklist assumes — needs one manual
   step this script does not perform:
   ```bash
-  gcloud run services update overturn-approval --project="$PROJECT_ID" --region="$REGION" \
+  gcloud run services update overturn --project="$PROJECT_ID" --region="$REGION" \
     --allow-unauthenticated \
     --update-env-vars=OVERTURN_UI_PASSWORD='northbeck-appeals-2026',OVERTURN_UI_SECRET="$(openssl rand -hex 32)"
   ```
@@ -361,12 +389,12 @@ and deleting Firestore data is a one-way door this script doesn't open for you.
   secret at startup, and with `max-instances` above 1 a session issued by one
   instance can fail validation on another (see the troubleshooting table).
   **Re-running `infra/deploy.sh` after this reverts it** — the script always
-  redeploys `overturn-approval` with `--no-allow-unauthenticated` and does not
+  redeploys `overturn` with `--no-allow-unauthenticated` and does not
   carry forward env vars it did not set itself, so the public-with-a-password
   state has to be reapplied after every subsequent redeploy until the script
   itself is updated to do this. That fix belongs in `infra/deploy.sh`, which
   is outside the remit of this document.
-- **`overturn-approval` and `overturn-ingest` run as `overturn-orchestrator`;
+- **`overturn` and `overturn-ingest` run as `overturn-orchestrator`;
   `overturn-scheduler` runs as `overturn-lifecycle`.** `infra/agents.env` names
   eight agent identities, not eleven, so the three Cloud Run surfaces share
   identities with the agent whose job most matches what they do: the

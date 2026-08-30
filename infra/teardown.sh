@@ -34,7 +34,7 @@ for arg in "$@"; do
 done
 
 echo "About to tear down Overturn on project: ${PROJECT_ID}"
-echo "  - Cloud Run services: overturn-ingest, overturn-approval, overturn-scheduler"
+echo "  - Cloud Run services: overturn, overturn-ingest, overturn-approval, overturn-scheduler"
 echo "  - Cloud Scheduler job: overturn-tick"
 echo "  - Pub/Sub subscription: ${SUBSCRIPTION}"
 if [[ "${DELETE_DATA}" == "true" ]]; then
@@ -51,7 +51,12 @@ fi
 echo
 
 echo "-- Cloud Run services --"
-for svc in overturn-ingest overturn-approval overturn-scheduler; do
+# `overturn` is the approval surface the deploy actually creates and the one the
+# submission URL points at; `overturn-approval` is an earlier name for the same
+# thing that was left running on the project. Both are listed because tearing
+# down only the old name leaves the live, billing, publicly-invokable service
+# untouched -- which is exactly what this script did before.
+for svc in overturn overturn-ingest overturn-approval overturn-scheduler; do
   if gcloud run services describe "${svc}" --project="${PROJECT_ID}" --region="${REGION}" >/dev/null 2>&1; then
     gcloud run services delete "${svc}" --project="${PROJECT_ID}" --region="${REGION}" --quiet >/dev/null
     echo "  deleted: ${svc}"
