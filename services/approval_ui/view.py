@@ -1381,6 +1381,59 @@ def escalation(case: CaseRecord, now: datetime | None = None) -> Escalation | No
     )
 
 
+@dataclass(frozen=True)
+class EscalatedSignpost:
+    """One sentence pointing at a case that has actually climbed the ladder.
+
+    `escalation()` above renders the full record on the case page itself. This
+    is the thirty seconds before that: nothing on the queue page named that a
+    case had ever done this, which meant the single clearest evidence for the
+    track's defining claim -- a case Lifecycle moved on its own, weeks after
+    submission, with nobody watching -- was reachable only by already knowing
+    which of eleven case ids to open.
+    """
+
+    case_id: str
+    line: str
+
+
+def escalated_signpost(cases: list[CaseRecord]) -> EscalatedSignpost | None:
+    """The case that best shows Lifecycle climbing the ladder unattended.
+
+    A case in this state is `SUBMITTED` or another `WITH_PAYER_STATUSES` value
+    -- it is, by definition, not waiting on a clerk or a clinician -- so it
+    never appears in `overview.bands`, the urgent strip, or the worklist table
+    below them. Nothing else on this page points at it.
+
+    Ties break on case id so a reader who reloads the page gets the same
+    answer twice, the same convention `lead_case` above uses. Returns ``None``
+    when no case has ever escalated, and the template renders nothing --
+    there is nothing here to manufacture on a queue where it never happened.
+    """
+    best: tuple[int, str] | None = None
+    chosen: CaseRecord | None = None
+    chosen_escalation: Escalation | None = None
+    for case in cases:
+        moved = escalation(case)
+        if moved is None:
+            continue
+        key = (-case.escalation_count, case.case_id)
+        if best is None or key < best:
+            best, chosen, chosen_escalation = key, case, moved
+    if chosen is None or chosen_escalation is None:
+        return None
+    return EscalatedSignpost(
+        case_id=chosen.case_id,
+        line=(
+            f"{chosen.case_id} escalated itself to "
+            f"{chosen_escalation.to_label.lower()} weeks after submission — no answer "
+            f"came back within the {chosen_escalation.lapsed_days}-day window on the "
+            f"{chosen_escalation.from_label.lower()}, and nothing was running in between. "
+            f"Worth opening to see what Lifecycle did unattended."
+        ),
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Traces
 #
@@ -1598,6 +1651,12 @@ class Overview:
     # screen is the system working rather than a hole in it.
     synopsis: str = ""
     lead: Lead | None = None
+    # A case in a WITH_PAYER status never appears in `bands`, `urgent`, or the
+    # worklist table -- it is not waiting on a person, which is exactly the
+    # state a case that escalated itself is in. Without this, the queue page
+    # has nothing pointing at the one case that demonstrates the multi-week
+    # claim the whole product rests on. See `escalated_signpost` below.
+    escalated: EscalatedSignpost | None = None
 
 
 def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
@@ -1747,6 +1806,7 @@ def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
         actionable=len(clerk) + len(clinician) + len(back),
         synopsis=synopsis(cases),
         lead=lead_case(cases),
+        escalated=escalated_signpost(cases),
     )
 
 

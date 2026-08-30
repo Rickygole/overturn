@@ -2425,6 +2425,60 @@ class TestEscalation:
         assert "This case escalated itself" not in client.get(f"/case/{CASE_ID}").text
 
 
+class TestEscalatedSignpost:
+    """CASE-006's climb is real and, until now, invisible from `/queue`.
+
+    A case in `CaseStatus.SUBMITTED` is a `WITH_PAYER` status: it is not
+    waiting on a clerk or a clinician, so it never lands in a band, the
+    urgent strip, or the worklist table below them. Nothing on the queue page
+    named it, which meant the single clearest evidence for the multi-week
+    claim the whole product rests on was reachable only by already knowing
+    which of eleven case ids to open.
+    """
+
+    def test_it_names_the_case_and_says_what_it_demonstrates(self):
+        signpost = view.escalated_signpost([_escalated()])
+
+        assert signpost is not None
+        assert signpost.case_id == "CASE-006"
+        assert "escalated itself" in signpost.line
+        assert "peer-to-peer review" in signpost.line
+        assert "weeks after submission" in signpost.line
+
+    def test_a_case_that_never_escalated_produces_no_signpost(self, seeded):
+        assert view.escalated_signpost([seeded]) is None
+
+    def test_an_empty_system_produces_no_signpost(self):
+        """Manufacturing one out of nothing would be the exact failure this
+        page's other entry point, `lead_case`, already refuses to commit."""
+        assert view.escalated_signpost([]) is None
+
+    def test_ties_break_deterministically(self):
+        pair = [_escalated("CASE-006"), _escalated("CASE-004")]
+        assert view.escalated_signpost(pair).case_id == "CASE-004"
+        assert view.escalated_signpost(list(reversed(pair))).case_id == "CASE-004"
+
+    def test_the_queue_page_names_it_and_links_to_it(self, client, repo):
+        """The regression this test exists to catch: the queue's caseload bar
+        never mentions a WITH_PAYER case, so without this signpost CASE-006 is
+        reachable from `/queue` only by guessing its id."""
+        repo.create(_escalated())
+        repo.create(_case("CASE-003", CaseStatus.NEEDS_HUMAN_REVIEW))
+
+        html = client.get("/queue").text
+        assert 'href="/case/CASE-006"' in html
+        assert "Worth opening to see what Lifecycle did unattended" in html
+
+    def test_an_ordinary_queue_shows_no_signpost(self, client, seeded):
+        """Checked against a phrase from the generated sentence itself, not
+        against "escalated itself" -- that substring also appears in the
+        stylesheet's own explanatory comment for `.dash__escalated`, which
+        every page carries regardless of whether the block renders."""
+        assert "Worth opening to see what Lifecycle did unattended" not in client.get(
+            "/queue"
+        ).text
+
+
 # --------------------------------------------------------------------------- #
 # Traces
 #

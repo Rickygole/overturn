@@ -615,6 +615,14 @@ fieldset.gate{
 .dash__lede{font-size:var(--fs-md);line-height:1.6;color:var(--muted);
             max-width:var(--measure);margin:0 0 var(--s5)}
 
+/* One line, not a panel like `.lead` below: the case that escalated itself
+   is not "the clearest instance of a signal already in the data," it is the
+   one case in the record that demonstrates the track's defining claim, and
+   naming it needs a sentence, not a box competing with `.dash__urgent`. */
+.dash__escalated{font-size:var(--fs-sm);line-height:1.6;color:var(--muted);
+                  max-width:66ch;margin:0 0 var(--s5)}
+.dash__escalated a{font-weight:500}
+
 /* --- Where to look first --------------------------------------------------
    The worklist is sorted by deadline and stays that way. This names one case
    and says what is on it, for a reader who has never seen the system and would

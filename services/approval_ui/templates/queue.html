@@ -99,6 +99,19 @@
   </details>
   {% endif %}
 
+  {# A case that escalated itself sits in a WITH_PAYER status -- waiting on
+     nobody the bar above tracks -- so it never appears in a band, the urgent
+     strip, or the worklist table below. Without this sentence the single
+     clearest evidence for the multi-week claim this product is built around
+     is unreachable from inside the product itself. See `escalated_signpost`
+     in view.py. #}
+  {% if overview.escalated %}
+  <p class="dash__escalated">
+    <a class="mono" href="/case/{{ overview.escalated.case_id }}">{{ overview.escalated.case_id }}</a>
+    — {{ overview.escalated.line }}
+  </p>
+  {% endif %}
+
   {% if overview.urgent %}
   <div class="dash__urgent">
     <p class="dash__urgent-h">Running out of time</p>
