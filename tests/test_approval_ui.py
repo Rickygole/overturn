@@ -1793,3 +1793,75 @@ class TestUnattributedVerificationFindings:
         html = client.get(f"/case/{seeded.case_id}").text
         assert "does not reflect" in html
         assert "The chart does not establish it was a telehealth evaluation." in html
+
+
+class TestCaseloadVisuals:
+    """Counts as a shape, and what Verification did to each attempt.
+
+    Both are decorative in the strict sense: every number in the bar is written
+    beside it, and the attempt marks sit next to the sentence that already said
+    the same thing. That is deliberate -- a shape a reader has to decode is
+    worse than a sentence. They are hidden from assistive tech for the same
+    reason, so a screen reader gets the words rather than a row of empty divs.
+    """
+
+    TODAY = date(2026, 8, 29)
+
+    def _case(self, case_id: str, status: CaseStatus) -> CaseRecord:
+        case = CaseRecord(case_id=case_id, source_document_uri=f"gs://b/{case_id}.txt")
+        case.transition(status, actor="test")
+        return case
+
+    def test_bands_cover_every_case_exactly_once(self):
+        cases = [
+            self._case("a", CaseStatus.AWAITING_APPROVAL),
+            self._case("b", CaseStatus.AWAITING_APPROVAL),
+            self._case("c", CaseStatus.NEEDS_HUMAN_REVIEW),
+            self._case("d", CaseStatus.SUBMITTED),
+            self._case("e", CaseStatus.QUARANTINED),
+        ]
+        result = view.overview(cases, today=self.TODAY)
+        assert sum(band.count for band in result.bands) == result.total == 5
+
+    def test_empty_bands_are_dropped(self):
+        """A segment too thin to see is a segment that misleads."""
+        result = view.overview([self._case("a", CaseStatus.AWAITING_APPROVAL)], today=self.TODAY)
+        assert [band.label for band in result.bands] == ["Waiting on you"]
+        assert all(band.count for band in result.bands)
+
+    def test_an_empty_system_draws_no_bar(self):
+        assert view.overview([], today=self.TODAY).bands == []
+
+    def test_marks_read_left_to_right_in_the_order_they_happened(self):
+        from core.schemas.draft import AppealDraft
+        from core.schemas.verification import VerificationFinding, VerificationResult
+
+        case = self._case("x", CaseStatus.AWAITING_APPROVAL)
+        case.drafts = [
+            AppealDraft(case_id="x", attempt=n, subject_line="s", body="b" * 60)
+            for n in (1, 2, 3)
+        ]
+        case.verifications = [
+            VerificationResult(
+                case_id="x",
+                attempt=1,
+                findings=[
+                    VerificationFinding(
+                        check="citation_exists", severity="fatal", locus="L", detail="d"
+                    )
+                ],
+            ),
+            VerificationResult(case_id="x", attempt=2, findings=[]),
+        ]
+        # Attempt 3 has no verification yet: pending, not assumed good.
+        assert view.attempt_marks(case) == ["rejected", "passed", "pending"]
+
+    def test_a_case_with_no_drafts_has_no_marks(self):
+        assert view.attempt_marks(self._case("y", CaseStatus.QUARANTINED)) == []
+
+    def test_the_bar_is_hidden_from_assistive_tech(self, client):
+        """The words carry the meaning; the bar must not be read as empty divs."""
+        html = client.get("/queue").text
+        if 'class="load"' in html:
+            segment = html[html.find('class="load"') - 60 : html.find('class="load"') + 60]
+            assert 'aria-hidden="true"' in segment

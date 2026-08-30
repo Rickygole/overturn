@@ -167,6 +167,7 @@ def queue_row(case: CaseRecord) -> dict[str, object]:
         "updated": case.updated_at,
         "waiting_on": waiting_on(case.status),
         "waiting_key": waiting_key(case.status),
+        "attempt_marks": attempt_marks(case),
         "link_suffix": "/clinical" if case.status == WAITING_ON_CLINICIAN else "",
     }
 
@@ -182,6 +183,25 @@ def one_payer(rows: list[dict[str, object]]) -> str | None:
     """
     names = {str(row["payer"]) for row in rows if row["payer"] != NOT_STATED}
     return names.pop() if len(names) == 1 else None
+
+
+def attempt_marks(case: CaseRecord) -> list[str]:
+    """One mark per drafting attempt: what Verification did with each.
+
+    The queue said "3 (all 3 rejected by verification)" in prose. The same fact
+    as three marks is read at a glance and, across a column of cases, shows the
+    shape of the thing this system is actually for -- most letters pass first
+    time, some get sent back, one never passes at all.
+
+    Ordered by attempt so the row reads left to right in the order it happened.
+    An attempt with no verification yet is "pending" rather than assumed good.
+    """
+    verdicts = {result.attempt: result.passed for result in case.verifications}
+    marks: list[str] = []
+    for attempt in range(1, case.draft_attempts + 1):
+        passed = verdicts.get(attempt)
+        marks.append("pending" if passed is None else "passed" if passed else "rejected")
+    return marks
 
 
 def _verification_summary(case: CaseRecord) -> str:
@@ -1053,10 +1073,20 @@ class Tile:
 
 
 @dataclass(frozen=True)
+class Band:
+    """One segment of the caseload bar."""
+
+    label: str
+    count: int
+    tone: str
+
+
+@dataclass(frozen=True)
 class Overview:
     """The whole workload in one glance."""
 
     tiles: list[Tile]
+    bands: list[Band]
     closed: list[Tile]
     urgent: list[dict[str, object]]
     total: int
@@ -1159,8 +1189,22 @@ def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
             )
     urgent.sort(key=lambda row: row["deadline"].days)  # type: ignore[union-attr,index]
 
+    # The same counts as one shape. Five numbers read as five facts; one bar
+    # reads as a workload -- how much of today is waiting on a person, how much
+    # is running, how much is done. Empty bands are dropped rather than drawn
+    # as slivers: a segment too thin to see is a segment that misleads.
+    bands = [
+        Band("Waiting on you", len(clerk), "act"),
+        Band("Waiting on a clinician", len(clinician), "act"),
+        Band("Sent back to you", len(back), "review"),
+        Band("Agents still working", len(in_flight), "wait"),
+        Band("With the payer", len(with_payer), "wait"),
+        Band("Closed", sum(len(by_status.get(st, [])) for st, _, _ in CLOSED_STATUSES), "quiet"),
+    ]
+
     return Overview(
         tiles=tiles,
+        bands=[band for band in bands if band.count],
         closed=closed,
         urgent=urgent,
         total=len(cases),

@@ -768,6 +768,35 @@ fieldset.gate{
   .masthead,.theme-form,.nav__app{display:none}
   body{background:#fff}
 }
+
+/* --- The caseload, as one shape -------------------------------------------
+   Five numbers read as five facts. One bar reads as a workload: how much of
+   today is waiting on a person, how much is running, how much is finished.
+   Flex-grow does the proportioning, so there is no arithmetic in the template
+   and no script on the page. ------------------------------------------------ */
+.load{display:flex;height:10px;border-radius:2px;overflow:hidden;
+      border:1px solid var(--hair);margin:var(--s3) 0 var(--s2)}
+.load__band{min-width:3px}
+.load__band--act{background:var(--ink)}
+.load__band--review{background:var(--warn)}
+.load__band--wait{background:var(--dim)}
+.load__band--quiet{background:var(--hair)}
+.load__key{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);
+           font-size:var(--fs-xs);color:var(--muted);margin:0 0 var(--s5)}
+.load__item{display:inline-flex;align-items:center;gap:var(--s1)}
+.load__swatch{width:8px;height:8px;border-radius:1px;flex:none;
+              border:1px solid var(--hair)}
+.load__n{font-family:var(--mono);color:var(--ink);font-weight:500}
+
+/* --- What Verification did to each attempt --------------------------------
+   The row already said "3 (all 3 rejected by verification)". The same fact as
+   three marks is read at a glance, and down a column it shows the shape of the
+   thing: most letters pass first time, some are sent back, one never passes. */
+.marks{display:inline-flex;gap:3px;vertical-align:middle;margin-right:var(--s2)}
+.mark{width:7px;height:14px;border-radius:1px;border:1px solid var(--dim)}
+.mark--passed{background:var(--ok);border-color:var(--ok)}
+.mark--rejected{background:transparent;border-style:dashed;border-color:var(--warn)}
+.mark--pending{background:var(--hair);border-color:var(--hair)}
 </style>
 </head>
 <body>

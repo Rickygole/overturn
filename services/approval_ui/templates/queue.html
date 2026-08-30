@@ -17,6 +17,26 @@
     <span class="dash__total">{{ overview.total }} case{{ "" if overview.total == 1 else "s" }} in the system</span>
   </h2>
 
+  {% if overview.bands %}
+  {# The counts as one shape. Proportioned by flex-grow, so there is no
+     arithmetic here and no script on the page. The bar is decorative in the
+     strict sense -- every number in it is also written below -- so it is
+     hidden from assistive tech rather than read out as a row of empty divs. #}
+  <div class="load" aria-hidden="true">
+    {% for band in overview.bands %}
+    <div class="load__band load__band--{{ band.tone }}" style="flex:{{ band.count }}"></div>
+    {% endfor %}
+  </div>
+  <p class="load__key">
+    {% for band in overview.bands %}
+    <span class="load__item">
+      <span class="load__swatch load__band--{{ band.tone }}"></span>
+      <span class="load__n">{{ band.count }}</span> {{ band.label | lower }}
+    </span>
+    {% endfor %}
+  </p>
+  {% endif %}
+
   {% if overview.urgent %}
   <div class="dash__urgent">
     <p class="dash__urgent-h">Running out of time</p>
@@ -141,6 +161,17 @@
                rejected, and the old `attempts - 1` said 2 of 3 on a case whose own
                reason line said all 3. The reason line was the true one. #}
             <td>
+              {% if row.attempt_marks %}
+              {# One mark per attempt, in the order they happened. The prose
+                 beside it still carries the count, because a shape a reader
+                 has to decode is worse than a sentence; this is here to be
+                 read at a glance down the column, not instead of the words. #}
+              <span class="marks" aria-hidden="true">
+                {% for mark in row.attempt_marks %}
+                <span class="mark mark--{{ mark }}"></span>
+                {% endfor %}
+              </span>
+              {% endif %}
               {{ row.attempts }}
               {% if row.verified == "rejected" %}
                 {% if row.attempts > 1 %}
