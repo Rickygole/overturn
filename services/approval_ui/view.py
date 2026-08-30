@@ -310,6 +310,32 @@ def case_findings(case: CaseRecord) -> list[Finding]:
     ]
 
 
+# `check_assertions_grounded` records its findings under this literal rather
+# than under any criterion (agents/verification/checks.py:97). They are
+# therefore structurally unattributable to a matrix row, and text-matching them
+# onto one would be a guess presented as a fact.
+UNATTRIBUTABLE_LOCUS = "clinical_assertions"
+
+
+def unattributed_findings(findings: list[Finding]) -> list[Finding]:
+    """Objections Verification raised that name no row of the matrix.
+
+    These are the assertion-grounding catches -- the check that reads the
+    letter's claims about the patient against the chart. On CASE-001 it is the
+    one that matters: it caught the draft calling a 14 July "interim review" a
+    "telehealth evaluation", which is the single best piece of evidence this
+    project has that the system works.
+
+    It carries `locus="clinical_assertions"`, so it lands on no criterion row,
+    and until this existed the matrix went on stating the rejected
+    characterisation with nothing beside it. Attributing it to a row by
+    matching text would be a guess dressed as a citation. Saying it plainly
+    above the whole matrix is the honest form: the objection is real, and which
+    row it lands on is not something we know.
+    """
+    return [f for f in findings if f.locus == UNATTRIBUTABLE_LOCUS]
+
+
 def findings_at(findings: list[Finding], *loci: str) -> list[Finding]:
     """Findings whose locus is any of these identifiers.
 

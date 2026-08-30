@@ -440,6 +440,26 @@
 
     <details>
       <summary>The full criteria mapping — {% if matrix %}{{ matrix.verdicts | length }} criteria, {{ matrix.satisfied_count }} satisfied{% else %}nothing was mapped{% endif %}</summary>
+      {% if mapping_caveats %}
+      {# The assertion-grounding check records findings under a literal locus,
+         not a criterion id, so these land on no row. Attributing them to one by
+         matching text would be a guess dressed as a citation. They are said
+         here, above the whole table, because the objection is real and which
+         row it belongs to is not something we know. #}
+      <div class="banner banner--note">
+        <p><strong>Verification rejected {{ mapping_caveats | length }}
+        {{ "claim" if mapping_caveats | length == 1 else "claims" }} in an earlier
+        draft that this mapping does not reflect.</strong> The matrix below was
+        written before the letter and was never revised, so a row may still state
+        something the letter no longer says. These objections name no single
+        criterion, so they are recorded here rather than guessed onto a row.</p>
+        <ul>
+          {% for finding in mapping_caveats %}
+          <li><span class="muted">Attempt {{ finding.attempt }}:</span> {{ finding.detail }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
       {% if not mapping %}
       <p class="prose muted stack-4">Without a matrix there is no documented basis for an appeal.
       Do not approve a letter that rests on nothing.</p>

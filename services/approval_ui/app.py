@@ -132,6 +132,7 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
             "clerk_checks": view.clerk_checks(verification),
             "ledger": view.claim_ledger(case, draft),
             "mapping": view.mapping_rows(case),
+            "mapping_caveats": view.unattributed_findings(view.case_findings(case)),
             "provenance": view.provenance(case, draft),
             "screened": view.screening_view(case.screening),
             "status_phrase": view.status_phrase(case.status),
