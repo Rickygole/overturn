@@ -121,8 +121,12 @@ as a guard model. Intake extracts the claim. Retrieval finds the payer's
 published policy, and stops the case entirely if no policy applies. Mapping
 rules on each criterion against the chart with the locator that supports it.
 Drafting writes the appeal. Verification tries to break it. Lifecycle holds
-the case for weeks and escalates when the payer's clock runs out — on its own,
-unattended, when the payer goes silent past the response window.
+the case open for as long as the payer takes and escalates it the instant the
+response window lapses — on its own, unattended, nobody asked. Real response
+windows run for weeks; this deployment compresses that clock to minutes so
+the escalation is something a judge can actually watch happen rather than
+wait weeks for. CASE-006 in the queue is that escalation, already on the
+record.
 
 Two humans sign before anything is transmitted — a clerk on the paper trail, a
 clinician on the medicine — and both signatures must land on the same draft

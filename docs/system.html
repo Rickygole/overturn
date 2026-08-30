@@ -96,17 +96,31 @@
   <!-- The judge's other core finding: "The track's defining claim is
        asserted and never shown... I click. There is nothing to see." It is
        no longer nothing -- CASE-006 escalated itself on a scheduler tick,
-       weeks after submission, with no person in the loop. This page never
-       pointed at it. Now it does. -->
+       with no person in the loop, the instant its response window lapsed.
+       This page never pointed at it. Now it does.
+
+       An earlier version of this section said "weeks after submission,"
+       which was false and checkable on this exact page: the audit trail on
+       the case linked below shows submission and escalation at the same
+       timestamp, because this deployment compresses the response window so
+       the mechanism is observable in minutes. The mechanism is the real one;
+       only the duration was ever compressed, and only the duration was ever
+       claimed wrong. -->
   <h2 id="escalation">The claim this track is built on, on the record</h2>
   <p>The defining claim of the Fortified Enterprise Fleet track is that an agent
-    fleet can carry a case across weeks with nobody watching it. <a href="/case/CASE-006">CASE-006</a>
-    is that claim, not an assertion of it: no answer came back within the
-    thirty-day response window on its first-level appeal, so Lifecycle&rsquo;s
-    scheduler tick moved the case itself to peer-to-peer review &mdash; rung 2 of
-    4 &mdash; weeks after submission, with no request and no person in between.
-    The case page states this in full: what rung it was on, what window lapsed,
-    when it moved, and what happens if the next one lapses too.</p>
+    fleet can carry a case for as long as a payer takes to answer, with nobody
+    watching it in between. <a href="/case/CASE-006">CASE-006</a> is that claim,
+    not an assertion of it: no answer came back within the thirty-day response
+    window on its first-level appeal, so Lifecycle&rsquo;s scheduler tick moved
+    the case itself to peer-to-peer review &mdash; rung 2 of 4 &mdash; the
+    instant that window lapsed, with no request and no person involved.</p>
+  <p>This deployment compresses the response window so the escalation is
+    observable in minutes rather than the weeks a real payer's clock would take
+    &mdash; disclosed on the case page and in the README, not hidden. What is
+    not compressed is the mechanism itself: a scheduler wakes on a fixed
+    interval, finds a deadline has passed, and moves the case with nobody
+    asked. The case page states all of it in full: what rung it was on, what
+    window lapsed, when it moved, and what happens if the next one lapses too.</p>
 
   <h2 id="measured">What was measured, including what went wrong</h2>
   <p>Eight cases, run offline against a scripted backend and again against real Gemini on

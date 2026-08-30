@@ -14,7 +14,7 @@ for site malfunctions, and deadline-day load on Devpost is a real risk.
 | **Text description** | Four parts, all drafted in [`PITCH.md`](PITCH.md) | ☑ |
 | **Spin-up instructions** | In `README.md`, verified from a clean clone on 2026-08-23 | ☑ |
 | **Architecture diagram** | Paste `https://overturn-kruy6aauaq-uc.a.run.app/architecture.svg` — a URL a judge can open from the form. The repo-relative link is not a substitute: the last scoresheet recorded "I cannot evaluate what I cannot open" | ☑ |
-| **Multi-week asynchronous operation** | Paste `https://overturn-kruy6aauaq-uc.a.run.app/case/CASE-006` — a case that escalated itself to peer-to-peer review weeks after submission, unattended. The last scoresheet: "The track's defining claim is asserted and never shown... I click. There is nothing to see." Now there is, and the URL goes straight to it | ☑ |
+| **Multi-week asynchronous operation** | Paste `https://overturn-kruy6aauaq-uc.a.run.app/case/CASE-006` — a case that escalated itself to peer-to-peer review the instant its response window lapsed, unattended, on a scheduler tick. The demo compresses that window to minutes (see the checklist item below); the escalation mechanism is the real one. The last scoresheet: "The track's defining claim is asserted and never shown... I click. There is nothing to see." Now there is, and the URL goes straight to it | ☑ |
 | **Agent discovery / GEAP mapping** | Paste `https://overturn-kruy6aauaq-uc.a.run.app/system.html#geap` — what was probed on day one, what is managed, what is a primitive and why, for all seven GEAP components. The last scoresheet: "Agent discovery is absent." It was on the record in `ARCHITECTURE.md` and off the two pages a judge actually opens; it is now on one of them, at this anchor | ☑ |
 | **Demo video** | ≤4 min, **public** on YouTube, captions on | ☐ |
 
@@ -43,9 +43,13 @@ project isn't open to the public without one:
   invented policies, generated patients.
 - **Two links worth opening directly, not navigating to**:
   `.../case/CASE-006` — a case that escalated itself to peer-to-peer review
-  weeks after submission with nobody watching, which is the multi-week
-  asynchronous claim this track asks for, on the record rather than asserted;
-  and `.../system.html#geap` — every GEAP component, what was probed, what is
+  the instant its response window lapsed, with nobody watching and nobody
+  asked. That is the multi-week asynchronous claim this track asks for, on
+  the record rather than asserted — real response windows run for weeks; this
+  demo compresses that clock to minutes so the mechanism is observable, which
+  is the one adjective on this page worth being careful with, since it is the
+  one a judge can check against the case's own timestamps; and
+  `.../system.html#geap` — every GEAP component, what was probed, what is
   managed, what is a primitive and why.
 - **`overturn-ingest` and `overturn-scheduler` are private by design** — Pub/Sub
   and Cloud Scheduler invoke them, not a browser. A **403 from either of their

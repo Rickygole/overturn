@@ -2160,7 +2160,7 @@ class TestCaseloadVisuals:
         assert sum(band.count for band in result.bands) == result.total == 5
 
     def test_a_zero_is_dropped_only_where_it_says_nothing(self):
-        """"0 closed" is noise. "0 waiting on a clinician" is an answer.
+        """ "0 closed" is noise. "0 waiting on a clinician" is an answer.
 
         A segment too thin to see misleads, so a band nobody can act on
         disappears at zero. The three actionable states keep their segment and
@@ -2463,7 +2463,35 @@ class TestEscalatedSignpost:
         assert signpost.case_id == "CASE-006"
         assert "escalated itself" in signpost.line
         assert "peer-to-peer review" in signpost.line
-        assert "weeks after submission" in signpost.line
+
+    def test_the_sentence_is_pinned_exactly_and_claims_no_duration(self):
+        """The red team's finding: this line hardcoded "weeks after
+        submission" regardless of the actual gap between submission and the
+        escalation -- it said so even with `submitted_at` five minutes in the
+        past, and even with `submitted_at` unset entirely. `_escalated()`
+        below submits the case two hours before `NOW` and the line must not
+        describe that as weeks, or as any duration at all: the true, stronger
+        claim is the mechanism -- Lifecycle moves the case the instant its
+        window lapses -- not a number that depends on how this demo happens
+        to compress time.
+
+        Pinned to the full string, not a substring, because R4.2's finding
+        was exactly that every existing assertion was a substring check and
+        none of them would have caught the case id being printed twice.
+        """
+        signpost = view.escalated_signpost([_escalated()])
+
+        assert signpost.line == (
+            "escalated itself to peer-to-peer review the moment its 30-day "
+            "response window on the first-level appeal lapsed — a scheduler "
+            "tick, no person in the loop. Worth opening to see what "
+            "Lifecycle did unattended."
+        )
+        for adjective in ("week", "month", "day after", "days after"):
+            assert adjective not in signpost.line.lower()
+        # And the case id must not be in `line` at all -- the template
+        # supplies it once, as the linked word immediately before this text.
+        assert "CASE-006" not in signpost.line
 
     def test_a_case_that_never_escalated_produces_no_signpost(self, seeded):
         assert view.escalated_signpost([seeded]) is None
@@ -2489,14 +2517,39 @@ class TestEscalatedSignpost:
         assert 'href="/case/CASE-006"' in html
         assert "Worth opening to see what Lifecycle did unattended" in html
 
+    def test_the_rendered_sentence_does_not_stutter_the_case_id(self, client, repo):
+        """R4.2: `line` used to start with the case id itself, and the
+        template already renders it as the linked word immediately before --
+        live output read "CASE-006 — CASE-006 escalated itself...". Checked
+        against the whole rendered block, not a substring: every existing
+        assertion on this page was a substring check, and none of them would
+        have caught a word appearing twice in a row.
+        """
+        repo.create(_escalated())
+
+        html = client.get("/queue").text
+        start = html.index('class="dash__escalated"')
+        block = html[start : html.index("</p>", start)]
+        text = " ".join(block.split())  # collapse the template's own whitespace/newlines
+        # One occurrence in the href, one as the link's visible text -- both
+        # legitimate. The regression is the case id appearing again in the
+        # prose *after* the link closes, so that is what is checked, not the
+        # raw count across the whole block.
+        prose = text.split("</a>", 1)[1]
+        assert "CASE-006" not in prose, f"case id repeated in the prose: {prose!r}"
+        assert (
+            'href="/case/CASE-006">CASE-006</a> — escalated itself to peer-to-peer '
+            "review the moment its 30-day response window on the first-level appeal "
+            "lapsed — a scheduler tick, no person in the loop. Worth opening to see "
+            "what Lifecycle did unattended."
+        ) in text
+
     def test_an_ordinary_queue_shows_no_signpost(self, client, seeded):
         """Checked against a phrase from the generated sentence itself, not
         against "escalated itself" -- that substring also appears in the
         stylesheet's own explanatory comment for `.dash__escalated`, which
         every page carries regardless of whether the block renders."""
-        assert "Worth opening to see what Lifecycle did unattended" not in client.get(
-            "/queue"
-        ).text
+        assert "Worth opening to see what Lifecycle did unattended" not in client.get("/queue").text
 
 
 # --------------------------------------------------------------------------- #

@@ -1388,9 +1388,12 @@ class EscalatedSignpost:
     `escalation()` above renders the full record on the case page itself. This
     is the thirty seconds before that: nothing on the queue page named that a
     case had ever done this, which meant the single clearest evidence for the
-    track's defining claim -- a case Lifecycle moved on its own, weeks after
-    submission, with nobody watching -- was reachable only by already knowing
-    which of eleven case ids to open.
+    track's defining claim -- a case Lifecycle moved on its own, unattended,
+    the moment its response window lapsed -- was reachable only by already
+    knowing which of eleven case ids to open. No duration is claimed here on
+    purpose: the demo compresses the response window (see `docs/SUBMISSION.md`),
+    so a specific figure like "weeks" would be checkable and false on the one
+    artifact this sentence points a reader at.
     """
 
     case_id: str
@@ -1424,12 +1427,22 @@ def escalated_signpost(cases: list[CaseRecord]) -> EscalatedSignpost | None:
         return None
     return EscalatedSignpost(
         case_id=chosen.case_id,
+        # No duration adjective and no repeated case id -- both were wrong.
+        # "Weeks after submission" was hardcoded here regardless of the
+        # actual gap: the red team set `submitted_at` to five minutes ago and
+        # to `None` and this line still said "weeks," on the one artifact a
+        # judge is pointed straight at. The true claim does not need a
+        # duration at all -- Lifecycle moves the case the instant its window
+        # lapses, whatever that window actually was, and that is the
+        # stronger sentence anyway: it is a mechanism claim, not a duration
+        # claim, and the mechanism is the real thing running in production.
+        # The case id is dropped because the template already renders it as
+        # the linked word immediately before this string.
         line=(
-            f"{chosen.case_id} escalated itself to "
-            f"{chosen_escalation.to_label.lower()} weeks after submission — no answer "
-            f"came back within the {chosen_escalation.lapsed_days}-day window on the "
-            f"{chosen_escalation.from_label.lower()}, and nothing was running in between. "
-            f"Worth opening to see what Lifecycle did unattended."
+            f"escalated itself to {chosen_escalation.to_label.lower()} the moment its "
+            f"{chosen_escalation.lapsed_days}-day response window on the "
+            f"{chosen_escalation.from_label.lower()} lapsed — a scheduler tick, no "
+            f"person in the loop. Worth opening to see what Lifecycle did unattended."
         ),
     )
 
