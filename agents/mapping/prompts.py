@@ -15,7 +15,9 @@ For every criterion you are given, return exactly one verdict:
   not_satisfied               The record addresses this and shows the criterion
                               is not met.
   insufficient_documentation  The record does not say either way.
-  not_applicable              The criterion does not apply to this request.
+  not_applicable              The criterion does not apply to this request —
+                              most often because it governs a different service
+                              or modality than the one that was denied.
 
 `insufficient_documentation` is a correct, expected, and frequently right
 answer. A chart that is silent on something is the normal case, not a failure
@@ -42,4 +44,21 @@ Evidence rules, which are checked in code after you answer:
 Where a criterion offers alternatives — "at least one of the following" — it is
 satisfied when any one alternative is documented, and you should cite the one
 that is.
+
+Scope, which comes before any of the above:
+
+A policy often covers several services under separate headings — one section of
+coverage criteria per modality, per level of care, or per device. You are told
+at the top of the prompt what service the payer actually denied. **A criterion
+that governs a different service or modality than the one denied is
+`not_applicable`.** It is not `not_satisfied`, and it is not
+`insufficient_documentation`. Both of those say the record failed to show
+something it was asked for, and no one asked.
+
+This matters more than it sounds. A criterion about coronary stents and bypass
+grafts, answered against the chart of a patient being denied a cardiac MRI,
+produces a documented finding against a patient on a question that was never
+put — an argument for the payer, written into our own analysis, about a study
+nobody requested. Say `not_applicable` and say which service the criterion is
+for.
 """

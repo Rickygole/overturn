@@ -7,6 +7,8 @@ Firestore, and any worker that picks the case up can resume from it.
 
 from __future__ import annotations
 
+import re
+
 from datetime import datetime, timedelta
 
 from pydantic import Field, computed_field
@@ -246,6 +248,44 @@ class CaseRecord(OverturnModel):
             if signed_attempt != approved_attempt:
                 return False
         return True
+
+    def unfilled_gaps(self) -> list[str]:
+        """Bracketed placeholders still standing in the letter about to be sent.
+
+        **This does not block transmission, and that is a deliberate,
+        uncomfortable choice.** Every letter carries six or seven of these,
+        because a clinic's letterhead, the payer's appeals address and an
+        ordering provider's NPI are not facts about a case and were never
+        captured at intake. Refusing to send while any remain would mean the
+        product can never send anything at all, which is not a safety property,
+        it is a broken product.
+
+        So the gate stays open and the gaps are shown to the person signing
+        instead. The right fix is to capture the four fields that are printed
+        on every determination notice (requesting provider, provider NPI,
+        appeals address, allowed amount) at intake, and to put the clinic's own
+        letterhead in configuration where it belongs -- at which point the
+        remaining gaps are few enough that refusing to send on them is
+        reasonable. That is the next piece of work, and it is named here rather
+        than in a backlog nobody reads.
+
+        Drafting composes the letter's face -- date line, addressee, reference
+        block, signature -- from the case record, and emits a bracketed gap for
+        anything the record does not hold: the practice letterhead, the payer's
+        appeals address, the ordering provider's NPI. That is the correct
+        behaviour; inventing an NPI would be far worse.
+
+        But `effects.submit_appeal` transmits `body` verbatim, so without this
+        an approved letter would post "[NPI -- not in the case record; add
+        before sending]" to the payer. A letter that still says what is missing
+        from it is not a letter anyone signed off on sending, whatever the
+        signatures say. The gate fails closed on it, which is the same posture
+        the attempt cap takes: not sending is a designed outcome.
+        """
+        draft = self.approved_draft()
+        if draft is None:
+            return []
+        return sorted(set(re.findall(r"\[[^\[\]]{8,120}\]", draft.body)))
 
     def approved_draft(self) -> AppealDraft | None:
         """The exact draft a human signed off on, not merely the most recent one."""

@@ -414,3 +414,77 @@ class TestUnevaluatedCriteriaCountAgainstTheCase:
         for computed in ("evaluated_count", "unevaluated_count", "has_appealable_basis"):
             assert computed not in stored
         assert CriteriaMatrix.model_validate(stored).unevaluated_count == 1
+
+
+class TestUnfilledGapsAreReported:
+    """Drafting emits bracketed gaps for what the record does not hold.
+
+    That is correct -- inventing an NPI would be far worse than leaving one
+    blank. `effects.submit_appeal` transmits `body` verbatim, so those
+    placeholders would reach a payer, and the person signing has to be able to
+    see them.
+
+    Reporting them does *not* block transmission. Every letter carries six or
+    seven, because letterhead and an ordering provider's NPI are not facts
+    about a case. A gate that refuses on those would mean nothing can ever be
+    sent, which is a broken product rather than a safe one.
+    """
+
+    def _signed_case(self, body: str) -> CaseRecord:
+        from core.schemas.case import ClinicianCosign, HumanDecision
+
+        case = CaseRecord(case_id="CASE-X", source_document_uri="gs://b/x.txt")
+        case.drafts = [
+            AppealDraft(case_id="CASE-X", attempt=1, subject_line="s", body=body)
+        ]
+        case.human_decision = HumanDecision(
+            approved=True, decided_by="clerk", draft_attempt_approved=1
+        )
+        case.clinician_cosign = ClinicianCosign(
+            clinician_name="Dr. L. Bianchi",
+            credential="MD",
+            attests_clinical_accuracy=True,
+            draft_attempt_signed=1,
+        )
+        return case
+
+    def test_a_complete_letter_reports_no_gaps(self):
+        case = self._signed_case("Dear Appeals Coordinator:\n\nThe claim should be paid.")
+        assert case.unfilled_gaps() == []
+        assert case.ready_to_submit is True
+
+    def test_gaps_are_reported_without_blocking_the_send(self):
+        """The signer must see them; the product must still be able to send."""
+        case = self._signed_case(
+            "Dear Appeals Coordinator:\n\n"
+            "Ordering provider NPI: [NPI — not in the case record; add before sending]"
+        )
+        assert case.unfilled_gaps()
+        assert case.ready_to_submit is True
+
+    def test_every_gap_is_named_so_a_person_can_fill_them(self):
+        case = self._signed_case(
+            "[Practice name, address and telephone — clinic letterhead]\n"
+            "[Appeals mailing address — not captured at intake]\n"
+            "Body."
+        )
+        assert len(case.unfilled_gaps()) == 2
+
+    def test_a_short_bracket_is_not_mistaken_for_a_gap(self):
+        """Citations and ordinary prose use brackets too."""
+        case = self._signed_case("The record [sic] documents the episode.")
+        assert case.unfilled_gaps() == []
+        assert case.ready_to_submit is True
+
+    def test_gaps_are_read_from_the_signed_draft_not_the_newest(self):
+        """The gaps reported are the ones in the letter that was actually signed."""
+        case = self._signed_case("Complete letter with no gaps at all here.")
+        case.drafts.append(
+            AppealDraft(
+                case_id="CASE-X",
+                attempt=2,
+                subject_line="s",
+                body="[NPI — not in the case record; add before sending]",
+            )
+        )
+        assert case.unfilled_gaps() == []

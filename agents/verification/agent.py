@@ -7,7 +7,12 @@ be wrong about:
    retrieved policy. Cannot hallucinate. Runs first because it is free, and a
    draft that fails it is not worth spending model calls on.
 2. **Does the source text support the claim?** One model call per citation, each
-   shown the section text and the claim and nothing else.
+   shown the section text and the claim and nothing else — except where the
+   claim is the source text restated, which is a string operation and is
+   settled without a model. A verbatim restatement cannot misstate its source,
+   and the model was rejecting them: CASE-003 lost two attempts to correct
+   readings of NBH-CARD-014-3.5 and 3.2, and an attempt cap that fails closed
+   turns that into a human review queue entry on work that was right.
 3. **Is every clinical assertion grounded?** One model call against the chart
    evidence in the criteria matrix.
 
@@ -26,6 +31,7 @@ from agents.verification.checks import (
     check_citation_existence,
     check_supporting_criteria,
     evidence_corpus,
+    is_faithful_restatement,
     resolve_section_text,
 )
 from core.audit import Recording
@@ -100,6 +106,7 @@ class VerificationAgent(OverturnAgent[VerificationRequest, VerificationResult]):
 
         # Check 2 — one call per citation, each starved of context.
         unsupported: list[str] = []
+        restated: list[str] = []
         tokens_in = tokens_out = 0
         model_used: str | None = None
         backend_used: str | None = None
@@ -107,6 +114,12 @@ class VerificationAgent(OverturnAgent[VerificationRequest, VerificationResult]):
         for citation in draft.citations:
             source = resolve_section_text(citation.section_id, request.retrieval)
             if source is None:
+                continue
+            if is_faithful_restatement(citation.claim, source):
+                # The claim is the section's own words, negations intact. There
+                # is no question left for a model to get wrong, and asking one
+                # is how this citation was rejected twice.
+                restated.append(citation.section_id)
                 continue
             result, response = self.llm.structured(
                 agent=self.name.value,
@@ -184,15 +197,28 @@ class VerificationAgent(OverturnAgent[VerificationRequest, VerificationResult]):
         rec.model = model_used
         rec.input_tokens = tokens_in or None
         rec.output_tokens = tokens_out or None
-        rec.decision = self._describe(verification)
+        if restated:
+            rec.extra["verbatim_restatements"] = restated
+        rec.decision = self._describe(verification, restated)
         return verification
 
     @staticmethod
-    def _describe(result: VerificationResult) -> str:
+    def _describe(result: VerificationResult, restated: list[str] | None = None) -> str:
+        restated = restated or []
+        # Say which citations were settled without a model. "Verified" covering
+        # both a model judgement and a string comparison, silently, is the kind
+        # of claim this project exists not to make.
+        without_a_model = (
+            f" ({len(restated)} of them a verbatim restatement of the source, "
+            f"settled without a model call: {', '.join(restated)})"
+            if restated
+            else ""
+        )
         if result.passed:
             return (
                 f"attempt {result.attempt} PASSED: {result.citations_checked} "
-                f"citation(s) verified against source text, all assertions grounded"
+                f"citation(s) verified against source text{without_a_model}, "
+                f"all assertions grounded"
             )
         reasons = []
         if result.citations_nonexistent:
@@ -201,4 +227,4 @@ class VerificationAgent(OverturnAgent[VerificationRequest, VerificationResult]):
             reasons.append(f"{len(result.citations_unsupported)} unsupported citation(s)")
         if result.ungrounded_assertions:
             reasons.append(f"{len(result.ungrounded_assertions)} ungrounded assertion(s)")
-        return f"attempt {result.attempt} REJECTED: " + ", ".join(reasons)
+        return f"attempt {result.attempt} REJECTED: " + ", ".join(reasons) + without_a_model

@@ -6,10 +6,25 @@ identifier appear in this set" is a set membership test.
 
 This is the check that catches a hallucinated citation, it runs in
 microseconds, it costs nothing, and it cannot have a bad day.
+
+:func:`is_faithful_restatement` was added on 29 August and belongs to the same
+family, pointed the other way. It does not reject anything. It answers one
+narrow question — *is this claim the source text itself, restated?* — and when
+the answer is yes the citation is verified without a model call at all. The
+model was rejecting verbatim restatements on CASE-003, twice, and no prompt is
+a guarantee. A claim that is the source's own words, carrying the source's own
+negations, cannot misstate the source, and that is a string operation rather
+than a judgement.
+
+It is one-way on purpose: a claim it does not recognise is not condemned, it is
+simply passed to the model exactly as before. Nothing here can fail a draft.
 """
 
 from __future__ import annotations
 
+import re
+
+from agents.mapping.validate import drops_a_leading_negation, normalise
 from core.schemas.criteria import CriteriaMatrix
 from core.schemas.draft import AppealDraft
 from core.schemas.enums import CriterionVerdictValue
@@ -102,6 +117,57 @@ def check_assertions_enumerated(draft: AppealDraft) -> list[VerificationFinding]
             ),
         )
     ]
+
+
+# Framing a writer puts in front of a criterion before restating it. None of
+# these words changes what the criterion requires: "Requires that X" asserts
+# exactly X where X is already a requirement. The live model rejected
+# NBH-CARD-014-3.5 on CASE-003 for exactly this shape.
+_FRAMING = re.compile(
+    r"^[\s\"'(]*"
+    r"(?:(?:this|the)\s+)?"
+    r"(?:section|criterion|policy|plan|paragraph|provision)?\s*"
+    r"(?:requires?|provides?|states?|says?|specifies|mandates|establishes|sets\s+out)"
+    r"(?:\s+that)?\s*[:,]?\s*",
+    re.IGNORECASE,
+)
+
+# Below this, a claim is too short for containment to mean anything. Half a
+# clause lifted out of a long criterion is not a restatement of it, and the
+# model is the right thing to ask about it.
+MIN_RESTATEMENT_CHARS = 40
+
+
+def strip_framing(claim: str) -> str:
+    """The claim with any leading "Requires that"-style framing removed."""
+    return _FRAMING.sub("", claim.strip(), count=1).strip()
+
+
+def is_faithful_restatement(claim: str, source: str) -> bool:
+    """Whether the claim is the source text restated, and nothing more.
+
+    True only when the claim — with framing stripped, whitespace collapsed and
+    case folded — appears inside the source verbatim, *and* does not begin
+    inside the reach of a negation it left behind. That second condition is the
+    truncation attack, and it is why this cannot be a plain substring test:
+    "a relative contraindication exists, the medical record documents that it
+    has been addressed" is word-for-word out of NBH-CARD-014-3.5 and drops the
+    "There is no contraindication ... or" that makes it conditional.
+
+    False means "not obviously a restatement", not "wrong". The caller asks the
+    model in that case.
+    """
+    for candidate in (strip_framing(claim), claim.strip()):
+        trimmed = candidate.strip().rstrip(" .;:,")
+        normalised = normalise(trimmed)
+        if len(normalised) < MIN_RESTATEMENT_CHARS:
+            continue
+        if normalised not in normalise(source):
+            continue
+        if drops_a_leading_negation(trimmed, source):
+            continue
+        return True
+    return False
 
 
 def resolve_section_text(section_id: str, retrieval: RetrievalResult) -> str | None:

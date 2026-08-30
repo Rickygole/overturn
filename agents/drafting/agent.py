@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from agents.base import OverturnAgent
 from agents.drafting.brief import DraftingBrief, render
+from agents.drafting.letter import compose_letter
 from core.audit import Recording
 from core.schemas.draft import AppealDraft
 from core.schemas.enums import AgentName
@@ -64,6 +65,18 @@ class DraftingAgent(OverturnAgent[DraftingBrief, AppealDraft]):
         draft.backend_used = response.backend
         draft.revision_feedback_applied = list(request.revision_instructions)
 
+        # The model wrote an argument. A letter is an argument inside a date
+        # line, an addressee, a reference block and a signature — none of which
+        # a model should be composing, because every one of them is a field on
+        # the case record and one of them is an NPI. Assembled in code, from the
+        # record, with an explicit gap wherever the record is silent.
+        #
+        # Nothing added here enters `citations` or `clinical_assertions`, so
+        # Verification's world is unchanged: a letterhead is not a claim about
+        # the patient and must not be presented to the verifier as one.
+        letter = compose_letter(request, draft.body)
+        draft.body = letter.body
+
         rec.model = response.model
         rec.input_tokens = response.input_tokens
         rec.output_tokens = response.output_tokens
@@ -74,6 +87,14 @@ class DraftingAgent(OverturnAgent[DraftingBrief, AppealDraft]):
             f"{len(draft.clinical_assertions)} clinical assertion(s), "
             f"{len(draft.body)} characters"
         )
+        # Named in the persisted line, not counted and not left in
+        # ``rec.extra`` — which no ``AuditEvent`` field carries, so nothing put
+        # there survives the write. "What did this system decline to know" is
+        # the question the whole project turns on, and it should be answerable
+        # from the audit trail without reading the prose.
+        if letter.gaps:
+            rec.decision += f"; letter gaps for a human to fill: {', '.join(letter.gaps)}"
+        rec.extra["letter_gaps"] = list(letter.gaps)
         if uncitable:
             # Recorded, not corrected. Verification is what rejects it, and
             # quietly stripping it here would hide the failure the retry loop

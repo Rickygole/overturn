@@ -362,7 +362,9 @@ class Pipeline:
         except ChartNotFound as exc:
             return self._fail(case_id, f"no chart available: {exc}")
 
-        matrix = self.fleet.mapping.run(case_id, MappingRequest(chart=chart, retrieval=retrieval))
+        matrix = self.fleet.mapping.run(
+            case_id, MappingRequest(chart=chart, retrieval=retrieval, denial=denial)
+        )
         # Whether there is an appeal here is not a question of how many criteria
         # are documented. It is whether the chart answers the one the payer
         # actually asked. A case can document seven criteria beautifully and

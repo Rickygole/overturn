@@ -149,8 +149,13 @@ _PREDICATE_OPENERS = frozenset(
 MAX_LOOKBACK_WORDS = 25
 
 
-def _drops_a_leading_negation(quote: str, source: str) -> bool:
+def drops_a_leading_negation(quote: str, source: str) -> bool:
     """Whether the quote begins inside the reach of a negation it omits.
+
+    Public because Verification asks the same question of a different pair of
+    texts. A letter's restatement of a policy criterion can be word-for-word
+    verbatim and still say the opposite of the criterion, by starting after the
+    "no" — the identical failure this catches in chart evidence.
 
     This is the truncation attack, and it needs no altered words at all. The
     record says "he did not feel the usual warning symptoms"; the quote is
@@ -246,7 +251,7 @@ def quote_is_present(quote: str, locator: str, chart_text: dict[str, str]) -> bo
     source = chart_text[key]
     if normalise(quote) not in normalise(source):
         return False
-    return not _drops_a_leading_negation(quote, source)
+    return not drops_a_leading_negation(quote, source)
 
 
 def chart_text_by_locator(chart: PatientChart) -> dict[str, str]:

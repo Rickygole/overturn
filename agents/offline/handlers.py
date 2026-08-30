@@ -285,6 +285,23 @@ def intake_extract(request: LlmRequest) -> DenialExtraction:
     policy_match = re.search(r"Medical Policy\s+(NBH-[A-Z]+-\d+)", text)
     date_match = re.search(r"Date of Notice:\s*([A-Za-z]+ \d+, \d{4})", text)
     deadline_match = re.search(r"on or\n?\s*before ([A-Za-z]+ \d+, \d{4})", text)
+    service_date_match = re.search(r"Date of Service:\s*([A-Za-z]+ \d+, \d{4})", text)
+
+    # The money. Every notice in the corpus states one figure, either as a total
+    # billed or -- on a prior authorisation, where nothing has been billed yet --
+    # as an estimated allowed amount. Neither has a typed home on
+    # `DenialExtraction`, so it goes where the live model put it: a sentence in
+    # `extraction_notes`. Matching that behaviour matters more than being tidier
+    # than it, because the drafting path reads this note to state the amount in
+    # dispute on the letter, and a stub that skipped it would produce a local
+    # letter with a gap where the deployed one carries a number.
+    amount_note: str | None = None
+    allowed = re.search(r"Estimated allowed amount:\s*\$([\d,]+\.\d{2})", text)
+    billed = re.search(r"Total billed:\s*\$([\d,]+\.\d{2})", text)
+    if allowed:
+        amount_note = f"Estimated allowed amount was specified as ${allowed.group(1)}."
+    elif billed:
+        amount_note = f"Total billed was specified as ${billed.group(1)}."
 
     from datetime import datetime
 
@@ -295,6 +312,19 @@ def intake_extract(request: LlmRequest) -> DenialExtraction:
             return datetime.strptime(raw, "%B %d, %Y").date()
         except ValueError:
             return None
+
+    service_date = parse(service_date_match.group(1) if service_date_match else None)
+    # The notice lists the diagnoses submitted on the claim; the first is the
+    # primary, which is what the live extraction keeps and what the appeal
+    # letter states back. A claim-level fact, applied to each line item.
+    diagnosis = re.search(r"Diagnosis submitted:\s*([A-Z]\d{2}(?:\.\d+)?)", text)
+    for service in services:
+        # "Requested, not yet performed" parses to None and stays None. A date
+        # of service that has not happened is a gap on the appeal letter, which
+        # is the correct thing for it to be.
+        service.date_of_service = service_date
+        if diagnosis:
+            service.diagnosis_code = diagnosis.group(1)
 
     return DenialExtraction(
         payer_name="Northbeck Health Plan",
@@ -308,6 +338,7 @@ def intake_extract(request: LlmRequest) -> DenialExtraction:
         appeal_deadline=parse(deadline_match.group(1) if deadline_match else None),
         appeal_window_days=180,
         referenced_policy_hint=policy_match.group(1) if policy_match else None,
+        extraction_notes=amount_note,
     )
 
 
@@ -405,8 +436,26 @@ def mapping_map_section(request: LlmRequest) -> CriteriaMatrix:
 # --------------------------------------------------------------------------- #
 
 
+def _clip(text: str, limit: int) -> str:
+    """Collapse whitespace and cut on a word boundary.
+
+    Cutting on the character produced "...documented as prog" in the middle of a
+    letter, which reads as a broken system rather than a stub.
+    """
+    flat = " ".join(text.split())
+    if len(flat) <= limit:
+        return flat
+    return flat[:limit].rsplit(" ", 1)[0].rstrip(",;:") + "..."
+
+
 def drafting_compose(request: LlmRequest) -> AppealDraft:
-    """Assemble a letter from the brief actually present in the prompt."""
+    """Assemble the argument from the brief actually present in the prompt.
+
+    The argument, not the letter: the date line, addressee, reference block,
+    salutation and signature are added afterwards by
+    ``agents.drafting.letter.compose_letter``, which is the same code the Gemini
+    path runs through. This handler stops where the model's job stops.
+    """
     prompt = request.prompt
     case_match = re.search(r"CASE[- ]?(\S+)", prompt)
     claim = re.search(r"CLAIM NUMBER: (\S+)", prompt)
@@ -443,8 +492,8 @@ def drafting_compose(request: LlmRequest) -> AppealDraft:
             )
         )
         paragraphs.append(
-            f"Criterion {criterion_id} requires: {' '.join(text.split())[:220]} "
-            f"The record satisfies this. {' '.join(reason.split())[:220]}"
+            f"Section {criterion_id} requires that {_clip(text, 220)[0].lower()}"
+            f"{_clip(text, 220)[1:]} The record documents this. {_clip(reason, 220)}"
         )
 
     for locator, quote in quotes:
@@ -470,13 +519,18 @@ def drafting_compose(request: LlmRequest) -> AppealDraft:
             "Under NBH-CARD-014-9.9, the relative contraindication is deemed addressed."
         )
 
+    # The argument only, and deliberately so. The date line, addressee,
+    # reference block, salutation and signature are assembled by
+    # `agents.drafting.letter.compose_letter` from the case record, on this path
+    # and on the Gemini path alike — one code path, so the free local run and
+    # the deployed one cannot disagree about the shape of a letter. A stub that
+    # wrote its own "Re:" line here would put that divergence straight back.
     body = "\n\n".join(
         [
-            f"Re: Appeal of adverse benefit determination, claim "
-            f"{claim.group(1) if claim else '(number not stated)'}",
-            f"We are appealing the denial of {service.group(1) if service else 'the service'}. "
-            f"The record documents what the plan's published criteria require, "
-            f"addressed below criterion by criterion.",
+            f"We are appealing the denial of "
+            f"{service.group(1) if service else 'the service'}. The member's record "
+            f"documents what the plan's own published criteria require, and this "
+            f"letter sets out each of those criteria and where the record meets it.",
             *paragraphs,
             "We request that the denial be overturned and the claim processed for payment.",
         ]
