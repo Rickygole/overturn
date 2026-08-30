@@ -3,9 +3,9 @@
 {% block eyebrow %}Appeal review{% endblock %}
 {% block masthead %}<span class="mono">{{ case.case_id }}</span>{% endblock %}
 {% block pagesub %}
-  Status <span class="chip chip--neutral">{{ case.status.value }}</span>
-  &nbsp;·&nbsp; Appeal level: {{ case.appeal_level.value.replace("_", " ") }}
-  &nbsp;·&nbsp; Last updated {{ case.updated_at | fmt_datetime }}
+  {% if denial %}{{ service_line }} · {{ denial.payer_name }}{% else %}Nothing has been extracted from this document yet{% endif %}<br>
+  {{ status_phrase }} ·
+  {% if deadline.days is not none %}Appeal due {{ deadline.stated }}{% else %}{{ deadline.label }}{% endif %}
 {% endblock %}
 {% block nav %}
 <a href="/queue">Review queue</a>
@@ -40,201 +40,42 @@
 </div>
 {% endif %}
 
-{# ---------------------------------------------------------------- 1 of 6 #}
-<section class="section" aria-labelledby="s1">
-  <span class="section__step">Section 1 of 6</span>
-  <h2 id="s1">The denial</h2>
-  <div class="section__body">
-    {% if denial %}
-    <dl class="facts">
-      <dt>Payer</dt><dd>{{ denial.payer_name }}</dd>
-      <dt>Claim number</dt><dd class="mono">{{ denial.claim_number or "Not stated in the letter" }}</dd>
-      <dt>Patient</dt><dd>{{ denial.patient_name or "Not stated in the letter" }}</dd>
-      <dt>Member id</dt><dd class="mono">{{ denial.member_id or "Not stated in the letter" }}</dd>
-      <dt>Service denied</dt>
-      <dd>
-        <ul>
-          {% for service in denial.services %}
-          <li>
-            {{ service.description }}
-            <span class="muted">{{ service | service_detail }}</span>
-          </li>
-          {% else %}
-          <li class="muted">No line items were itemised in the letter.</li>
-          {% endfor %}
-        </ul>
-      </dd>
-      <dt>Payer's stated reason</dt>
-      <dd>
-        <blockquote class="evidence">{{ denial.denial_reason_text }}</blockquote>
-        {% if denial.denial_reason_code %}
-        <span class="locator">Reason code {{ denial.denial_reason_code }}</span>
-        {% endif %}
-      </dd>
-      <dt>Date of denial</dt><dd>{{ denial.date_of_denial | fmt_date }}</dd>
-      <dt>Appeal deadline</dt>
-      <dd>
-        {{ deadline.stated }}
-        <span class="chip chip--{{ deadline.tone }}">{{ deadline.label }}</span>
-      </dd>
-    </dl>
-    {% if denial.extraction_notes %}
-    <p class="muted stack-4"><strong>Intake noted:</strong> {{ denial.extraction_notes }}</p>
-    {% endif %}
-    {% else %}
-    <div class="card prose">
-      <h3>No denial has been extracted for this case</h3>
-      <p class="muted">Intake has not run, or it failed. There is nothing here to appeal against yet.</p>
-    </div>
-    {% endif %}
+{# Screening is quiet when nothing happened and loud when something did. One
+   condition, and it is the whole of what the prompt-injection case needs: a
+   document carrying an instruction addressed to the reading system is not a
+   footnote three folds down, it is the first thing above the letter. #}
+{% if screened.prominent %}
+<div class="banner banner--{{ 'note' if screened.quarantined else 'warn' }}" role="alert">
+  <h2>{{ screened.headline }}</h2>
+  {% if screened.quarantined %}
+  <p>The document was <strong>quarantined</strong>. Nothing downstream should have read it.</p>
+  {% elif screened.findings %}
+  <p>The document was allowed through with the findings below recorded. Read the letter with
+  these in mind before approving anything.</p>
+  <p>Excerpts below are shown as data. They were never executed as instructions.</p>
+  {% else %}
+  <p>{{ screened.line }}</p>
+  {% endif %}
+  {% for finding in screened.findings %}
+  <div class="citation">
+    <p>
+      <span class="chip chip--warn">{{ finding.category.value.replace("_", " ") }}</span>
+      <span class="locator">{{ finding.detector }} · {{ finding.confidence | pct }} ({{ finding.confidence | confidence_band }})</span>
+    </p>
+    <p>{{ finding.rationale }}</p>
+    <blockquote class="evidence">{{ finding.excerpt }}</blockquote>
   </div>
-</section>
+  {% endfor %}
+</div>
+{% endif %}
 
-{# ---------------------------------------------------------------- 2 of 6 #}
-<section class="section" aria-labelledby="s2">
-  <span class="section__step">Section 2 of 6</span>
-  <h2 id="s2">Sentinel screening of the source document</h2>
-  <div class="section__body">
-    {% if not screening %}
-    <div class="card prose">
-      <h3>No screening record</h3>
-      <p class="muted">This document was not screened, or the result was not attached to the case.
-      Treat its contents with more caution than usual.</p>
-    </div>
-    {# A quarantine is not an error and is not painted as one. It is the screen
-       doing exactly what it is there for, and it is finished. A document let
-       through with findings attached is the live one: it is amber, because
-       there is still something for the reader to weigh. #}
-    {% elif screening.findings or screening.quarantine %}
-    <div class="banner banner--{{ 'note' if screening.quarantine else 'warn' }}">
-      <h3>Sentinel found {{ screening.findings | length }} item{{ "" if screening.findings|length == 1 else "s" }} in this document</h3>
-      <p>
-        {% if screening.quarantine %}
-        <span class="chip chip--caught">Stopped here</span>
-        The document was <strong>quarantined</strong>. Nothing downstream should have read it.
-        {% else %}
-        The document was allowed through with the findings below recorded. Read the drafted letter
-        with these in mind before approving anything.
-        {% endif %}
-      </p>
-    </div>
-    <div class="table-scroll">
-      <table>
-        <caption>Excerpts below are shown as data. They were never executed as instructions.</caption>
-        <thead>
-          <tr>
-            <th scope="col">Category</th>
-            <th scope="col">Detector</th>
-            <th scope="col">Confidence</th>
-            <th scope="col">Why it was flagged</th>
-            <th scope="col">Excerpt</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for finding in screening.findings %}
-          <tr>
-            <th scope="row"><span class="chip chip--warn">{{ finding.category.value.replace("_", " ") }}</span></th>
-            <td class="mono">{{ finding.detector }}</td>
-            <td>{{ finding.confidence | pct }} <span class="muted">({{ finding.confidence | confidence_band }})</span></td>
-            <td>{{ finding.rationale }}</td>
-            <td><blockquote class="evidence">{{ finding.excerpt }}</blockquote></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p><span class="chip chip--ok">No threats found</span></p>
-    <dl class="facts">
-      <dt>Detectors that ran</dt>
-      <dd>{{ screening.layers_run | join(", ") if screening.layers_run else "None recorded" }}</dd>
-      <dt>Personal data seen</dt>
-      <dd>{{ screening.pii_categories_found | join(", ") if screening.pii_categories_found else "None recorded" }}
-        <span class="muted">— expected in a denial letter; recorded, not blocked.</span></dd>
-      <dt>Screened content hash</dt>
-      <dd class="mono">{{ screening.content_sha256[:16] }}…</dd>
-    </dl>
-    {% endif %}
-  </div>
-</section>
+{# ═══ Rank 1 — decide ═══════════════════════════════════════════════════════
+   The letter, one sentence about how it got here, and the two buttons. The
+   page used to put twenty-three thousand characters of pipeline output in
+   front of the only two controls on it. #}
 
-{# ---------------------------------------------------------------- 3 of 6 #}
-<section class="section" aria-labelledby="s3">
-  <span class="section__step">Section 3 of 6</span>
-  <h2 id="s3">Criteria matrix</h2>
-  <div class="section__body">
-    {% if not matrix or not matrix.verdicts %}
-    <div class="card prose">
-      <h3>No criteria were mapped</h3>
-      <p class="muted">Without a matrix there is no documented basis for an appeal. Do not approve
-      a letter that rests on nothing.</p>
-    </div>
-    {% else %}
-    {% if matrix.chart_summary %}
-    <p class="prose">{{ matrix.chart_summary }}</p>
-    {% endif %}
-    <div class="table-scroll">
-      <table>
-        <caption>
-          Whether the chart documents what the payer's own policy asks for. This is a
-          documentation judgement, not a clinical one.
-          {{ matrix.satisfied_count }} of {{ matrix.verdicts | length }} criteria are satisfied with evidence.
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Criterion</th>
-            <th scope="col">Verdict</th>
-            <th scope="col">Chart evidence</th>
-            <th scope="col">Confidence</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in matrix.verdicts %}
-          <tr>
-            <th scope="row">
-              <span class="mono">{{ row.criterion_id }}</span><br>
-              <span class="normal">{{ row.criterion_text }}</span><br>
-              <span class="locator">Policy section {{ row.section_id }}</span>
-            </th>
-            <td>
-              <span class="chip chip--{{ row.verdict | verdict_key }}">{{ row.verdict | verdict_label }}</span>
-              <p class="note">{{ row.reasoning }}</p>
-            </td>
-            <td>
-              {% for item in row.evidence %}
-              <blockquote class="evidence">{{ item.quote }}</blockquote>
-              <p class="locator">
-                {{ item.locator }}
-                {% if item.document_type %} · {{ item.document_type }}{% endif %}
-                {% if item.observed_date %} · {{ item.observed_date }}{% endif %}
-              </p>
-              {% else %}
-              <span class="muted">No chart evidence cited</span>
-              {% endfor %}
-            </td>
-            <td>
-              {{ row.confidence | pct }}<br>
-              <span class="muted">{{ row.confidence | confidence_band }}</span>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% if matrix.unmapped_criteria %}
-    <div class="banner banner--warn stack-5">
-      <h3>{{ matrix.unmapped_criteria | length }} {{ "criterion" if matrix.unmapped_criteria|length == 1 else "criteria" }} could not be evaluated at all</h3>
-      <p class="mono">{{ matrix.unmapped_criteria | join(", ") }}</p>
-    </div>
-    {% endif %}
-    {% endif %}
-  </div>
-</section>
-
-{# ---------------------------------------------------------------- 4 of 6 #}
-<section class="section" aria-labelledby="s4">
-  <span class="section__step">Section 4 of 6</span>
-  <h2 id="s4">The drafted letter{% if draft %} — attempt {{ draft.attempt }}{% endif %}</h2>
+<section class="section section--lead" aria-labelledby="letter-h">
+  <h2 id="letter-h">The drafted letter{% if draft %} — attempt {{ draft.attempt }}{% endif %}</h2>
   <div class="section__body">
     {% if not draft %}
     <div class="card prose">
@@ -254,168 +95,21 @@
       {% endif %}
     </div>
 
-    <h3 class="stack-6">Citations, each next to the claim it is used to make</h3>
-    <div class="card card--reading stack-4">
-      {% for citation in draft.citations %}
-      <div class="citation">
-        <p><span class="citation__id">{{ citation.section_id }}</span></p>
-        <p><strong>The letter asserts:</strong> {{ citation.claim }}</p>
-        {% if citation.quoted_text %}
-        <blockquote class="evidence">{{ citation.quoted_text }}</blockquote>
-        {% endif %}
-        {% if citation.supporting_criterion_ids %}
-        <p class="locator">Rests on matrix rows: {{ citation.supporting_criterion_ids | join(", ") }}</p>
-        {% endif %}
-      </div>
-      {% else %}
-      <p class="muted">This letter cites no policy section. An appeal with no citation is an opinion.</p>
-      {% endfor %}
-    </div>
-
-    {% if draft.clinical_assertions %}
-    <h3 class="stack-6">Every factual claim the letter makes about the patient</h3>
-    <ul class="stack-4">
-      {% for assertion in draft.clinical_assertions %}
-      <li>{{ assertion }}</li>
-      {% endfor %}
-    </ul>
+    {# The best evidence this project has, and it used to live only inside a
+       closed disclosure at the bottom of the page. A closed `<details>` is
+       indistinguishable from absent. It is a sentence now, and it names what
+       was caught rather than merely counting the attempts. #}
+    {% if provenance %}
+    <p class="provenance">
+      {{ provenance.text }}
+      {% if provenance.sent_back %}<a href="#history">See what it caught</a>.{% endif %}
+    </p>
     {% endif %}
     {% endif %}
   </div>
 </section>
 
-{# ---------------------------------------------------------------- 5 of 6 #}
-<section class="section" aria-labelledby="s5">
-  <span class="section__step">Section 5 of 6</span>
-  <h2 id="s5">Verification</h2>
-  <div class="section__body">
-    {% if not verification %}
-    <div class="card prose">
-      <h3>This draft has not been verified</h3>
-      <p class="muted">No citation or grounding check has run against the letter above.</p>
-    </div>
-    {% else %}
-    <p>
-      {% if verification.passed %}
-      <span class="chip chip--ok">Passed on attempt {{ verification.attempt }}</span>
-      {% else %}
-      <span class="chip chip--caught">Rejected on attempt {{ verification.attempt }}</span>
-      {% endif %}
-      {% if verification.checked_by_model %}
-      <span class="muted">checked by {{ verification.checked_by_model }}{%
-        if verification.checked_by_backend == "scripted" %} (offline stub, not a model){% endif %}</span>
-      {% endif %}
-    </p>
-    <div class="table-scroll stack-4">
-      <table>
-        <caption>The checks that ran against attempt {{ verification.attempt }}.</caption>
-        <thead>
-          <tr>
-            <th scope="col">Check</th>
-            <th scope="col">Result</th>
-            <th scope="col">What was examined</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for check in checks %}
-          <tr>
-            <th scope="row" class="normal">{{ check.label }}</th>
-            <td>
-              {% if check.passed %}
-              <span class="chip chip--satisfied">Passed</span>
-              {% else %}
-              <span class="chip chip--not_satisfied">Failed</span>
-              {% endif %}
-            </td>
-            <td>{{ check.detail }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% endif %}
-
-    <h3 class="stack-6">Retry history</h3>
-    <p class="prose muted">
-      {{ history | length }} drafting attempt{{ "" if history|length == 1 else "s" }} on this case.
-      An attempt that verification sent back is shown here in full: the system catching its own
-      error is evidence, not something to hide.
-    </p>
-    <ol>
-      {% for entry in history %}
-      <li>
-        <strong>Attempt {{ entry.attempt }}</strong> —
-        {% if entry.passed %}
-        <span class="chip chip--satisfied">{{ entry.outcome }}</span>
-        {% elif entry.passed is false %}
-        {# Amber, not red. An attempt verification sent back is the retry loop
-           working; the fatal finding inside it below is the thing that was
-           actually wrong. #}
-        <span class="chip chip--caught">{{ entry.outcome }}</span>
-        {% else %}
-        <span class="chip chip--none">{{ entry.outcome }}</span>
-        {% endif %}
-        {% if entry.findings %}
-        <ul>
-          {% for finding in entry.findings %}
-          <li>
-            <span class="chip chip--{{ 'not_satisfied' if finding.severity == 'fatal' else 'insufficient_documentation' }}">{{ finding.severity }}</span>
-            <span class="mono">{{ finding.check }}</span> at <span class="mono">{{ finding.locus }}</span> —
-            {{ finding.detail }}
-            {% if finding.source_text %}
-            <blockquote class="evidence">{{ finding.source_text }}</blockquote>
-            {% endif %}
-          </li>
-          {% endfor %}
-        </ul>
-        {% endif %}
-        {% if entry.draft and entry.draft.revision_feedback_applied %}
-        <p class="muted">Written to answer:</p>
-        <ul>
-          {% for instruction in entry.draft.revision_feedback_applied %}
-          <li class="muted">{{ instruction }}</li>
-          {% endfor %}
-        </ul>
-        {% endif %}
-      </li>
-      {% else %}
-      <li class="muted">No drafting attempts recorded.</li>
-      {% endfor %}
-    </ol>
-
-    <details class="stack-5">
-      <summary>Audit trail — {{ trail | length }} recorded event{{ "" if trail|length == 1 else "s" }}</summary>
-      <div class="table-scroll stack-4">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">When</th>
-              <th scope="col">Agent</th>
-              <th scope="col">Operation</th>
-              <th scope="col">Decision</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for event in trail %}
-            <tr>
-              <td>{{ event.at | fmt_datetime }}</td>
-              <td class="mono">{{ event.agent.value }}</td>
-              <td class="mono">{{ event.operation }}</td>
-              <td>{{ event.decision }}{% if not event.succeeded %} <span class="chip chip--danger">failed</span>{% endif %}</td>
-            </tr>
-            {% else %}
-            <tr><td colspan="4" class="muted">No audit events for this case.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </details>
-  </div>
-</section>
-
-{# ---------------------------------------------------------------- 6 of 6 #}
 <section class="section" aria-labelledby="s6">
-  <span class="section__step">Section 6 of 6</span>
   <h2 id="s6">Your decision</h2>
   <div class="section__body">
 
@@ -430,62 +124,6 @@
         {% endif %}
         {% if case.human_decision.note %}<br>{{ case.human_decision.note }}{% endif %}
       </p>
-    </div>
-    {% endif %}
-
-    {# --- who has signed, and what is still missing ----------------------- #}
-    <h3 class="stack-5">Submission status</h3>
-    <p class="prose">{{ readiness.summary }}</p>
-    {% if readiness.attempt_conflict %}
-    <div class="banner banner--warn">
-      <h4>The two signatures are on different drafts</h4>
-      <p>{{ readiness.attempt_conflict }}</p>
-    </div>
-    {% endif %}
-
-    <div class="card stack-4">
-      <ol class="signatures">
-        {% for signature in readiness.signatures %}
-        <li class="signature">
-          <span>
-            {% if signature.present %}
-            <span class="chip chip--satisfied">Signed</span>
-            {% elif signature.required %}
-            <span class="chip chip--pending">Not signed</span>
-            {% else %}
-            <span class="chip chip--not_applicable">Not required</span>
-            {% endif %}
-          </span>
-          <div>
-            <h4>{{ signature.role }}{% if signature.signed_by %} — {{ signature.signed_by }}{% endif %}</h4>
-            <p class="muted">{{ signature.scope }}</p>
-            <p>{{ signature.detail }}</p>
-            {% if signature.key == "clinician" and signature.required and not signature.present %}
-            <p><a href="/case/{{ case.case_id }}/clinical">Open the clinical review screen for the ordering clinician</a></p>
-            {% endif %}
-          </div>
-        </li>
-        {% endfor %}
-      </ol>
-    </div>
-
-    {% if submission %}
-    <div class="banner banner--ok stack-4">
-      <h3>Transmitted to {{ denial.payer_name if denial else "the payer" }}</h3>
-      <dl class="facts">
-        <dt>Confirmation reference</dt>
-        <dd class="mono">{{ submission.reference or "The payer returned no reference." }}</dd>
-        <dt>Sent</dt><dd>{{ submission.submitted_at | fmt_datetime }}</dd>
-        <dt>Payer response due by</dt>
-        <dd>
-          {% if submission.response_deadline %}
-          {{ submission.response_deadline | fmt_datetime }} — the scheduler escalates on its own
-          if nothing has come back by then.
-          {% else %}
-          No response window was recorded, so nothing is watching this case for a reply.
-          {% endif %}
-        </dd>
-      </dl>
     </div>
     {% endif %}
 
@@ -513,6 +151,11 @@
           {% if checks_bad %}
           <p class="field-error" id="gate-error">{{ error }}</p>
           {% endif %}
+          {# The three "Verification passed this" chips that used to sit here
+             are gone. A machine telling a human the answer, beside the box the
+             human signs, is a rubber-stamp affordance in a control with legal
+             weight. What Verification found is still said, in a sentence,
+             because that is a finding rather than an instruction. #}
           {% for check in clerk_checks %}
           <div class="check">
             <input type="checkbox" id="{{ check.id }}" name="{{ check.field }}" value="true" required
@@ -520,16 +163,7 @@
                    {{ "autofocus" if checks_bad and loop.first }}>
             <div>
               <label for="{{ check.id }}">{{ check.label }}</label>
-              <p class="check__finding" id="{{ check.id }}-finding">
-                {% if check.passed %}
-                <span class="chip chip--satisfied">Verification passed this</span>
-                {% elif check.passed is false %}
-                <span class="chip chip--not_satisfied">Verification failed this</span>
-                {% else %}
-                <span class="chip chip--not_applicable">Nothing computed</span>
-                {% endif %}
-                {{ check.finding }}
-              </p>
+              <p class="check__finding" id="{{ check.id }}-finding">{{ check.finding }}</p>
             </div>
           </div>
           {% endfor %}
@@ -595,6 +229,387 @@
       <p><a href="/queue">Back to the review queue</a></p>
     </div>
     {% endif %}
+
+    {# --- who has signed, and what is still missing ----------------------- #}
+    <h3 class="stack-6">Submission status</h3>
+    <p class="prose">{{ readiness.summary }}</p>
+    {% if readiness.attempt_conflict %}
+    <div class="banner banner--warn">
+      <h4>The two signatures are on different drafts</h4>
+      <p>{{ readiness.attempt_conflict }}</p>
+    </div>
+    {% endif %}
+
+    <ol class="signatures stack-4">
+      {% for signature in readiness.signatures %}
+      <li class="signature">
+        <span>
+          {% if signature.present %}
+          <span class="chip chip--satisfied">Signed</span>
+          {% elif signature.required %}
+          <span class="chip chip--pending">Not signed</span>
+          {% else %}
+          <span class="chip chip--not_applicable">Not required</span>
+          {% endif %}
+        </span>
+        <div>
+          <h4>{{ signature.role }}{% if signature.signed_by %} — {{ signature.signed_by }}{% endif %}</h4>
+          <p class="muted">{{ signature.scope }}</p>
+          <p>{{ signature.detail }}</p>
+          {% if signature.key == "clinician" and signature.required and not signature.present %}
+          <p><a href="/case/{{ case.case_id }}/clinical">Open the clinical review screen for the ordering clinician</a></p>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+
+    {% if submission %}
+    <div class="banner banner--ok stack-5">
+      <h3>Transmitted to {{ denial.payer_name if denial else "the payer" }}</h3>
+      <dl class="facts">
+        <dt>Confirmation reference</dt>
+        <dd class="mono">{{ submission.reference or "The payer returned no reference." }}</dd>
+        <dt>Sent</dt><dd>{{ submission.submitted_at | fmt_datetime }}</dd>
+        <dt>Payer response due by</dt>
+        <dd>
+          {% if submission.response_deadline %}
+          {{ submission.response_deadline | fmt_datetime }} — the scheduler escalates on its own
+          if nothing has come back by then.
+          {% else %}
+          No response window was recorded, so nothing is watching this case for a reply.
+          {% endif %}
+        </dd>
+      </dl>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{# ═══ Rank 2 — the ledger ═══════════════════════════════════════════════════
+   One claim-led table, driven by the letter's own citations. It replaces the
+   criteria matrix and the citations block that used to print seven of nine
+   policy quotations twice on the same page. #}
+
+<section class="section" aria-labelledby="ledger-h">
+  <h2 id="ledger-h">What the letter claims, and the policy text behind it</h2>
+  <div class="section__body">
+    {% if not ledger %}
+    <div class="card prose">
+      <h3>This letter cites no policy section</h3>
+      <p class="muted">An appeal with no citation is an opinion, and there is nothing here to
+      check against the insurer's own policy text.</p>
+    </div>
+    {% else %}
+    <div class="table-scroll">
+      <table class="ledger">
+        <caption>
+          One row per claim the letter makes. The second column is the insurer's own words,
+          quoted from the policy set Retrieval returned — this is what the second confirmation
+          above asks you to check. Anything flagged sorts to the top.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">What the letter asserts</th>
+            <th scope="col">The policy text behind it</th>
+            <th scope="col">Chart evidence</th>
+            <th scope="col">Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in ledger %}
+          <tr>
+            <th scope="row">
+              <span class="mono">{{ row.section_id }}</span><br>
+              {% if row.restates_verbatim %}
+              <span class="normal dim">{{ RESTATED_VERBATIM }}</span>
+              {% else %}
+              <span class="normal">{{ row.claim }}</span>
+              {% endif %}
+            </th>
+            <td>
+              {% if row.source_text %}
+              <blockquote class="evidence">{{ row.source_text }}</blockquote>
+              {% else %}
+              <p class="note">{{ row.source_note }}</p>
+              {% endif %}
+              {% if row.quoted_text %}
+              <p class="locator">Quoted in the letter as:</p>
+              <blockquote class="evidence">{{ row.quoted_text }}</blockquote>
+              {% endif %}
+            </td>
+            <td>
+              {% for verdict in row.verdicts %}
+              {% for item in verdict.evidence %}
+              <blockquote class="evidence">{{ item.quote }}</blockquote>
+              <p class="locator">{{ item.locator }}{% if item.observed_date %} · {{ item.observed_date }}{% endif %}</p>
+              {% else %}
+              <p class="note">No chart evidence on <span class="mono">{{ verdict.criterion_id }}</span></p>
+              {% endfor %}
+              {% else %}
+              <p class="note">{{ NO_MATRIX_ROW }}</p>
+              {% endfor %}
+            </td>
+            <td>
+              {% for verdict in row.verdicts %}
+              <p><span class="chip chip--{{ verdict.verdict | verdict_key }}">{{ verdict.verdict | verdict_label }}</span>
+              <span class="locator">{{ verdict.criterion_id }}</span></p>
+              {% endfor %}
+              {% for id in row.unevaluated %}
+              <p><span class="chip chip--not_applicable">Never evaluated</span>
+              <span class="locator">{{ id }}</span></p>
+              {% endfor %}
+              {% if row.flagged %}
+              <p><span class="chip chip--caught">Flagged</span> <span class="note">{{ row.flag_reason }}</span></p>
+              {% endif %}
+              {% for finding in row.findings %}
+              <p class="note"><strong>Verification, attempt {{ finding.attempt }}:</strong> {{ finding.detail }}</p>
+              {% endfor %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{# ═══ Rank 3 — the record, folded ═══════════════════════════════════════════
+   Four disclosures, each summary carrying its own count. None of this is
+   hidden — it is ranked below the thing you are here to do. #}
+
+<section class="section" aria-labelledby="record-h">
+  <h2 id="record-h">The rest of the record</h2>
+  <div class="section__body">
+
+    <details id="history">
+      <summary>How this letter got here — {{ history | length }} attempt{{ "" if history|length == 1 else "s" }}{% if provenance and provenance.sent_back %}, {{ provenance.sent_back | length }} sent back{% endif %}</summary>
+      <p class="prose muted stack-4">
+        An attempt that verification sent back is shown here in full: the system catching its own
+        error is evidence, not something to hide.
+        {% if verification %}
+        Attempt {{ verification.attempt }} {{ "passed" if verification.passed else "was rejected" }}{% if verification.checked_by_model %},
+        checked by {{ verification.checked_by_model }}{% if verification.checked_by_backend == "scripted" %} (offline stub, not a model){% endif %}{% endif %}.
+        {% else %}
+        This draft has not been verified: no citation or grounding check has run against it.
+        {% endif %}
+      </p>
+      <ol>
+        {% for entry in history %}
+        <li>
+          <strong>Attempt {{ entry.attempt }}</strong> —
+          {% if entry.passed %}
+          <span class="chip chip--satisfied">{{ entry.outcome }}</span>
+          {% elif entry.passed is false %}
+          {# Amber, not red. An attempt verification sent back is the retry loop
+             working; the fatal finding inside it below is the thing that was
+             actually wrong. #}
+          <span class="chip chip--caught">{{ entry.outcome }}</span>
+          {% else %}
+          <span class="chip chip--none">{{ entry.outcome }}</span>
+          {% endif %}
+          {% if entry.findings %}
+          <ul>
+            {% for finding in entry.findings %}
+            <li>
+              <span class="chip chip--{{ 'not_satisfied' if finding.severity == 'fatal' else 'insufficient_documentation' }}">{{ finding.severity }}</span>
+              <span class="mono">{{ finding.check }}</span> at <span class="mono">{{ finding.locus }}</span> —
+              {{ finding.detail }}
+              {% if finding.source_text %}
+              <blockquote class="evidence">{{ finding.source_text }}</blockquote>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+          {% if entry.draft and entry.draft.revision_feedback_applied %}
+          <p class="muted">Written to answer:</p>
+          <ul>
+            {% for instruction in entry.draft.revision_feedback_applied %}
+            <li class="muted">{{ instruction }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </li>
+        {% else %}
+        <li class="muted">No drafting attempts recorded.</li>
+        {% endfor %}
+      </ol>
+    </details>
+
+    <details>
+      <summary>The full criteria mapping — {% if matrix %}{{ matrix.verdicts | length }} criteria, {{ matrix.satisfied_count }} satisfied{% else %}nothing was mapped{% endif %}</summary>
+      {% if not mapping %}
+      <p class="prose muted stack-4">Without a matrix there is no documented basis for an appeal.
+      Do not approve a letter that rests on nothing.</p>
+      {% else %}
+      {% if matrix.chart_summary %}
+      <p class="prose stack-4">{{ matrix.chart_summary }}</p>
+      {% endif %}
+      <div class="table-scroll">
+        <table>
+          <caption>
+            Whether the chart documents what the payer's own policy asks for. This is a
+            documentation judgement, not a clinical one. Confidence lives here rather than
+            beside the decision: a clerk cannot act differently at ninety-four percent than at
+            eighty-eight.
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Criterion</th>
+              <th scope="col">Verdict</th>
+              <th scope="col">Chart evidence</th>
+              <th scope="col">Confidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in mapping %}
+            <tr>
+              <th scope="row">
+                <span class="mono">{{ row.verdict.criterion_id }}</span><br>
+                <span class="normal">{{ row.verdict.criterion_text }}</span><br>
+                <span class="locator">Policy section {{ row.verdict.section_id }}</span>
+              </th>
+              <td>
+                <span class="chip chip--{{ row.verdict.verdict | verdict_key }}">{{ row.verdict.verdict | verdict_label }}</span>
+                {% if row.contested %}
+                <span class="chip chip--caught">Contested</span>
+                {% endif %}
+                <p class="note">{{ row.verdict.reasoning }}</p>
+                {# Verification's findings were fed back to Drafting and nowhere
+                   else, so a row whose reasoning a second model contradicted
+                   went on rendering as clean. The verdict is left alone — what
+                   is usually rejected is the characterisation, not the
+                   conclusion — and the objection is printed under it. #}
+                {% for finding in row.findings %}
+                <p class="note"><strong>Verification disagreed on attempt {{ finding.attempt }}:</strong>
+                {{ finding.detail }}</p>
+                {% endfor %}
+              </td>
+              <td>
+                {% for item in row.verdict.evidence %}
+                <blockquote class="evidence">{{ item.quote }}</blockquote>
+                <p class="locator">
+                  {{ item.locator }}
+                  {% if item.document_type %} · {{ item.document_type }}{% endif %}
+                  {% if item.observed_date %} · {{ item.observed_date }}{% endif %}
+                </p>
+                {% else %}
+                <span class="muted">No chart evidence cited</span>
+                {% endfor %}
+              </td>
+              <td>
+                {% if row.show_confidence %}
+                {{ row.verdict.confidence | pct }}<br>
+                <span class="muted">{{ row.verdict.confidence | confidence_band }}</span>
+                {% else %}
+                <span class="muted">{{ row.confidence_note }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if matrix.unmapped_criteria %}
+      <p class="note"><strong>{{ matrix.unmapped_criteria | length }}
+      {{ "criterion" if matrix.unmapped_criteria|length == 1 else "criteria" }} could not be
+      evaluated at all:</strong> <span class="mono">{{ matrix.unmapped_criteria | join(", ") }}</span></p>
+      {% endif %}
+      {% endif %}
+    </details>
+
+    <details>
+      <summary>The denial letter as received{% if denial and denial.services %} — {{ denial.services | length }} line item{{ "" if denial.services|length == 1 else "s" }}{% endif %}</summary>
+      {% if denial %}
+      <dl class="facts stack-4">
+        <dt>Payer</dt><dd>{{ denial.payer_name }}</dd>
+        <dt>Claim number</dt><dd class="mono">{{ denial.claim_number or "Not stated in the letter" }}</dd>
+        <dt>Patient</dt><dd>{{ denial.patient_name or "Not stated in the letter" }}</dd>
+        <dt>Member id</dt><dd class="mono">{{ denial.member_id or "Not stated in the letter" }}</dd>
+        <dt>Service denied</dt>
+        <dd>
+          <ul>
+            {% for service in denial.services %}
+            <li>
+              {{ service.description }}
+              <span class="muted">{{ service | service_detail }}</span>
+            </li>
+            {% else %}
+            <li class="muted">No line items were itemised in the letter.</li>
+            {% endfor %}
+          </ul>
+        </dd>
+        <dt>Payer's stated reason</dt>
+        <dd>
+          <blockquote class="evidence">{{ denial.denial_reason_text }}</blockquote>
+          {% if denial.denial_reason_code %}
+          <span class="locator">Reason code {{ denial.denial_reason_code }}</span>
+          {% endif %}
+        </dd>
+        <dt>Date of denial</dt><dd>{{ denial.date_of_denial | fmt_date }}</dd>
+        <dt>Appeal deadline</dt>
+        <dd>
+          {{ deadline.stated }} ·
+          {% if deadline.tone == "ok" and deadline.days is not none and deadline.days > 30 %}
+          <span class="dim">{{ deadline.label }}</span>
+          {% else %}
+          <span class="chip chip--{{ deadline.tone }}">{{ deadline.label }}</span>
+          {% endif %}
+        </dd>
+        <dt>Appeal level</dt><dd>{{ case.appeal_level.value.replace("_", " ") }}</dd>
+        <dt>Last updated</dt><dd>{{ case.updated_at | fmt_datetime }}</dd>
+      </dl>
+      {% if denial.extraction_notes %}
+      <p class="muted stack-4"><strong>Intake noted:</strong> {{ denial.extraction_notes }}</p>
+      {% endif %}
+      {% else %}
+      <p class="prose muted stack-4">Intake has not run, or it failed. There is nothing here to
+      appeal against yet.</p>
+      {% endif %}
+    </details>
+
+    <details>
+      <summary>Audit trail — {{ trail | length }} recorded event{{ "" if trail|length == 1 else "s" }}</summary>
+      {# One line when the screen was clean. A chip reading "No threats found"
+         is a chip for a null result, and a page that shouts every time nothing
+         happened has nothing left to shout with when something does. #}
+      <p class="prose stack-4">{{ screened.line }}</p>
+      {% if screened.present and not screened.findings %}
+      <dl class="facts">
+        <dt>Personal data seen</dt>
+        <dd>{{ screening.pii_categories_found | join(", ") if screening.pii_categories_found else "None recorded" }}
+          <span class="muted">— expected in a denial letter; recorded, not blocked.</span></dd>
+        <dt>Screened content hash</dt>
+        <dd class="mono">{{ screening.content_sha256[:16] }}…</dd>
+      </dl>
+      {% endif %}
+      <div class="table-scroll stack-4">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">When</th>
+              <th scope="col">Agent</th>
+              <th scope="col">Operation</th>
+              <th scope="col">Decision</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for event in trail %}
+            <tr>
+              <td>{{ event.at | fmt_datetime }}</td>
+              <td class="mono">{{ event.agent.value }}</td>
+              <td class="mono">{{ event.operation }}</td>
+              <td>{{ event.decision }}{% if not event.succeeded %} <span class="chip chip--danger">failed</span>{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="muted">No audit events for this case.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
   </div>
 </section>
 

@@ -268,10 +268,16 @@ main>:first-child{margin-top:0}
 
 .pagehead{margin-bottom:var(--s6)}
 .pagehead h1{margin-bottom:0}
-.pagehead__sub{margin:var(--s3) 0 0;font-size:var(--fs-md);color:var(--muted);max-width:52ch}
+/* Not prose: it is the case, the service, the payer and the clock, on two
+   lines. At a prose measure the first line wrapped mid-phrase. */
+.pagehead__sub{margin:var(--s3) 0 0;font-size:var(--fs-md);color:var(--muted);max-width:72ch;
+               line-height:1.5}
 
 .section{margin-top:var(--s8);padding-top:var(--s5);border-top:1px solid var(--hair)}
 .section:first-of-type{margin-top:var(--s7)}
+/* The letter is the first thing on the case screen and needs no rule over it:
+   the page head is already the boundary. */
+.section--lead{margin-top:0;padding-top:0;border-top:0}
 /* The dashboard already closes itself with a rule and a gap. */
 .dash+.section{margin-top:0;padding-top:0;border-top:0}
 .section__body{margin-top:var(--s4)}
@@ -428,11 +434,16 @@ p.locator{margin:0 0 var(--s2);max-width:var(--measure)}
   padding:.1em .4em;
 }
 
+/* Folded material sits *on* the page rather than lifted off it. The one
+   elevated object on a case screen is the panel you sign; everything ranked
+   below it recedes, and a disclosure that looks as present as the decision is
+   competing with the decision. */
 details{
-  border:1px solid var(--hair);background:var(--panel);border-radius:var(--r);
+  border:1px solid var(--hair);background:transparent;border-radius:var(--r);
   padding:var(--s3) var(--s4);
 }
 details[open]{padding-bottom:var(--s4)}
+details+details{margin-top:var(--s3)}
 summary{cursor:pointer;font-weight:500;font-size:var(--fs-md)}
 summary::marker{color:var(--dim)}
 
@@ -449,6 +460,29 @@ summary::marker{color:var(--dim)}
    round a form is a claim the frame cannot make. */
 .decide__panel h3{margin-bottom:var(--s2)}
 .decide__panel--solo{max-width:44rem}
+
+/* The one elevated object on the page, and it is the thing you are meant to
+   do. Not a new card vocabulary -- the page already had seven bordered-box
+   types and did not need an eighth. It is the same panel every other block
+   uses, given the filled surface and a 2px ink edge that nothing else on a
+   case screen carries. Rank by weight, not by adding components. */
+.decide__panel--approve{background:var(--panel);border-top:2px solid var(--ink)}
+
+/* One sentence under the letter, saying how the letter got here. Ruled rather
+   than boxed: it is a line of prose, not another block. */
+.provenance{
+  margin:var(--s4) 0 0;padding-left:var(--s3);
+  border-left:2px solid var(--edge);
+  font-size:var(--fs-sm);line-height:1.6;color:var(--muted);
+  max-width:66ch;
+}
+
+/* The claim ledger. Four columns of quotation, so the first two get the room
+   and the last two get out of the way. */
+.ledger td,.ledger th{vertical-align:top}
+.ledger tbody th{white-space:normal;width:26%}
+.ledger td:first-of-type{width:30%}
+.ledger td>.note:first-child{margin-top:0}
 
 label{display:block;font-weight:500;font-size:var(--fs-md);margin-bottom:var(--s1)}
 .hint{display:block;font-weight:400;color:var(--dim);font-size:var(--fs-xs);

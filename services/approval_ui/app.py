@@ -34,7 +34,6 @@ from core.idempotency import (
     PayloadMismatch,
     UnsafeToRetry,
 )
-from core.schemas.enums import CaseStatus
 from core.state import CaseNotFound
 from core.store import DocumentStore, build_store
 from services.approval_ui import view
@@ -98,6 +97,10 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
     # A global rather than a filter: it takes two arguments, and
     # `{{ model | attribution(backend) }}` reads worse than calling it.
     templates.env.globals["attribution"] = view.attribution
+    # Two sentences the ledger says on many rows. Globals rather than context
+    # keys so the wording lives next to the logic that decides when it applies.
+    templates.env.globals["RESTATED_VERBATIM"] = view.RESTATED_VERBATIM
+    templates.env.globals["NO_MATRIX_ROW"] = view.NO_MATRIX_ROW
 
     app.state.service = service
     app.state.templates = templates
@@ -126,8 +129,13 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
             "draft": draft,
             "verification": verification,
             "history": view.attempt_history(case),
-            "checks": view.check_rows(verification),
             "clerk_checks": view.clerk_checks(verification),
+            "ledger": view.claim_ledger(case, draft),
+            "mapping": view.mapping_rows(case),
+            "provenance": view.provenance(case, draft),
+            "screened": view.screening_view(case.screening),
+            "status_phrase": view.status_phrase(case.status),
+            "service_line": view.service_line(case.denial),
             "readiness": view.readiness(case),
             "submission": view.submission(case),
             "stalled": view.approved_but_not_sent(case),
@@ -218,20 +226,25 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
     # -- routes ------------------------------------------------------------- #
 
     @app.get("/queue", response_class=HTMLResponse)
-    def queue(request: Request) -> Response:
-        # Approved-and-waiting is its own list. Without it a case the clerk has
-        # signed sits in `approved`, which appears in neither of the other two
-        # queues, and the clinician whose signature it is waiting for has no way
-        # to find it.
+    def queue(request: Request, waiting: str | None = None) -> Response:
+        """One table of everything a person can act on, filtered by who holds it.
+
+        ``waiting`` is validated against a fixed set and falls back rather than
+        emptying the queue: it is a query parameter, which is to say a form
+        field somebody can type, and this is the screen a clerk works from.
+        """
+        active = view.waiting_filter(waiting)
+        rows = [view.queue_row(c) for c in service.open_cases()]
+        shown = rows if active == "all" else [r for r in rows if r["waiting_key"] == active]
         return templates.TemplateResponse(
             request,
             "queue.html",
             {
-                "awaiting": [view.queue_row(c) for c in service.awaiting_approval()],
-                "awaiting_cosign": [
-                    view.queue_row(c) for c in service.cases.find_by_status(CaseStatus.APPROVED)
-                ],
-                "needs_review": [view.queue_row(c) for c in service.needs_human_review()],
+                "rows": shown,
+                "total_open": len(rows),
+                "active": active,
+                "active_label": view.WAITING_FILTERS[active],
+                "payer": view.one_payer(shown),
                 "overview": _overview_or_none(service),
             },
         )

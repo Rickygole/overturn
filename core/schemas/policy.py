@@ -89,3 +89,21 @@ class RetrievalResult(OverturnModel):
             ids.add(section.section_id)
             ids.update(c.criterion_id for c in section.criteria)
         return ids
+
+    def text_for(self, section_id: str) -> str | None:
+        """The verbatim text behind a cited identifier, section or criterion.
+
+        Lives on the schema rather than in Verification because it is not a
+        verification concern: it answers "what does the insurer's policy
+        actually say here", and the approval screen has to ask that question
+        too. A clerk asked to confirm that a quoted passage matches its source
+        cannot do it unless the source is on the screen, and the interface is
+        not permitted to import from ``agents/`` to find it.
+        """
+        for section in self.sections:
+            if section.section_id == section_id:
+                return section.text
+            for criterion in section.criteria:
+                if criterion.criterion_id == section_id:
+                    return criterion.text
+        return None

@@ -4,58 +4,6 @@
 {% block masthead %}Review queue{% endblock %}
 {% block nav %}<span aria-current="page">Review queue</span>{% endblock %}
 
-{% macro queue_table(rows, caption, show_reason=False, link_suffix="") %}
-<div class="table-scroll">
-  <table>
-    <caption>{{ caption }}</caption>
-    <thead>
-      <tr>
-        <th scope="col">Case</th>
-        <th scope="col">Patient</th>
-        <th scope="col">Payer</th>
-        <th scope="col">Service denied</th>
-        <th scope="col">Appeal deadline</th>
-        <th scope="col">Drafting attempts</th>
-        {% if show_reason %}<th scope="col">Sent back because</th>{% endif %}
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in rows %}
-      <tr>
-        <th scope="row"><a class="mono" href="/case/{{ row.case_id }}{{ link_suffix }}">{{ row.case_id }}</a></th>
-        <td>{{ row.patient }}</td>
-        <td>{{ row.payer }}</td>
-        <td>{{ row.service }}</td>
-        <td>
-          {{ row.deadline.stated }}<br>
-          <span class="chip chip--{{ row.deadline.tone }}">{{ row.deadline.label }}</span>
-        </td>
-        {# How many of those attempts verification sent back depends on how the
-           last one came out, and the row carries that. Assuming the newest
-           attempt passed is right in the two queues above and wrong in the one
-           below it: a case that exhausted its retries had *every* attempt
-           rejected, and the old `attempts - 1` said 2 of 3 on a case whose own
-           reason line said all 3. The reason line was the true one. #}
-        <td>
-          {{ row.attempts }}
-          {% if row.verified == "rejected" %}
-            {% if row.attempts > 1 %}
-            <span class="dim">(all {{ row.attempts }} rejected by verification)</span>
-            {% else %}
-            <span class="dim">(rejected by verification)</span>
-            {% endif %}
-          {% elif row.verified == "passed" and row.attempts > 1 %}
-          <span class="dim">({{ row.attempts - 1 }} rejected by verification)</span>
-          {% endif %}
-        </td>
-        {% if show_reason %}<td>{{ row.reason or "No reason recorded" }}</td>{% endif %}
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endmacro %}
-
 {% block content %}
 
 {% if overview %}
@@ -84,13 +32,22 @@
   </div>
   {% endif %}
 
+  {# The five counts are controls, not a table of contents. Three of them used
+     to link to an anchor two hundred pixels down this same page. They filter
+     the table below instead; the two nobody can act on stay as figures,
+     because there is no queue of work behind them to open. #}
   <ul class="tiles">
     {% for tile in overview.tiles %}
     <li class="tile tile--{{ tile.tone }}{{ ' tile--zero' if not tile.count }}">
-      {% if tile.href and tile.count %}<a href="{{ tile.href }}">{% endif %}
+      {% if tile.href and tile.count %}
+      <a href="{{ tile.href }}"{% if tile.key == active %} aria-current="page"{% endif %}>
+        <span class="tile__n">{{ tile.count }}</span>
+        <span class="tile__label">{{ tile.label }}</span>
+      </a>
+      {% else %}
       <span class="tile__n">{{ tile.count }}</span>
       <span class="tile__label">{{ tile.label }}</span>
-      {% if tile.href and tile.count %}</a>{% endif %}
+      {% endif %}
       <span class="tile__caption">{{ tile.caption }}</span>
     </li>
     {% endfor %}
@@ -111,52 +68,120 @@
 </section>
 {% endif %}
 
-<section class="section" aria-labelledby="awaiting-h">
-  <span class="section__step">Waiting on you</span>
-  <h2 id="awaiting-h">Awaiting human approval</h2>
+{# One table. "Who is this waiting on" was a section heading three times over;
+   it was always a property of the case rather than of the query that returned
+   it, and it reads as a column. #}
+<section class="section" aria-labelledby="queue-h">
+  <h2 id="queue-h">{{ active_label }}</h2>
   <div class="section__body">
-    {% if awaiting %}
-      {{ queue_table(awaiting, "Cases with a drafted appeal that has passed verification and needs a human decision. Soonest deadline first.") }}
-    {% else %}
-      <div class="card prose">
-        <h3>Nothing is waiting for a decision</h3>
-        <p class="muted">Cases appear here once Drafting has produced a letter and Verification has
-        passed it. There is nothing for you to approve right now.</p>
-      </div>
+    {% if active != "all" %}
+    <p class="prose"><a href="/queue?waiting=all">Show everything waiting on a person
+    ({{ total_open }})</a></p>
     {% endif %}
-  </div>
-</section>
 
-<section class="section" aria-labelledby="cosign-h">
-  <span class="section__step">Waiting on a clinician</span>
-  <h2 id="cosign-h">Approved — awaiting the clinician's co-sign</h2>
-  <div class="section__body">
-    {% if awaiting_cosign %}
-      {{ queue_table(awaiting_cosign, "A clerk has confirmed the paper trail on these. Nothing is
-      transmitted until the ordering clinician signs the clinical argument. The link opens the
-      clinical review screen.", link_suffix="/clinical") }}
+    {% if rows %}
+    <div class="table-scroll">
+      <table>
+        <caption>
+          Soonest appeal deadline first; cases with no stated deadline last.
+          {% if payer %}Every case here is with {{ payer }}.{% endif %}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Case</th>
+            <th scope="col">Patient</th>
+            {% if not payer %}<th scope="col">Payer</th>{% endif %}
+            <th scope="col">Service denied</th>
+            <th scope="col">Waiting on</th>
+            <th scope="col">Appeal deadline</th>
+            <th scope="col">Drafting attempts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <th scope="row"><a class="mono" href="/case/{{ row.case_id }}{{ row.link_suffix }}">{{ row.case_id }}</a></th>
+            <td>{{ row.patient }}</td>
+            {% if not payer %}<td>{{ row.payer }}</td>{% endif %}
+            <td>
+              {{ row.service }}
+              {# The reason a case was sent back is a sentence, and a sentence
+                 does not need a seventh column of its own that is empty on
+                 every row but one. #}
+              {% if row.waiting_key == "review" %}
+              <br><span class="dim">Sent back because: {{ row.reason or "no reason recorded" }}</span>
+              {% endif %}
+            </td>
+            {# Spelled out here rather than interpolated. `view.waiting_on` is
+               phrased to sit after the words "waiting on" in the urgent strip
+               above; in a column it has to read as a whole state on its own,
+               and for the middle one that means saying a clerk has already
+               signed — the difference between "start this" and "chase
+               someone". #}
+            <td>
+              {% if row.waiting_key == "clerk" %}Your decision
+              {% elif row.waiting_key == "clinician" %}Approved — awaiting the clinician's co-sign
+              {% else %}Sent back for human review
+              {% endif %}
+            </td>
+            <td>
+              {{ row.deadline.stated }}<br>
+              {# A chip on every row has stopped being a signal. Above thirty
+                 days the number is just a number, and it is said as one. #}
+              {% if row.deadline.tone == "ok" and row.deadline.days is not none and row.deadline.days > 30 %}
+              <span class="dim">{{ row.deadline.label }}</span>
+              {% else %}
+              <span class="chip chip--{{ row.deadline.tone }}">{{ row.deadline.label }}</span>
+              {% endif %}
+            </td>
+            {# How many of those attempts verification sent back depends on how the
+               last one came out, and the row carries that. Assuming the newest
+               attempt passed is right on a case awaiting a decision and wrong on
+               one that exhausted its retries: that case had *every* attempt
+               rejected, and the old `attempts - 1` said 2 of 3 on a case whose own
+               reason line said all 3. The reason line was the true one. #}
+            <td>
+              {{ row.attempts }}
+              {% if row.verified == "rejected" %}
+                {% if row.attempts > 1 %}
+                <span class="dim">(all {{ row.attempts }} rejected by verification)</span>
+                {% else %}
+                <span class="dim">(rejected by verification)</span>
+                {% endif %}
+              {% elif row.verified == "passed" and row.attempts > 1 %}
+              <span class="dim">({{ row.attempts - 1 }} rejected by verification)</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
-      <div class="card prose">
-        <h3>No case is waiting on a signature</h3>
-        <p class="muted">A case appears here after a clerk approves it and before the ordering
-        clinician co-signs. Both signatures have to be on the same draft before anything is sent.</p>
-      </div>
-    {% endif %}
-  </div>
-</section>
-
-<section class="section" aria-labelledby="review-h">
-  <span class="section__step">Returned to humans</span>
-  <h2 id="review-h">Needs human review</h2>
-  <div class="section__body">
-    {% if needs_review %}
-      {{ queue_table(needs_review, "Cases the fleet could not finish on its own, or that a reviewer sent back.", show_reason=True) }}
-    {% else %}
-      <div class="card prose">
-        <h3>No case has been sent back</h3>
-        <p class="muted">A case lands here when an agent gives up, when it exhausts its drafting
-        retries, or when a reviewer rejects a draft.</p>
-      </div>
+    {# An empty bucket costs one line. It used to cost a section, a heading, a
+       card and a paragraph, three times over, on a system with nothing in it. #}
+    <div class="card prose">
+      {% if active == "clerk" %}
+      <h3>Nothing is waiting for a decision</h3>
+      <p class="muted">Cases appear here once Drafting has produced a letter and Verification
+      has passed it.</p>
+      {% elif active == "clinician" %}
+      <h3>No case is waiting on a signature</h3>
+      <p class="muted">A case appears here after a clerk approves it and before the ordering
+      clinician co-signs. Both signatures have to be on the same draft before anything is sent.</p>
+      {% elif active == "review" %}
+      <h3>No case has been sent back</h3>
+      <p class="muted">A case lands here when an agent gives up, when it exhausts its drafting
+      retries, or when a reviewer rejects a draft.</p>
+      {% else %}
+      <h3>Nothing is waiting on a person</h3>
+      <ul>
+        <li>Nothing is waiting for a decision.</li>
+        <li>No case is waiting on a signature.</li>
+        <li>No case has been sent back.</li>
+      </ul>
+      {% endif %}
+    </div>
     {% endif %}
   </div>
 </section>

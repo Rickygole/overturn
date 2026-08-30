@@ -126,6 +126,20 @@ class ApprovalService:
     def needs_human_review(self) -> list[CaseRecord]:
         return sorted(self.cases.find_by_status(CaseStatus.NEEDS_HUMAN_REVIEW), key=_by_deadline)
 
+    def open_cases(self) -> list[CaseRecord]:
+        """Every case a person can still act on, soonest deadline first.
+
+        One list rather than three, because the queue is one table now. Who a
+        case is waiting on was never a property of which query returned it; it
+        is a property of the case, and it reads as a column.
+        """
+        held = [
+            *self.cases.find_by_status(CaseStatus.AWAITING_APPROVAL),
+            *self.cases.find_by_status(CaseStatus.APPROVED),
+            *self.cases.find_by_status(CaseStatus.NEEDS_HUMAN_REVIEW),
+        ]
+        return sorted(held, key=_by_deadline)
+
     def all_cases(self) -> list[CaseRecord]:
         """Every case, for the dashboard counts.
 

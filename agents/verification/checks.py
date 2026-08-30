@@ -105,14 +105,13 @@ def check_assertions_enumerated(draft: AppealDraft) -> list[VerificationFinding]
 
 
 def resolve_section_text(section_id: str, retrieval: RetrievalResult) -> str | None:
-    """The verbatim text behind a cited identifier, section or criterion."""
-    for section in retrieval.sections:
-        if section.section_id == section_id:
-            return section.text
-        for criterion in section.criteria:
-            if criterion.criterion_id == section_id:
-                return criterion.text
-    return None
+    """The verbatim text behind a cited identifier, section or criterion.
+
+    Kept as a name here because two call sites read better for it. The lookup
+    itself moved onto :class:`RetrievalResult` so the approval screen can ask
+    the same question without importing from ``agents/``.
+    """
+    return retrieval.text_for(section_id)
 
 
 def evidence_corpus(matrix: CriteriaMatrix) -> str:

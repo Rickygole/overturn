@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from typing import Any
 
 from core.schemas.case import CaseRecord
 from core.schemas.criteria import CriterionVerdict
@@ -147,7 +148,12 @@ def service_line(denial: DenialExtraction | None) -> str:
 
 
 def queue_row(case: CaseRecord) -> dict[str, object]:
-    """One line of the queue. Never invents a value it was not given."""
+    """One line of the queue. Never invents a value it was not given.
+
+    ``waiting_on`` used to be a *section* — three tables with three headings,
+    each saying in prose what one column can say per row. It is a column now,
+    which is what it always was.
+    """
     denial = case.denial
     return {
         "case_id": case.case_id,
@@ -159,7 +165,23 @@ def queue_row(case: CaseRecord) -> dict[str, object]:
         "verified": _verification_summary(case),
         "reason": case.needs_human_reason,
         "updated": case.updated_at,
+        "waiting_on": waiting_on(case.status),
+        "waiting_key": waiting_key(case.status),
+        "link_suffix": "/clinical" if case.status == WAITING_ON_CLINICIAN else "",
     }
+
+
+def one_payer(rows: list[dict[str, object]]) -> str | None:
+    """The payer's name when every row shares it, otherwise ``None``.
+
+    A column whose every cell holds the same word is not carrying information;
+    it is costing a seventh of the table's width to repeat itself. Said once in
+    the caption it is still on the screen, and the row gets the space back. The
+    moment a second payer appears the caption stops being true, so this returns
+    nothing and the template puts the name back on the row.
+    """
+    names = {str(row["payer"]) for row in rows if row["payer"] != NOT_STATED}
+    return names.pop() if len(names) == 1 else None
 
 
 def _verification_summary(case: CaseRecord) -> str:
@@ -167,46 +189,6 @@ def _verification_summary(case: CaseRecord) -> str:
     if latest is None:
         return "not verified"
     return "passed" if latest.passed else "rejected"
-
-
-def check_rows(result: VerificationResult | None) -> list[dict[str, object]]:
-    """The three checks Verification runs, and how each one came out.
-
-    Rendered even when everything passed. "Nothing was wrong" is only meaningful
-    if the reader can see what was looked for.
-    """
-    if result is None:
-        return []
-    return [
-        {
-            "label": "Every cited section id exists in the retrieved policy set",
-            "passed": not result.citations_nonexistent,
-            "detail": (
-                f"{result.citations_checked} citation"
-                f"{'' if result.citations_checked == 1 else 's'} checked"
-                if not result.citations_nonexistent
-                else "Not found: " + ", ".join(result.citations_nonexistent)
-            ),
-        },
-        {
-            "label": "The source text supports what the letter says it says",
-            "passed": not result.citations_unsupported,
-            "detail": (
-                "Each cited section was re-read against the claim made"
-                if not result.citations_unsupported
-                else "Unsupported: " + ", ".join(result.citations_unsupported)
-            ),
-        },
-        {
-            "label": "Every clinical assertion traces to a row in the criteria matrix",
-            "passed": not result.ungrounded_assertions,
-            "detail": (
-                "No assertion was made that the matrix does not carry"
-                if not result.ungrounded_assertions
-                else f"{len(result.ungrounded_assertions)} assertion(s) with no matrix row"
-            ),
-        },
-    ]
 
 
 def attempt_history(case: CaseRecord) -> list[dict[str, object]]:
@@ -264,8 +246,410 @@ def draft_under_review(case: CaseRecord) -> AppealDraft | None:
     return case.approved_draft() or case.latest_draft
 
 
-def evidence_count(verdicts: list[CriterionVerdict]) -> int:
-    return sum(len(v.evidence) for v in verdicts)
+# --------------------------------------------------------------------------- #
+# The claim ledger
+#
+# The clerk is asked to confirm that "each quoted passage matches the policy
+# text it is attributed to". Nothing on this screen carried the policy text, so
+# the only way to tick that box was to take Verification's word for it -- which
+# is precisely the deference the two-signature gate exists to prevent. Every
+# claim the letter makes now sits beside the insurer's own words, on the screen
+# where somebody signs for it.
+# --------------------------------------------------------------------------- #
+
+NO_RETRIEVAL = (
+    "The retrieved policy set is not on this case, so the source text cannot be "
+    "shown. Do not confirm a quotation you have not been given."
+)
+NOT_RETRIEVED = (
+    "This identifier is not in the retrieved policy set, so there is no source "
+    "text behind it. Verification treats that as fatal."
+)
+RESTATED_VERBATIM = "The letter restates this verbatim."
+NO_MATRIX_ROW = "This point rests on no row of the criteria matrix."
+
+
+def _squash(text: str) -> str:
+    """Whitespace-insensitive comparison. Two texts that differ only in how a
+    line was wrapped are the same text, and printing both would be the bug."""
+    return " ".join(text.split())
+
+
+@dataclass(frozen=True)
+class Finding:
+    """A verification finding, carrying the attempt that raised it."""
+
+    attempt: int
+    check: str
+    severity: str
+    locus: str
+    detail: str
+    source_text: str | None
+
+
+def case_findings(case: CaseRecord) -> list[Finding]:
+    """Every finding Verification has recorded on this case, any attempt.
+
+    Not only the attempt on screen. The criteria matrix is written once and
+    never revised, so an objection raised against attempt 1 still stands
+    against the matrix row it named when attempt 3 is the one being read. The
+    attempt number rides along so the page can say when the objection was
+    raised rather than implying it is fresh.
+    """
+    return [
+        Finding(
+            attempt=result.attempt,
+            check=finding.check,
+            severity=finding.severity,
+            locus=finding.locus,
+            detail=finding.detail,
+            source_text=finding.source_text,
+        )
+        for result in case.verifications
+        for finding in result.findings
+    ]
+
+
+def findings_at(findings: list[Finding], *loci: str) -> list[Finding]:
+    """Findings whose locus is any of these identifiers.
+
+    ``VerificationFinding.locus`` is a *section* id from the existence check and
+    a *criterion* id from the supporting-criteria check. Joining on the section
+    id alone silently drops every finding from the second of those, which is the
+    subtler one: it catches an argument resting on a criterion the chart does
+    not document, and that argument cites a section that genuinely exists.
+    """
+    keys = {locus for locus in loci if locus}
+    return [f for f in findings if f.locus in keys]
+
+
+def claim_ledger(case: CaseRecord, draft: AppealDraft | None) -> list[dict[str, object]]:
+    """One row per claim the letter makes: the claim, the policy text it rests
+    on, the chart evidence under it, and the verdict.
+
+    Driven by ``draft.citations`` rather than by the matrix, because the
+    question at this gate is "is what the letter says true", not "what did
+    Mapping conclude". A matrix row the letter never uses is not something a
+    clerk has to sign for; a claim with nothing under it is.
+
+    Flagged rows sort first. Everything else keeps the letter's own order,
+    which is the order the reader just met the claims in.
+    """
+    if draft is None:
+        return []
+
+    retrieval = case.retrieval
+    verdicts = {v.criterion_id: v for v in (case.criteria.verdicts if case.criteria else [])}
+    findings = case_findings(case)
+
+    rows: list[dict[str, object]] = []
+    for position, citation in enumerate(draft.citations):
+        source = retrieval.text_for(citation.section_id) if retrieval else None
+        source_note = None if source else (NOT_RETRIEVED if retrieval else NO_RETRIEVAL)
+
+        supporting = [verdicts[c] for c in citation.supporting_criterion_ids if c in verdicts]
+        unevaluated = [c for c in citation.supporting_criterion_ids if c not in verdicts]
+        contested = findings_at(
+            findings, citation.section_id, *citation.supporting_criterion_ids
+        )
+
+        # The offline drafter copies criterion text straight into `claim`, so on
+        # seeded rows the two are the same paragraph. Printing it twice per row
+        # makes the ledger look broken and doubles its height for nothing.
+        restates = source is not None and _squash(citation.claim) == _squash(source)
+        quoted = citation.quoted_text
+        if quoted and source and _squash(quoted) == _squash(source):
+            quoted = None
+
+        weak = [v for v in supporting if v.verdict != CriterionVerdictValue.SATISFIED]
+        unevidenced = [v for v in supporting if not v.evidence]
+        flagged = bool(contested or source_note or unevaluated or weak or unevidenced)
+
+        rows.append(
+            {
+                "position": position,
+                "section_id": citation.section_id,
+                "claim": citation.claim,
+                "source_text": source,
+                "source_note": source_note,
+                "restates_verbatim": restates,
+                "quoted_text": quoted,
+                "verdicts": supporting,
+                "unevaluated": unevaluated,
+                "findings": contested,
+                "flagged": flagged,
+                "flag_reason": _flag_reason(contested, source_note, unevaluated, weak, unevidenced),
+            }
+        )
+
+    rows.sort(key=lambda row: (not row["flagged"], row["position"]))
+    return rows
+
+
+def _flag_reason(
+    contested: list[Finding],
+    source_note: str | None,
+    unevaluated: list[str],
+    weak: list[CriterionVerdict],
+    unevidenced: list[CriterionVerdict],
+) -> str | None:
+    """One line naming why a row sorted to the top, in severity order."""
+    if contested:
+        return f"Verification contested this on attempt {contested[0].attempt}."
+    if source_note:
+        return "The policy text behind this claim is not on the screen."
+    if unevaluated:
+        return "Rests on " + ", ".join(unevaluated) + ", which was never evaluated."
+    if weak:
+        return "Rests on a criterion the chart does not satisfy."
+    if unevidenced:
+        return "Rests on a criterion with no chart evidence cited."
+    return None
+
+
+# --------------------------------------------------------------------------- #
+# The criteria mapping
+# --------------------------------------------------------------------------- #
+
+
+def mapping_rows(case: CaseRecord) -> list[dict[str, object]]:
+    """The full criteria mapping, with anything Verification contested marked.
+
+    Mapping writes the matrix once. Verification's findings were fed back to
+    Drafting and nowhere else, so a row whose stated reasoning a second model
+    contradicted went on rendering as a clean `Satisfied - 100% - high` on the
+    same screen where a clinician attests that the letter's account of the care
+    and the chart is accurate. The system catching an overclaim and then not
+    telling anyone is worse than not catching it.
+
+    The verdict is deliberately left alone. What Verification rejects is
+    usually the *characterisation* and not the conclusion -- a policy reading
+    "in-person or telehealth evaluation" may well still be satisfied by the
+    interim review the reasoning mis-described. Flipping the verdict would
+    replace one wrong row with another. The objection is printed under the
+    reasoning instead, and the row says a second model disagreed.
+
+    Confidence is suppressed on a contested or unevidenced row. `100%` beside
+    an evidence cell reading "No chart evidence cited" is a contradiction on
+    its face, and a clerk reads the number and moves on.
+    """
+    matrix = case.criteria
+    if matrix is None:
+        return []
+    findings = case_findings(case)
+
+    rows: list[dict[str, object]] = []
+    for verdict in matrix.verdicts:
+        contested = findings_at(findings, verdict.criterion_id)
+        show_confidence = not contested and bool(verdict.evidence)
+        rows.append(
+            {
+                "verdict": verdict,
+                "findings": contested,
+                "contested": bool(contested),
+                "show_confidence": show_confidence,
+                "confidence_note": _confidence_note(contested, verdict),
+            }
+        )
+    return rows
+
+
+def _confidence_note(contested: list[Finding], verdict: CriterionVerdict) -> str | None:
+    if contested:
+        return "Not shown — Verification contested this row."
+    if not verdict.evidence:
+        return "Not shown — no chart evidence is cited on this row."
+    return None
+
+
+# --------------------------------------------------------------------------- #
+# How this letter got here
+#
+# The single most persuasive line on the page, and it used to live only inside
+# a fold at the bottom. A closed `<details>` is indistinguishable from absent,
+# and the retry loop is the best evidence this project has that the check is
+# real. It is a sentence now, at the top, next to the letter it explains.
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class Provenance:
+    """One sentence naming which attempt this is and what was caught before it."""
+
+    text: str
+    attempt: int
+    sent_back: list[int]
+    caught: list[str]
+
+
+def provenance(case: CaseRecord, draft: AppealDraft | None) -> Provenance | None:
+    if draft is None:
+        return None
+
+    sent_back = sorted(r.attempt for r in case.verifications if not r.passed)
+    caught = _caught(case, draft, sent_back)
+
+    if not sent_back:
+        text = (
+            f"Attempt {draft.attempt}, and Verification passed it. "
+            f"Nothing was sent back."
+        )
+        return Provenance(text, draft.attempt, [], [])
+
+    listed = _join_numbers(sent_back)
+    text = (
+        f"Attempt {draft.attempt}. Verification sent {listed} back"
+        + (f" — it caught {_join_prose(caught)}." if caught else ".")
+    )
+    return Provenance(text, draft.attempt, sent_back, caught)
+
+
+def _caught(case: CaseRecord, draft: AppealDraft, sent_back: list[int]) -> list[str]:
+    """What Verification actually objected to, in a clerk's words.
+
+    Read off the rejected attempts' findings, falling back to the revision
+    instructions the current draft says it was written to answer. "Verification
+    sent two attempts back" without saying what for is a boast; naming the
+    hallucinated citation is evidence.
+    """
+    phrases: list[str] = []
+    for result in case.verifications:
+        if result.attempt not in sent_back:
+            continue
+        phrases.extend(_caught_phrases(result))
+    if not phrases:
+        phrases = [_squash(line) for line in draft.revision_feedback_applied]
+    return list(dict.fromkeys(phrases))
+
+
+def _caught_phrases(result: VerificationResult) -> list[str]:
+    phrases: list[str] = []
+    for finding in result.findings:
+        if finding.severity != "fatal":
+            continue
+        if finding.check == "citation_exists":
+            phrases.append(f"a citation to {finding.locus} that is not in the retrieved policy set")
+        elif finding.check == "citation_accurate":
+            phrases.append(f"a point resting on {finding.locus}, which the chart does not satisfy")
+        elif finding.check == "assertion_grounded":
+            phrases.append("a letter making claims with no clinical assertions listed to check")
+        else:
+            phrases.append(f"a problem at {finding.locus}")
+    for cid in result.citations_nonexistent:
+        phrases.append(f"a citation to {cid} that is not in the retrieved policy set")
+    for cid in result.citations_unsupported:
+        phrases.append(f"a claim about {cid} the source text does not support")
+    for claim in result.ungrounded_assertions:
+        phrases.append(f"an assertion no row of the matrix carries: {_squash(claim)}")
+    return phrases
+
+
+def _join_numbers(numbers: list[int]) -> str:
+    words = [f"attempt {n}" for n in numbers]
+    if len(words) == 1:
+        return words[0]
+    return "attempts " + ", ".join(str(n) for n in numbers[:-1]) + f" and {numbers[-1]}"
+
+
+def _join_prose(phrases: list[str], limit: int = 2) -> str:
+    shown = phrases[:limit]
+    extra = len(phrases) - len(shown)
+    joined = shown[0] if len(shown) == 1 else ", and ".join([", ".join(shown[:-1]), shown[-1]])
+    if extra:
+        joined += f", and {extra} more"
+    return joined
+
+
+# --------------------------------------------------------------------------- #
+# Screening: quiet when nothing happened, loud when something did
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class ScreeningView:
+    """What Sentinel found, and how loudly the page should say it."""
+
+    present: bool
+    findings: list[Any]
+    quarantined: bool
+    prominent: bool
+    headline: str
+    line: str
+
+
+def screening_view(screening: Any | None) -> ScreeningView:
+    """A banner above the letter when there are findings; one line in a fold
+    when there are none.
+
+    A chip reading "No threats found" is a chip for a null result, and a screen
+    that shouts every time nothing happened has nothing left to shout with when
+    something does.
+    """
+    if screening is None:
+        return ScreeningView(
+            present=False,
+            findings=[],
+            quarantined=False,
+            prominent=True,
+            headline="This document was not screened",
+            line=(
+                "No screening record is attached to this case. Treat the contents with "
+                "more caution than usual."
+            ),
+        )
+
+    findings = list(screening.findings)
+    quarantined = bool(screening.quarantine)
+    if not findings and not quarantined:
+        layers = ", ".join(screening.layers_run) if screening.layers_run else "none recorded"
+        return ScreeningView(
+            present=True,
+            findings=[],
+            quarantined=False,
+            prominent=False,
+            headline="No threats found",
+            line=f"No threats found in the source document. Detectors that ran: {layers}.",
+        )
+
+    count = len(findings)
+    return ScreeningView(
+        present=True,
+        findings=findings,
+        quarantined=quarantined,
+        prominent=True,
+        headline=(
+            f"Sentinel found {count} item{'' if count == 1 else 's'} in this document"
+        ),
+        line=f"{count} item{'' if count == 1 else 's'} found. See the banner above the letter.",
+    )
+
+
+# --------------------------------------------------------------------------- #
+# The page head
+# --------------------------------------------------------------------------- #
+
+# The status enum rendered raw -- `awaiting_human_approval` -- one line above an
+# appeal level that was de-underscored. Two spellings of the same convention on
+# the same line is the sort of small wrongness that makes a reader distrust the
+# parts they cannot check.
+STATUS_PHRASES: dict[CaseStatus, str] = {
+    CaseStatus.AWAITING_APPROVAL: "Awaiting your decision",
+    CaseStatus.APPROVED: "Approved — awaiting the clinician's co-sign",
+    CaseStatus.NEEDS_HUMAN_REVIEW: "Sent back for human review",
+    CaseStatus.SUBMITTED: "Transmitted to the payer",
+    CaseStatus.PAYER_RESPONDED: "The payer has responded",
+    CaseStatus.ESCALATED: "Escalated to the next appeal level",
+    CaseStatus.OVERTURNED: "Overturned — the payer reversed the denial",
+    CaseStatus.UPHELD: "Upheld — the payer kept the denial",
+    CaseStatus.DECLINED_NO_BASIS: "Declined — no basis to appeal",
+    CaseStatus.QUARANTINED: "Quarantined by screening",
+    CaseStatus.FAILED: "The pipeline could not finish this case",
+}
+
+
+def status_phrase(status: CaseStatus) -> str:
+    """The status as a person would say it, never as the enum spells it."""
+    return STATUS_PHRASES.get(status, str(status.value).replace("_", " ").capitalize())
 
 
 def reviewer_hint(headers: Mapping[str, str]) -> str:
@@ -287,10 +671,12 @@ def reviewer_hint(headers: Mapping[str, str]) -> str:
 def clerk_checks(result: VerificationResult | None) -> list[dict[str, object]]:
     """The three confirmations the clerk ticks, each with what Verification found.
 
-    Separate from :func:`check_rows`, which reports the same three checks as a
-    read-only table. The wording here is addressed to the person about to sign:
-    a checkbox that says "citations resolve" without showing *which* citations
-    were resolved is a box to tick rather than a thing to confirm.
+    There used to be a second, read-only table rendering the same three facts
+    forty lines further down the page. It is gone: the wording here is the one
+    addressed to the person about to sign, and saying it twice made neither
+    copy more true. A checkbox that says "citations resolve" without showing
+    *which* citations were resolved is a box to tick rather than a thing to
+    confirm, which is why each row carries what Verification found.
 
     Three rows are returned even when nothing has been verified, because a form
     that silently loses its controls leaves a clerk unable to approve with no
@@ -632,6 +1018,9 @@ class Tile:
     caption: str
     href: str | None
     tone: str  # "act" | "wait" | "quiet"
+    # Which filter this tile turns on, so the template can mark the live one
+    # without matching on prose. `None` for the two nobody can act on.
+    key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -668,27 +1057,34 @@ def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
     in_flight = held(*IN_FLIGHT_STATUSES)
     with_payer = held(*WITH_PAYER_STATUSES)
 
+    # Three of these used to link to an anchor two hundred pixels down the same
+    # page: a table of contents for a page you can already see all of. They
+    # filter the one table below instead, which is the only thing a count on a
+    # dashboard is ever actually asked to do.
     tiles = [
         Tile(
             "Waiting on you",
             len(clerk),
             "Drafted, verified, and needing a clerk's decision.",
-            "#awaiting-h",
+            "/queue?waiting=clerk",
             "act",
+            "clerk",
         ),
         Tile(
             "Waiting on a clinician",
             len(clinician),
             "A clerk has signed. Nothing sends until the clinician co-signs.",
-            "#cosign-h",
+            "/queue?waiting=clinician",
             "act" if clinician else "quiet",
+            "clinician",
         ),
         Tile(
             "Sent back to you",
             len(back),
             "The fleet could not finish these, or a reviewer rejected the draft.",
-            "#review-h",
+            "/queue?waiting=review",
             "act" if back else "quiet",
+            "review",
         ),
         Tile(
             "Agents still working",
@@ -729,7 +1125,7 @@ def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
                         else NOT_STATED
                     ),
                     "deadline": seen,
-                    "waiting_on": _waiting_on(case.status),
+                    "waiting_on": waiting_on(case.status),
                 }
             )
     urgent.sort(key=lambda row: row["deadline"].days)  # type: ignore[union-attr,index]
@@ -743,12 +1139,45 @@ def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
     )
 
 
-def _waiting_on(status: CaseStatus) -> str:
+def waiting_on(status: CaseStatus) -> str:
+    """Who a case is held up on, in one phrase.
+
+    Public because the queue table now carries it as a column. It was already
+    computing exactly this string for the urgent strip; two functions saying
+    "waiting on the clinician" in two different wordings is how a screen starts
+    to look assembled rather than written.
+    """
     if status == WAITING_ON_CLERK:
         return "your decision"
     if status == WAITING_ON_CLINICIAN:
         return "the clinician's co-sign"
     return "human review"
+
+
+def waiting_key(status: CaseStatus) -> str:
+    """The same answer as a token, for filtering and for CSS."""
+    if status == WAITING_ON_CLERK:
+        return "clerk"
+    if status == WAITING_ON_CLINICIAN:
+        return "clinician"
+    return "review"
+
+
+# The whole set of values `?waiting=` may take. Anything else falls back, in
+# the spirit of the `back` validation on /theme: a query parameter is a form
+# field somebody can type, and a filter it does not recognise must not empty
+# the queue a clerk works from.
+WAITING_FILTERS: dict[str, str] = {
+    "all": "Everything waiting on a person",
+    "clerk": "Waiting on you",
+    "clinician": "Waiting on a clinician",
+    "review": "Sent back to you",
+}
+DEFAULT_WAITING = "all"
+
+
+def waiting_filter(raw: str | None) -> str:
+    return raw if raw in WAITING_FILTERS else DEFAULT_WAITING
 
 
 # --------------------------------------------------------------------------- #
