@@ -19,7 +19,8 @@ import pytest
 from core.gateway import POLICY, Access
 from core.schemas.enums import AgentName
 
-DOCS = Path(__file__).resolve().parents[1] / "docs"
+ROOT = Path(__file__).resolve().parents[1]
+DOCS = ROOT / "docs"
 REPO = Path(__file__).resolve().parents[1]
 
 ACCESS_WORDS = {
@@ -322,3 +323,64 @@ def test_the_front_door_states_both_measures_not_only_the_flattering_one():
     index = (DOCS / "index.html").read_text()
     if "8/8" in index:
         assert "6/8" in index, "the front door publishes 8/8 without 6/8"
+
+
+# --------------------------------------------------------------------------- #
+# The same judge, second finding: navigation is a cul-de-sac
+# --------------------------------------------------------------------------- #
+#
+# "From the root page the only destination is the queue. From the queue, cases.
+# From a case, back to the queue. There is no path to architecture, evaluation,
+# findings, or anything that explains the system." A reader who signs in first
+# would never learn the system had been evaluated at all -- including the Model
+# Armor negative result, which the same judge called worth more than any feature
+# on the list. Linking out of the review flow was previously asserted nowhere.
+
+TEMPLATES = ROOT / "services" / "approval_ui" / "templates"
+
+
+def test_every_page_behind_the_door_offers_a_way_to_the_reference_page():
+    """The masthead link lives in the base template, so every page inherits it."""
+    base = (TEMPLATES / "base.html").read_text()
+    assert "/system.html" in base, "no exit from the review flow to the reference page"
+
+
+def test_the_footer_reaches_the_diagram_and_the_measurements():
+    base = (TEMPLATES / "base.html").read_text()
+    for target in ("/architecture.svg", "/system.html#measured"):
+        assert target in base, f"{target} unreachable from inside the app"
+
+
+def test_the_reference_page_carries_the_anchors_those_links_point_at():
+    """A deep link to a heading that does not exist lands at the top silently."""
+    page = (DOCS / "system.html").read_text()
+    for anchor in ("measured", "architecture", "screening", "run"):
+        assert f'id="{anchor}"' in page, f"#{anchor} is not a heading on the page"
+
+
+def test_nothing_behind_the_door_links_off_host():
+    """The exits are same-origin.
+
+    Two rendering tests assert the review screens load no external asset and
+    invent no outbound link. A footer link to the repository broke both, which
+    is the correct outcome: the reference page carries outbound links, the
+    screens where somebody signs a letter do not.
+    """
+    base = (TEMPLATES / "base.html").read_text()
+    assert "https://" not in base, "the base template links off-host"
+
+
+# --------------------------------------------------------------------------- #
+# The economic premise, which was asserted without a number
+# --------------------------------------------------------------------------- #
+#
+# "You tell me appeals are rarely filed and often won. You never say how many,
+# or how often, or cite anything." Both surfaces now carry the KFF figures, and
+# a statistic without its source is the failure mode this project exists to
+# argue against.
+
+def test_the_premise_is_quantified_and_sourced_on_both_surfaces():
+    for text in ((DOCS / "index.html").read_text(), (ROOT / "README.md").read_text()):
+        assert "262,982" in text, "the appeal count is missing"
+        assert "34%" in text, "the overturn rate is missing"
+        assert "kff.org" in text, "the figures are stated without their source"

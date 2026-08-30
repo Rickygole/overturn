@@ -224,6 +224,10 @@ hr,.divider{border:0;border-top:1px solid var(--hair);margin:var(--s4) 0}
 .nav a:hover{color:var(--ink);text-decoration:none}
 .nav [aria-current="page"]{color:var(--ink);font-weight:500;
   border-bottom:1px solid var(--ink);border-radius:0}
+/* Pushed to the far end of the bar: it is a way out of the review flow, not
+   another step along it, and putting it hard against the breadcrumb made it
+   read as the next crumb. */
+.nav__aside{margin-left:auto}
 
 .masthead__end{display:flex;align-items:center;gap:var(--s2);flex:none}
 
@@ -586,6 +590,7 @@ fieldset.gate{
       padding:var(--s6) 0 var(--s7);margin-top:var(--s8)}
 .foot p{font-size:var(--fs-xs);line-height:1.6;color:var(--dim);max-width:64ch}
 .foot a{color:var(--muted)}
+.foot__links{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);margin-top:var(--s3);max-width:none}
 
 /* ── the dashboard ───────────────────────────────────────────────────────
    The three tables below say what is waiting. They never said how much, and
@@ -887,6 +892,14 @@ tbody tr.noted td,tbody tr.noted th{border-bottom:0}
     <a class="wordmark" href="/">Overturn</a>
     <nav class="nav" aria-label="Sections">
       {% block nav %}<span aria-current="page">Review queue</span>{% endblock %}
+      {# The queue used to be a cul-de-sac: in from the front page, down to a
+         case, back to the queue, and no way to reach the diagram, the
+         measurements, or the screening result from anywhere inside the app.
+         A reader who signs in first would never learn the system had been
+         evaluated at all. This link is on every page behind the door for that
+         reason, and it sits after the breadcrumb so the current page still
+         reads first. #}
+      <a class="nav__aside" href="/system.html">How it&rsquo;s built</a>
     </nav>
     <div class="masthead__end">
       {% set theme = request.cookies.get('overturn_theme', 'auto') %}
@@ -932,7 +945,17 @@ tbody tr.noted td,tbody tr.noted th{border-bottom:0}
 
 <footer class="foot">
   <div class="wrap">
-    <p>Overturn — every decision here is written to the append-only audit log with the name entered by the reviewer.</p>
+    <p>Overturn &mdash; every decision here is written to the append-only audit log with the name entered by the reviewer.</p>
+    {# Second exit, for a reader who scrolled to the bottom of a case rather
+       than back to the top. Every destination is same-origin on purpose: two
+       tests assert that nothing behind the sign-in loads or links off-host,
+       and a footer link to the repository broke both. The reference page
+       carries the outbound links; the review screens do not. #}
+    <p class="foot__links">
+      <a href="/system.html">How it&rsquo;s built</a>
+      <a href="/system.html#measured">What was measured, including what went wrong</a>
+      <a href="/architecture.svg">Architecture diagram</a>
+    </p>
   </div>
 </footer>
 </body>

@@ -388,6 +388,15 @@ footer a{color:var(--muted)}
 }
 .door__meta a{color:var(--muted)}
 
+/* The premise, set between the call to action and the measurements: larger
+   than the metadata under it because it is the argument, not the footnote,
+   and still quieter than the lede so it does not compete with the product. */
+.door__stat{
+  max-width:52ch;margin:var(--s6) auto 0;text-align:left;
+  font-size:var(--fs-sm);line-height:1.65;color:var(--muted);
+}
+.door__stat strong{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+
 /* ── motion ─────────────────────────────────────────────────────────────── */
 
 /* The arc draws once, clockwise from the top, and stops. It is saying "this

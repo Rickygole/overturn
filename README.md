@@ -4,10 +4,15 @@
 appealing for weeks without being asked twice.**
 
 A clinic billing clerk gets a denial letter. Today they either spend forty minutes
-writing an appeal, or — far more often — they don't, and the claim dies. A large
-share of denials that *are* appealed get overturned, which means many of the
-ones nobody appeals were winnable. The bottleneck is not judgment. It is that
-the labour cost of one appeal exceeds the value of one claim.
+writing an appeal, or — far more often — they don't, and the claim dies. Marketplace
+insurers denied about 85 million in-network claims in 2024. Consumers appealed
+262,982 of them — fewer than one in three hundred — and insurers overturned 34%
+of the appeals they received ([KFF, ACA Marketplace claims data, 2024][kff]).
+A third of the people who bother, win; almost nobody bothers. The bottleneck is
+not judgment. It is that the labour cost of one appeal exceeds the value of one
+claim.
+
+[kff]: https://www.kff.org/patient-consumer-protections/claims-denials-and-appeals-in-aca-marketplace-plans-in-2024/
 
 Overturn reads the denial letter, finds the insurer's own published medical
 policy, checks the patient's chart against that policy criterion by criterion,
@@ -275,7 +280,7 @@ the access gateway, the audit trail and the trace spans are all the real thing.
 git clone https://github.com/Rickygole/overturn.git
 cd overturn
 uv sync                # needs uv; see https://docs.astral.sh/uv/
-uv run pytest -q       # 711 tests, a few seconds
+uv run pytest -q       # 716 tests, a few seconds
 ```
 
 Verified from a clean clone on 2026-08-23. If those two commands do not both

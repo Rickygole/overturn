@@ -141,6 +141,15 @@
     <div class="banner banner--warn stack-5">
       <h3>{{ matrix.unmapped_criteria | length }} {{ "criterion" if matrix.unmapped_criteria|length == 1 else "criteria" }} could not be evaluated at all</h3>
       <p class="mono">{{ matrix.unmapped_criteria | join(", ") }}</p>
+      {# Same disclosure as the review screen, and the clinician needs the cause
+         more than the clerk does: this is the reader deciding whether the gap
+         matters clinically. #}
+      <p>Each was put to the model and came back without a verdict &mdash; a gap in
+      what we know, not a criterion ruled irrelevant. A criterion written for a
+      service other than the one denied is recorded as
+      <span class="mono">not_applicable</span> with its reason, not left out.
+      These count against the case: the basis for appealing is tested as though
+      every one of them were unmet.</p>
     </div>
     {% endif %}
     {% endif %}
