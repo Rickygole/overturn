@@ -47,20 +47,29 @@ try{if(localStorage.getItem("overturn-theme")==="dark"||/(^|;\s*)overturn_theme=
     <a class="btn" href="/queue">Start</a>
   </div>
 
-  <!-- The economic premise, which this page used to assert without a number.
-       A judge is entitled to ask how rarely and how often, and "a large share
-       get overturned" is not an answer. The asymmetry is the whole product:
-       almost nobody appeals, and a third of the people who do, win. -->
+  <!-- The economic premise, which this page used to assert without a number,
+       then asserted with the wrong one: 34% was never KFF's figure -- their
+       own word for it is "upheld," not "overturned" -- and it did not even
+       reconcile against the appeal count printed beside it (262,982 minus
+       KFF's own 165,863 upheld is 36.9%, not 34%; grep "34%" on the source
+       page and it names something unrelated). KFF's actual framing: insurers
+       upheld 66% of the appeals they received. The asymmetry is still the
+       whole product, just a harder one to sell honestly: almost nobody
+       appeals, and most who do still lose. -->
   <p class="door__stat">Marketplace insurers denied about <strong>85 million</strong>
-    in-network claims in 2024. Consumers appealed <strong>262,982</strong> of them &mdash;
-    fewer than one in three hundred. Of the appeals that were filed, insurers
-    overturned <strong>34%</strong>.
+    in-network claims in 2024. Consumers appealed at least <strong>262,982</strong>
+    of them &mdash; fewer than one in three hundred. Even then, insurers upheld
+    <strong>66%</strong> of the appeals they received.
     <a href="https://www.kff.org/patient-consumer-protections/claims-denials-and-appeals-in-aca-marketplace-plans-in-2024/">KFF,
     ACA Marketplace claims data, 2024</a>. The bottleneck is not judgement. It is that
-    the labour cost of one appeal exceeds the value of one claim &mdash; and against
-    the forty minutes of skilled labour that costs, this evaluation measured
-    Overturn at roughly <strong>five and a half model calls per appeal</strong>
-    (44 calls, 212,805 input / 53,224 output tokens, across all eight cases).</p>
+    the labour cost of one appeal exceeds the value of one claim, on odds that
+    already look bad before anyone accounts for the labour. Of the eight cases in
+    this evaluation, four correctly produced no appeal at all &mdash; a quarantine,
+    two declines for lack of a basis, one safety cap holding on a hard input &mdash;
+    and refusing to appeal what shouldn't be appealed is the pitch, not overhead
+    to hide. Against the four that did, Overturn's measured cost was roughly
+    <strong>eleven model calls per appeal produced</strong> (44 calls total across
+    all eight cases &divide; 4 that actually produced one; see docs/EVALUATION.md).</p>
 
 
   <p class="door__meta">Seven agents on Google’s Agent Development Kit, running Gemini on

@@ -380,10 +380,22 @@ def test_nothing_behind_the_door_links_off_host():
 # argue against.
 
 def test_the_premise_is_quantified_and_sourced_on_both_surfaces():
+    """"34%" was never KFF's number -- their own word is "upheld," not
+    "overturned," and the two figures we used to print side by side did not
+    even reconcile (262,982 minus KFF's 165,863 upheld is 36.9%, not 34%).
+    Checked against "66% upheld," their actual verbatim framing, instead.
+
+    "34%" is allowed to survive inside an HTML comment explaining the
+    correction -- docs/index.html does exactly that -- so comments are
+    stripped before the negative check, the same way a reader's browser
+    would never render them.
+    """
     for text in ((DOCS / "index.html").read_text(), (ROOT / "README.md").read_text()):
         assert "262,982" in text, "the appeal count is missing"
-        assert "34%" in text, "the overturn rate is missing"
+        assert "66%" in text, "the sourced uphold rate is missing"
         assert "kff.org" in text, "the figures are stated without their source"
+        rendered = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
+        assert "34%" not in rendered, "the old, unreconciled overturn figure is back on the page"
 
 
 # --------------------------------------------------------------------------- #

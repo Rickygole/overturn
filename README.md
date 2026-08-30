@@ -5,12 +5,13 @@ appealing for weeks without being asked twice.**
 
 A clinic billing clerk gets a denial letter. Today they either spend forty minutes
 writing an appeal, or — far more often — they don't, and the claim dies. Marketplace
-insurers denied about 85 million in-network claims in 2024. Consumers appealed
-262,982 of them — fewer than one in three hundred — and insurers overturned 34%
-of the appeals they received ([KFF, ACA Marketplace claims data, 2024][kff]).
-A third of the people who bother, win; almost nobody bothers. The bottleneck is
-not judgment. It is that the labour cost of one appeal exceeds the value of one
-claim.
+insurers denied about 85 million in-network claims in 2024. Consumers appealed at
+least 262,982 of them — fewer than one in three hundred — and even then, insurers
+upheld 66% of the appeals they received ([KFF, ACA Marketplace claims data,
+2024][kff]). Almost nobody appeals, and the odds look bad for the few who do.
+The bottleneck is not judgment. It is that the labour cost of one appeal exceeds
+the value of one claim, on odds nobody would spend forty minutes chasing without
+help.
 
 [kff]: https://www.kff.org/patient-consumer-protections/claims-denials-and-appeals-in-aca-marketplace-plans-in-2024/
 
