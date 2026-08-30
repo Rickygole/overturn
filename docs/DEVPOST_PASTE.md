@@ -49,14 +49,18 @@ Fortified Enterprise Fleet
 ## Testing instructions for judges
 
 ```
-The site is open. The review queue behind it is gated by one shared password,
-published deliberately because everything behind it is synthetic:
+The site and the review queue are open. No sign-in, no password, click
+straight through from the front door:
 
     https://overturn-kruy6aauaq-uc.a.run.app
-    password: northbeck-appeals-2026
 
-Sign in and you land on the queue, which opens with a dashboard: eight cases
-across six states, three of them refusals.
+The queue opens with a dashboard: eight cases across six states, three of
+them refusals.
+
+Only the three actions that change a case — approve, reject, co-sign — are
+behind a password, published deliberately because everything behind it is
+synthetic: **`northbeck-appeals-2026`**. Reading every case, including the
+two below, needs nothing.
 
 Worth clicking, in this order:
 

@@ -29,15 +29,17 @@ No real patient data and no real insurer appear anywhere — see "Data sources
 and compliance" below.
 
 **Live on Google Cloud:** the human approval interface is hosted at
-[`https://overturn-kruy6aauaq-uc.a.run.app`](https://overturn-kruy6aauaq-uc.a.run.app),
-gated by a single shared password rather than a Google account —
-**`northbeck-appeals-2026`** — because it renders what looks like a medical
-record and an open URL with no door at all would undercut the point of the
-project. `overturn-ingest` and `overturn-scheduler` are also live but
-deliberately private: Pub/Sub and Cloud Scheduler invoke them, not a browser,
-so a 403 from either of those two `.run.app` URLs is correct, not a broken
-deployment. See [`docs/RUNBOOK.md`](docs/RUNBOOK.md) for how all three were
-deployed.
+[`https://overturn-kruy6aauaq-uc.a.run.app`](https://overturn-kruy6aauaq-uc.a.run.app).
+Reading is open — no sign-in, no password, click straight in from the queue to
+any case. Only the three actions that change a case (approve, reject, co-sign)
+are gated by a single shared password rather than a Google account —
+**`northbeck-appeals-2026`** — because those states cost real model calls to
+produce and cannot be undone, and a crawler that followed a form could
+approve or reject its way through all of them in a second. `overturn-ingest`
+and `overturn-scheduler` are also live but deliberately private: Pub/Sub and
+Cloud Scheduler invoke them, not a browser, so a 403 from either of those two
+`.run.app` URLs is correct, not a broken deployment. See
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md) for how all three were deployed.
 
 > **Overturn does not decide whether care is appropriate.** It determines whether
 > the documentation in a chart matches criteria the payer has already published.

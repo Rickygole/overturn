@@ -34,10 +34,13 @@ Put this where the contest rules ask for testing instructions when a hosted
 project isn't open to the public without one:
 
 - **`https://overturn-kruy6aauaq-uc.a.run.app`** — the human approval
-  interface. It is gated by a single shared password, **`northbeck-appeals-2026`**,
-  not a Google account. This is deliberate and disclosed, not an oversight —
-  see `services/approval_ui/auth.py`. Everything behind the login is synthetic:
-  an invented payer, invented policies, generated patients.
+  interface. **Reading is open**: no sign-in, no password, click straight
+  through from the queue to any case. Only the three actions that change a
+  case — approve, reject, co-sign — are gated by a single shared password,
+  **`northbeck-appeals-2026`**, not a Google account. This is deliberate and
+  disclosed, not an oversight — see `services/approval_ui/auth.py`.
+  Everything on the site, gated or not, is synthetic: an invented payer,
+  invented policies, generated patients.
 - **Two links worth opening directly, not navigating to**:
   `.../case/CASE-006` — a case that escalated itself to peer-to-peer review
   weeks after submission with nobody watching, which is the multi-week
@@ -54,11 +57,16 @@ project isn't open to the public without one:
   Secret Manager and appends `OVERTURN_UI_PASSWORD`/`OVERTURN_UI_SECRET` to
   the approval service's environment inside the same `gcloud run deploy`
   call, so re-running it no longer strips the login the way an earlier
-  version of this script did. The one real precondition: the secret has to
-  already exist. If it does not, `deploy.sh` deploys the approval service
-  with no login configured — on purpose, since with no password set the app
-  refuses to serve the queue at all rather than fail open. Run
-  `infra/open_public.sh` once, first, if the secret has never been created.
+  version of this script did. Correction to an earlier version of this
+  bullet: what actually keeps the service closed when the secret is missing
+  is Cloud Run's own IAM check (`deploy.sh` always deploys it
+  `--no-allow-unauthenticated`), not the app password — `AuthConfig.enabled`
+  is `False` with no password set, which means *no* application-level login
+  at all, not a fail-closed one. `infra/open_public.sh` is the one deliberate
+  step that both removes the Cloud Run IAM gate and ensures the secret
+  exists, so publishing openly and having a real app-level password arrive
+  together rather than one silently outrunning the other. Run it once before
+  handing a judge the URL.
 
 ### The four text-description parts
 

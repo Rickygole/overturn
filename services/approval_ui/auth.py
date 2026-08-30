@@ -117,8 +117,15 @@ def password_matches(supplied: str, config: AuthConfig) -> bool:
 # app.py) so the whole product lives at one hostname. It is a door, not a
 # brochure -- the explanatory pages that used to sit here were removed, because
 # no product a person actually uses puts "how it works" in its nav. It holds no
-# case data, so it sits outside the door alongside the login screen. Everything
-# that renders a case stays behind it.
+# case data, so it sits outside the door alongside the login screen.
+#
+# The pages that render a case are deliberately not in this set -- so
+# `no_store_behind_the_door` in app.py still marks them `no-store, private` --
+# but `require_session` below does not gate them on `path_is_public` either.
+# It bypasses every safe method (GET, HEAD) before it ever reaches that check,
+# so reading a case needs no session. Only the three routes that change one
+# (approve, reject, co-sign) are POSTs, and those are what actually check the
+# session below.
 SITE_PATHS = frozenset(
     {
         "/",
