@@ -2548,8 +2548,18 @@ class TestEscalatedSignpost:
         repo.create(_escalated())
 
         html = client.get("/queue").text
-        start = html.index('class="dash__escalated"')
-        block = html[start : html.index("</p>", start)]
+        # The signpost lives inside the merged "Start here" block now: it and
+        # the lead case were two panels each telling a reader where to look
+        # first, which is no instruction at all. Anchored on the case link
+        # rather than on a wrapper class so this test survives that block being
+        # restyled again -- what it guards is the sentence, not the markup.
+        # Anchored on the sentence, then walked back to the link that precedes
+        # it. Anchoring on the case link alone is not enough: in this fixture
+        # CASE-006 is both the lead case and the escalated one, so the first
+        # link on the page belongs to the wrong line of the merged block.
+        sentence = html.index("escalated itself to peer-to-peer")
+        start = html.rindex('href="/case/CASE-006"', 0, sentence)
+        block = html[start : html.index("</p>", sentence)]
         text = " ".join(block.split())  # collapse the template's own whitespace/newlines
         # One occurrence in the href, one as the link's visible text -- both
         # legitimate. The regression is the case id appearing again in the
@@ -2558,10 +2568,9 @@ class TestEscalatedSignpost:
         prose = text.split("</a>", 1)[1]
         assert "CASE-006" not in prose, f"case id repeated in the prose: {prose!r}"
         assert (
-            'href="/case/CASE-006">CASE-006</a> — escalated itself to peer-to-peer '
-            "review the moment its 30-day response window on the first-level appeal "
-            "lapsed — a scheduler tick, no person in the loop. Worth opening to see "
-            "what Lifecycle did unattended."
+            "escalated itself to peer-to-peer review the moment its 30-day response "
+            "window on the first-level appeal lapsed — a scheduler tick, no person in "
+            "the loop. Worth opening to see what Lifecycle did unattended."
         ) in text
 
     def test_an_ordinary_queue_shows_no_signpost(self, client, seeded):
@@ -3027,7 +3036,12 @@ class TestTheLeadCase:
         body = client.get("/queue").text
         table = body[body.index("<tbody") :]
         assert table.index("CASE-003") < table.index("CASE-001")
-        assert "soonest appeal deadline first" in body
+        # The page must still say what the ordering is. It used to say it twice
+        # -- once as a caveat under "Start here" and once in the table's own
+        # caption -- and the duplicate was cut when the two entry-point panels
+        # were merged. The fact is load-bearing (a named case must not read as
+        # a reordered worklist); saying it in two places was not.
+        assert "soonest appeal deadline first" in body.lower()
 
     def test_a_queue_with_nothing_to_show_shows_no_block(self, client, repo):
         repo.create(_marked("CASE-003", ["rejected"] * 3, CaseStatus.NEEDS_HUMAN_REVIEW))

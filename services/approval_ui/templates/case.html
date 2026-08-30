@@ -140,6 +140,21 @@
     <dt>Reason recorded</dt>
     <dd>{{ escalation.reason }}</dd>
     {% endif %}
+    {# The dates above will not survive arithmetic, and a reader who does the
+       arithmetic before we admit it stops trusting the rest of the page. This
+       case was transmitted and escalated within the same minute, so a "30-day
+       window" that opened and closed on one date is printed a few lines up.
+       The window is compressed for the demonstration; the mechanism -- a
+       scheduler tick reading a Firestore timestamp and moving a case nobody is
+       watching -- is the real one, and it is the part worth showing. Said here
+       rather than in a footnote because this is the panel that makes the
+       claim. #}
+    <dt>On these dates</dt>
+    <dd class="dim">The response window is compressed for the demonstration, so the
+    move happened within a minute of submission rather than after thirty days.
+    What is real is the mechanism: nothing was running in between, and a
+    scheduled job moved the case on its own once the recorded window had
+    lapsed.</dd>
     <dt>Payer response due</dt>
     <dd>
       {% if escalation.deadline %}

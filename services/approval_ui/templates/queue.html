@@ -83,33 +83,6 @@
     ({{ total_open }})</a></p>
   {% endif %}
 
-  {# The sentences that make each count mean something. They were on the tiles,
-     visible always and costing a third of the dashboard. Collapsed, because a
-     reader who already knows what "with the payer" means should not have to
-     scroll past the explanation every time -- and one of these carries a real
-     claim about the lifecycle, so it is kept rather than cut. #}
-  <details class="states">
-    <summary>What each state means</summary>
-    <dl>
-      {% for band in overview.bands %}
-      <dt>{{ band.label }}</dt>
-      <dd>{{ band.caption }}</dd>
-      {% endfor %}
-    </dl>
-  </details>
-  {% endif %}
-
-  {# A case that escalated itself sits in a WITH_PAYER status -- waiting on
-     nobody the bar above tracks -- so it never appears in a band, the urgent
-     strip, or the worklist table below. Without this sentence the single
-     clearest evidence for the multi-week claim this product is built around
-     is unreachable from inside the product itself. See `escalated_signpost`
-     in view.py. #}
-  {% if overview.escalated %}
-  <p class="dash__escalated">
-    <a class="mono" href="/case/{{ overview.escalated.case_id }}">{{ overview.escalated.case_id }}</a>
-    — {{ overview.escalated.line }}
-  </p>
   {% endif %}
 
   {% if overview.urgent %}
@@ -127,19 +100,25 @@
   </div>
   {% endif %}
 
-  {# An entry point, not a ranking. The table below is still soonest deadline
-     first, which is the only ordering a clerk with eleven letters can defend --
-     but that ordering puts the case where Verification was demonstrably wrong
-     at the top of the page, and nothing told a first-time reader where to look
-     instead. The signal is the one thing on a record that shows the retry loop
-     closing: a rejected draft followed by one that passed. Nothing is hidden
-     and nothing is reordered; one case is named.
+  {# One entry point, holding both cases worth opening first.
 
-     Below the deadline strip on purpose. A case running out of time outranks a
-     good demonstration, every time. #}
-  {% if overview.lead %}
+     This was two blocks and they argued with each other: a sentence naming the
+     case that escalated itself, and a panel naming the case where the retry
+     loop closed. Two "look here first" instructions on one screen is no
+     instruction at all, and a reader with nine minutes spent them deciding
+     which to obey. They answer different questions -- does the drafting work,
+     and does the fleet work unattended -- so they belong in one block as two
+     lines, not in two blocks competing for the same job.
+
+     Still an entry point and not a ranking. The table below is untouched and
+     still sorts by soonest appeal deadline, which is the only ordering a clerk
+     with eleven letters can defend. Nothing is hidden and nothing is reordered;
+     two cases are named. #}
+  {% if overview.lead or overview.escalated %}
   <div class="lead">
     <h3 class="lead__h">Start here</h3>
+
+    {% if overview.lead %}
     <p class="lead__who">
       <a class="mono" href="/case/{{ overview.lead.case_id }}">{{ overview.lead.case_id }}</a>
       <span class="marks" aria-hidden="true">
@@ -147,14 +126,23 @@
         <span class="mark mark--{{ mark }}"></span>
         {% endfor %}
       </span>
-      <span class="muted">{{ overview.lead.patient }} — {{ overview.lead.service }}</span>
+      <span class="muted">{{ overview.lead.why }}</span>
     </p>
-    <p class="lead__why">{{ overview.lead.why }}</p>
-    <p class="lead__caveat">This is not a priority and it has not moved anything: the
-    worklist below is unchanged, soonest appeal deadline first.</p>
+    {% endif %}
+
+    {% if overview.escalated %}
+    {# A case that escalated itself sits in a WITH_PAYER status -- waiting on
+       nobody the bar above tracks -- so it never appears in a band, the urgent
+       strip, or the worklist below. Without this line the clearest evidence for
+       the multi-week claim this product is built around is unreachable from
+       inside the product itself. #}
+    <p class="lead__who">
+      <a class="mono" href="/case/{{ overview.escalated.case_id }}">{{ overview.escalated.case_id }}</a>
+      <span class="muted">{{ overview.escalated.line }}</span>
+    </p>
+    {% endif %}
   </div>
   {% endif %}
-
 
   {% if overview.closed %}
   <details class="dash__closed">
