@@ -26,50 +26,77 @@
   {% endif %}
 
   {% if overview.bands %}
-  {# The caseload as one object: proportion, count, meaning, and the control
-     that acts on it. This was three things -- a bar nobody could click, a
-     legend restating its numbers, and a row of tiles restating them a third
-     time. The same counts said three times over, interactive only on the
-     third pass.
+  {# The caseload: the shape first, then the control.
 
-     Widths are proportional through flex-grow, with a floor so a segment of
-     one still fits its own label. That makes the width indicative rather than
-     exact, and it is the right trade because the exact figure is printed
-     inside every segment: the shape answers "how much of today is mine", the
-     number answers "how many". Segments wrap before they squeeze.
+     A previous pass merged these into one row of segments sized by flex-grow.
+     It read as five equal cards. Proportion needs width to vary and a label
+     needs width not to, and asking one element to do both means the label
+     wins and the shape quietly disappears -- which is what happened: the
+     screen kept every number and lost the thing a bar is for.
 
-     Still no script on the page. Each segment is an ordinary link to the same
-     `?waiting=` filter the route has always accepted, so the whole interaction
-     costs one GET and this screen still renders with the network unplugged.
+     So they are two elements doing two jobs. The bar answers "how much of
+     today is waiting on me" before a word is read. The key underneath answers
+     "how many, of what, and show me those" -- every item is a link to the same
+     `?waiting=` filter the route has always accepted.
 
-     Not `aria-hidden` any more. It was, correctly, while it was decoration
-     whose every number appeared in text below. It is the control now, and
-     hiding a list of links from assistive technology would hide the filter
-     itself. #}
+     What is *not* here any more is the third statement: a row of tiles
+     repeating all five counts a third time and carrying the only links on the
+     page. The captions those tiles held are in the disclosure below, where a
+     reader who wants them can get them without the dashboard paying for them.
+
+     Still no script. The interaction is a link and a GET, so this screen
+     continues to render with the network unplugged. #}
   <ul class="load" aria-label="Caseload, by who is holding each case">
-    {% for band in overview.bands %}
+    {# Only bands with cases in them. A zero cannot be drawn proportionally,
+       and a sliver too thin to see is a segment that misleads. The zero still
+       appears in the key below, where it is a fact rather than a width. #}
+    {% for band in overview.bands if band.count %}
     <li class="load__seg load__seg--{{ band.tone }}{% if band.key and band.key == active %} load__seg--on{% endif %}"
         style="flex-grow:{{ band.count }}">
       {% if band.href %}
-      <a href="{{ band.href }}"{% if band.key == active %} aria-current="page"{% endif %}>
-        <span class="load__n">{{ band.count }}</span>
-        <span class="load__label">{{ band.label }}</span>
-        <span class="load__cap">{{ band.caption }}</span>
-      </a>
+      <a href="{{ band.href }}" title="{{ band.count }} {{ band.label | lower }}"><span class="sr-only">{{ band.count }} {{ band.label }}</span></a>
       {% else %}
-      <div class="load__static">
-        <span class="load__n">{{ band.count }}</span>
-        <span class="load__label">{{ band.label }}</span>
-        <span class="load__cap">{{ band.caption }}</span>
-      </div>
+      <span class="sr-only">{{ band.count }} {{ band.label }}</span>
       {% endif %}
     </li>
     {% endfor %}
   </ul>
+
+  <ul class="key">
+    {% for band in overview.bands %}
+    <li class="key__item{% if band.key and band.key == active %} key__item--on{% endif %}">
+      {% if band.href %}
+      <a href="{{ band.href }}"{% if band.key == active %} aria-current="page"{% endif %}>
+        <span class="key__dot key__dot--{{ band.tone }}" aria-hidden="true"></span>
+        <span class="key__n">{{ band.count }}</span> {{ band.label | lower }}
+      </a>
+      {% else %}
+      <span class="key__dot key__dot--{{ band.tone }}" aria-hidden="true"></span>
+      <span class="key__n">{{ band.count }}</span> {{ band.label | lower }}
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+
   {% if active != "all" %}
   <p class="load__reset"><a href="/queue?waiting=all">Show everything waiting on a person
     ({{ total_open }})</a></p>
   {% endif %}
+
+  {# The sentences that make each count mean something. They were on the tiles,
+     visible always and costing a third of the dashboard. Collapsed, because a
+     reader who already knows what "with the payer" means should not have to
+     scroll past the explanation every time -- and one of these carries a real
+     claim about the lifecycle, so it is kept rather than cut. #}
+  <details class="states">
+    <summary>What each state means</summary>
+    <dl>
+      {% for band in overview.bands %}
+      <dt>{{ band.label }}</dt>
+      <dd>{{ band.caption }}</dd>
+      {% endfor %}
+    </dl>
+  </details>
   {% endif %}
 
   {% if overview.urgent %}

@@ -820,62 +820,62 @@ fieldset.gate{
   body{background:#fff}
 }
 
-/* --- The caseload: one shape, and the control that acts on it --------------
-   Was three objects saying the same five numbers -- a 10px bar, a legend
-   repeating it in words, and a row of tiles repeating it again with the only
-   links on the page. One object now. Each segment carries its count, its
-   label, the sentence that makes the count mean something, and, where there is
-   work behind it, a link that narrows the table to exactly those cases.
+/* --- The caseload: the shape, then the control ----------------------------
+   These were merged into one row of segments sized by flex-grow, and it read
+   as five equal cards. Proportion needs width to vary; a label needs width not
+   to. One element cannot serve both, and when it tries the label wins and the
+   shape disappears -- every number survived and the bar stopped being a bar.
 
-   Proportion comes from flex-grow in the template. The floor below is what
-   keeps a segment of one readable, so width is indicative and the printed
-   figure is exact -- the shape is for the glance, the number is for the
-   answer. Segments wrap before they squeeze.
-
-   The left edge is the channel that says whether anyone has to act, in the
-   same three weights the tiles used, so this survives a monochrome screen and
-   does not rely on the fill colour alone. ---------------------------------- */
+   Two elements, two jobs. `.load` is the glance: how much of today is waiting
+   on a person, before a word is read. `.key` is the control: the counts in
+   words, each one a link that narrows the table. The tile row that used to
+   restate all of this a third time is gone; its captions live in `.states`,
+   collapsed. --------------------------------------------------------------- */
 .load{
   list-style:none;margin:var(--s4) 0 var(--s3);padding:0;
-  display:flex;flex-wrap:wrap;gap:1px;
-  border:1px solid var(--hair);border-radius:var(--r);
-  background:var(--hair);overflow:hidden;
+  display:flex;height:14px;gap:1px;
+  border-radius:2px;overflow:hidden;background:var(--hair);
 }
-.load__seg{
-  flex-basis:12rem;min-width:12rem;margin:0;max-width:none;
-  background:var(--panel);
-}
-.load__seg > a,.load__static{
-  display:flex;flex-direction:column;gap:var(--s1);
-  padding:var(--s4);height:100%;
-  border-left:3px solid transparent;
-  text-decoration:none;color:inherit;
-}
-.load__seg--act > a,.load__seg--act .load__static{border-left-color:var(--ink)}
-.load__seg--review > a,.load__seg--review .load__static{border-left-color:var(--warn)}
-.load__seg--wait > a,.load__seg--wait .load__static{border-left-color:var(--edge)}
-.load__seg--quiet > a,.load__seg--quiet .load__static{border-left-color:var(--hair)}
+.load__seg{min-width:4px;margin:0;max-width:none}
+/* The whole segment is the target where there is a filter behind it. */
+.load__seg > a{display:block;height:100%}
+.load__seg--act{background:var(--ink)}
+.load__seg--review{background:var(--warn)}
+.load__seg--wait{background:var(--dim)}
+.load__seg--quiet{background:var(--hair)}
+.load__seg > a:hover{opacity:.72}
+/* The filter that is on, marked on the bar as well as in the key: the bar is
+   what a reader looked at first, so it is where they look to see what changed. */
+.load__seg--on{outline:2px solid var(--ink);outline-offset:-2px}
 
-/* A segment you can click says so on hover; one you cannot never moves. */
-.load__seg > a:hover{background:var(--sunken)}
-.load__seg > a:hover .load__label{text-decoration:underline;text-decoration-thickness:1px}
-
-/* The filter currently on. Reversed rather than merely tinted: at a glance the
-   question is "which one am I looking at", and a tint answers it slower. */
-.load__seg--on > a{background:var(--sunken)}
-.load__seg--on .load__label{font-weight:600}
-.load__seg--on .load__n::after{
-  content:"";display:block;height:2px;background:var(--ink);
-  margin-top:var(--s1);border-radius:1px;
+.key{
+  list-style:none;display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);
+  margin:0 0 var(--s3);padding:0;font-size:var(--fs-xs);color:var(--muted);
 }
+.key__item{margin:0;padding:0;max-width:none}
+.key__item a{display:inline-flex;align-items:center;gap:var(--s1);
+             color:inherit;text-decoration:none}
+.key__item a:hover{color:var(--ink);text-decoration:underline;text-decoration-thickness:1px}
+.key__item--on a{color:var(--ink)}
+.key__item--on .key__n{border-bottom:2px solid var(--ink)}
+.key__dot{width:8px;height:8px;border-radius:1px;flex:none;border:1px solid var(--hair)}
+.key__dot--act{background:var(--ink)}
+.key__dot--review{background:var(--warn)}
+.key__dot--wait{background:var(--dim)}
+.key__dot--quiet{background:var(--hair)}
+.key__n{font-family:var(--mono);color:var(--ink);font-weight:500}
 
-.load__n{
-  font-size:var(--fs-display);font-weight:600;letter-spacing:-.03em;line-height:1;
-  font-variant-numeric:tabular-nums;color:var(--ink);
-}
-.load__label{font-size:var(--fs-md);font-weight:500}
-.load__cap{font-size:var(--fs-xs);line-height:1.45;color:var(--muted);max-width:26ch}
-.load__reset{font-size:var(--fs-sm);margin:0 0 var(--s5)}
+.load__reset{font-size:var(--fs-sm);margin:0 0 var(--s4)}
+
+/* The captions the tiles used to hold, kept but not charged for. One of them
+   carries the lifecycle claim, so cutting them outright would have cost a real
+   statement to save a third of the dashboard. */
+.states{margin:0 0 var(--s5);font-size:var(--fs-sm)}
+.states summary{font-size:var(--fs-sm);color:var(--muted)}
+.states dl{margin:var(--s3) 0 0;display:grid;gap:var(--s2) var(--s4);
+           grid-template-columns:repeat(auto-fit,minmax(min(100%,17rem),1fr))}
+.states dt{font-weight:500;color:var(--ink)}
+.states dd{margin:0 0 var(--s2);color:var(--muted);line-height:1.5;max-width:34ch}
 
 /* --- What Verification did to each attempt --------------------------------
    The row already said "3 (all 3 rejected by verification)". The same fact as
