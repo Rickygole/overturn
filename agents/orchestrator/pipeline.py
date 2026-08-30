@@ -36,6 +36,7 @@ from agents.retrieval.agent import RetrievalRequest
 from agents.sentinel.agent import ScreeningRequest
 from agents.verification.agent import VerificationRequest
 from core.audit import content_digest
+from core.gateway import Access
 from core.idempotency import ActionPreviouslyFailed, UnsafeToRetry
 from core.schemas.base import utcnow
 from core.schemas.case import CaseRecord
@@ -744,7 +745,8 @@ class Pipeline:
         'escalated to peer review' do not collide on one action key and get
         silently deduplicated into a single message.
         """
-        existing = self.fleet.store.query("actions", where=[("case_id", "==", case_id)])
+        collection = self.fleet.orchestrator.gateway.authorize("actions", Access.READ)
+        existing = self.fleet.store.query(collection, where=[("case_id", "==", case_id)])
         return 1 + sum(
             1 for _, row in existing if row.get("action_type") == ActionType.NOTIFY_HUMAN.value
         )

@@ -133,26 +133,35 @@ class TestInjectionCase:
 
 
 class TestNoSecondDoor:
-    """`agents/orchestrator/effects.py` used to call `fleet.store.set` directly,
-    which bypassed `core/gateway.py` entirely -- the one file in this codebase
-    whose "no second door" claim is load-bearing for everything else it says
-    about the boundary being real rather than described. Worse, the bypassed
-    check would have refused the write it was skipping: `POLICY` grants the
-    orchestrator only `Access.READ` on `quarantine`, so a raw write succeeding
-    under the orchestrator's own name was never a coincidence -- it was the
-    second door.
+    """`agents/orchestrator/effects.py` and `pipeline.py` both used to call
+    `fleet.store` methods directly, bypassing `core/gateway.py` entirely -- the
+    one file in this codebase whose "no second door" claim is load-bearing for
+    everything else it says about the boundary being real rather than
+    described. Three call sites, found by grepping for exactly the pattern
+    that made them findable: `quarantine_document` and `notify_human` in
+    `effects.py`, and the `"actions"` read inside `Pipeline._notification_attempt`.
+    The first of the three was also a privilege problem, not just a claim
+    problem: `POLICY` grants the orchestrator only `Access.READ` on
+    `quarantine`, so a raw write succeeding under the orchestrator's own name
+    was never a coincidence -- it was the second door.
 
-    These two tests pin the fix from both directions: the real pipeline run
-    actually calls through the gateway with the right identity, and a handle
-    that lacks the grant is refused rather than silently allowed through.
+    These tests pin all three fixes from both directions: a real pipeline run
+    actually calls through the gateway with the right identity for each one,
+    and a handle that lacks the grant is refused rather than silently allowed
+    through.
     """
 
-    def test_the_quarantine_write_is_authorized_through_the_gateway(self, pipeline, monkeypatch):
-        """A spy on `GatewayHandle.authorize`, not a mock of the write itself.
+    def test_every_raw_write_in_one_case_run_is_authorized_through_the_gateway(
+        self, pipeline, monkeypatch
+    ):
+        """A spy on `GatewayHandle.authorize`, not a mock of any one write.
 
-        If `quarantine_document` ever goes back to writing straight to
-        `fleet.store`, this call never happens and the assertion below fails
-        -- that is the regression this test exists to catch.
+        CASE-002 alone exercises all three fixed call sites: Sentinel
+        quarantines the document, the orchestrator counts prior notifications
+        before sending one, and `notify_human` records it. If any of the three
+        ever goes back to writing straight to `fleet.store`, its call to
+        `authorize` never happens and the matching assertion below fails --
+        that is the regression this test exists to catch.
         """
         calls: list[tuple[AgentName, str, Access]] = []
         original = GatewayHandle.authorize
@@ -167,6 +176,13 @@ class TestNoSecondDoor:
         assert (AgentName.SENTINEL, "quarantine", Access.WRITE) in calls, (
             "the quarantine write did not go through GatewayHandle.authorize "
             "as the Sentinel identity that actually holds the grant"
+        )
+        assert (AgentName.ORCHESTRATOR, "actions", Access.READ) in calls, (
+            "the prior-notification count in _notification_attempt did not go "
+            "through GatewayHandle.authorize"
+        )
+        assert (AgentName.ORCHESTRATOR, "case_memory", Access.WRITE) in calls, (
+            "notify_human's write did not go through GatewayHandle.authorize"
         )
 
     def test_the_quarantine_write_is_refused_under_an_identity_without_the_grant(self, store):
@@ -192,6 +208,26 @@ class TestNoSecondDoor:
         assert store.get("quarantine", "deadbeef") is None, (
             "a refused authorize() call must not be followed by the write anyway"
         )
+
+    def test_the_notification_count_read_is_refused_under_an_identity_without_the_grant(
+        self, store
+    ):
+        """Sentinel holds no grant at all on `actions` (`core/gateway.py`).
+
+        `_notification_attempt` is a `Pipeline` method, not a free function
+        like the two above, but it only ever touches `self.fleet` -- so a
+        duck-typed stand-in with Sentinel's handle in the orchestrator's seat
+        is enough to prove the same read is actually gated, not merely
+        available to be gated.
+        """
+        fake_pipeline = SimpleNamespace(
+            fleet=SimpleNamespace(
+                store=store,
+                orchestrator=SimpleNamespace(gateway=GatewayHandle(AgentName.SENTINEL)),
+            )
+        )
+        with pytest.raises(PolicyViolation):
+            Pipeline._notification_attempt(fake_pipeline, "CASE-XYZ")
 
 
 class TestUndocumentedCriterion:
