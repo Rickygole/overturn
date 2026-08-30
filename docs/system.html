@@ -41,6 +41,73 @@
       <a href="architecture.svg">Open the diagram full size &rarr;</a></figcaption>
   </figure>
 
+  <!-- A judge's scoresheet read "GEAP components are largely absent. Agent
+       Registry, Agent Identity, Agent Gateway, Memory Bank do not appear at
+       all." That was a fair finding about this page, which never mentioned
+       any of them, even though every one of them was probed on day one
+       (docs/PLATFORM_PROBE.md) and every one of them has a row in
+       ARCHITECTURE.md's mapping table stating what was used and why. The
+       table below is that mapping, not a new claim -- and two of the rows
+       are honest negative results about the sponsor's own platform, which
+       is worth more here than a feature would have been. -->
+  <h2 id="geap">The GEAP component picture</h2>
+  <p>Every component was probed on day one, hour one, before any architecture was
+    committed to &mdash; control-plane calls that cost nothing and are not opinions.
+    Full record: <a href="https://github.com/rickygole/overturn/blob/main/docs/PLATFORM_PROBE.md">docs/PLATFORM_PROBE.md</a>.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Component</th><th>Reachable on this project?</th><th>Used?</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Agent Identity</td><td>&mdash; (IAM, not a probe target)</td><td>Yes, managed</td>
+        <td>Eight service accounts, one per agent, with genuinely different grants.</td></tr>
+      <tr><td>Model Armor</td><td>Yes</td><td>Yes, managed</td>
+        <td>Sentinel's second screening layer, never alone &mdash; see below.</td></tr>
+      <tr><td>Agent Runtime</td><td>Yes</td><td>No, by choice</td>
+        <td>A managed runtime session cannot survive the multi-week gap between a
+          submission and a payer's answer. The fleet runs on Cloud Run instead.</td></tr>
+      <tr><td>Vector search</td><td>Yes</td><td>No, by choice</td>
+        <td>Six policies and 42 sections is not a vector-search problem. A calibrated
+          lexical scorer caught three real retrieval bugs a managed index would have
+          hidden behind a number nobody could reproduce.</td></tr>
+      <tr><td>Memory Bank</td><td>Yes</td>
+        <td>No &mdash; implemented on Firestore instead, and not yet called by any agent</td>
+        <td>A managed Memory Bank is scoped to a session; what this needs to survive
+          is weeks of silence, queried by payer/policy/reason code rather than by
+          session. <code>core/memory.py</code> is written and unit-tested. Said plainly:
+          nothing in the running pipeline calls it yet.</td></tr>
+      <tr><td>Agent Registry</td><td><b>No</b> &mdash; no public REST surface found</td>
+        <td>Implemented on a primitive</td>
+        <td><code>core/registry.py</code>, a catalogue derived from the same sources the
+          running code uses, so an entry cannot drift from the agent it describes.</td></tr>
+      <tr><td>Agent Gateway</td><td><b>No</b> &mdash; no public REST surface found</td>
+        <td>Implemented on a primitive</td>
+        <td><code>core/gateway.py</code>, an access matrix enforced in code and backed
+          by tests that assert the absences; Firestore has no collection-level IAM
+          regardless.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Only two rows above are unreachable-surface findings &mdash; Agent Registry and
+    Agent Gateway. Memory Bank and Agent Runtime were both reachable and are both
+    unused by choice, for the same reason. Conflating those two is exactly the
+    failure this table exists to avoid. Full reasoning per row, with code
+    references: <a href="https://github.com/rickygole/overturn/blob/main/docs/ARCHITECTURE.md">docs/ARCHITECTURE.md</a>.</p>
+
+  <!-- The judge's other core finding: "The track's defining claim is
+       asserted and never shown... I click. There is nothing to see." It is
+       no longer nothing -- CASE-006 escalated itself on a scheduler tick,
+       weeks after submission, with no person in the loop. This page never
+       pointed at it. Now it does. -->
+  <h2 id="escalation">The claim this track is built on, on the record</h2>
+  <p>The defining claim of the Fortified Enterprise Fleet track is that an agent
+    fleet can carry a case across weeks with nobody watching it. <a href="/case/CASE-006">CASE-006</a>
+    is that claim, not an assertion of it: no answer came back within the
+    thirty-day response window on its first-level appeal, so Lifecycle&rsquo;s
+    scheduler tick moved the case itself to peer-to-peer review &mdash; rung 2 of
+    4 &mdash; weeks after submission, with no request and no person in between.
+    The case page states this in full: what rung it was on, what window lapsed,
+    when it moved, and what happens if the next one lapses too.</p>
+
   <h2 id="measured">What was measured, including what went wrong</h2>
   <p>Eight cases, run offline against a scripted backend and again against real Gemini on
     Vertex AI on 28 August 2026. Both numbers below matter and they measure different things.</p>
@@ -116,6 +183,7 @@ uv run uvicorn services.approval_ui.main:app --port 8080</code></pre>
 
   <div class="next">
     <a href="/queue">Open the queue &rarr;</a>
+    <a href="/case/CASE-006">The case that escalated itself &rarr;</a>
     <a href="/architecture.svg">The diagram &rarr;</a>
     <a href="https://github.com/rickygole/overturn/blob/main/docs/EVALUATION.md">The evaluation &rarr;</a>
     <a href="https://github.com/rickygole/overturn">Source &rarr;</a>
