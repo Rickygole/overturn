@@ -43,9 +43,19 @@ rather than as a quota or permission error, which points at the wrong problem.
 
 ## What this means for the build
 
-The plan's GEAP fork resolves toward managed components for the three that
-matter most to the track: Agent Runtime for the long-running Lifecycle agent,
-Memory Bank for cross-session case context, and Model Armor for Sentinel.
+Day-one intent was to resolve the GEAP fork toward managed components for the
+three that matter most to the track: Agent Runtime for the long-running
+Lifecycle agent, Memory Bank for cross-session case context, and Model Armor
+for Sentinel. That plan changed for two of the three once the shape of the
+problem was clearer — worth recording here so this file does not go on
+implying the plan is what got built.
 
-Registry and Gateway are built on primitives, and `docs/ARCHITECTURE.md`
-carries a mapping table stating which primitive implements each and why.
+Model Armor is managed, as planned: it is Sentinel's second screening layer.
+Agent Runtime and Memory Bank were both reachable — the row above says so —
+and both ended up **not used, by choice**. A managed runtime session and a
+managed Memory Bank scoped to that session do not fit a case that has to
+survive weeks of silence between a submission and a payer's answer; Cloud Run
+plus Firestore does. `docs/ARCHITECTURE.md` carries the mapping table and the
+reasoning for every row, including the two built on primitives — Agent
+Registry and Agent Gateway — because *those* had no reachable surface at all,
+which is a different reason and the one this file's table actually shows.

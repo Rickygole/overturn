@@ -159,10 +159,19 @@ lose is to overstate something a judge then checks:
   recording as a caution: a claim assembled from two correct facts about
   configuration, without checking the call site, is exactly the kind of thing
   that survives review and then fails in front of a judge who greps for it.
-- Agent Registry, Agent Gateway and Memory Bank are **our own primitives**, not
-  the managed GEAP services — no public REST surface was reachable on this
-  project. `docs/PLATFORM_PROBE.md` records the probe and `ARCHITECTURE.md`
-  carries the mapping table.
+- Agent Registry and Agent Gateway are **our own primitives**, not the managed
+  GEAP services — no public REST surface was reachable on this project.
+  `docs/PLATFORM_PROBE.md` records the probe and `ARCHITECTURE.md` carries the
+  mapping table.
+- Memory Bank is different, and worth stating precisely rather than folding
+  into the bullet above: the managed surface *was* reachable on this project
+  (same probe, same `200 {}`). `core/memory.py` implements the same contract
+  on Firestore anyway, by choice — a managed Memory Bank is scoped to a
+  session, and what a payer-behaviour observation needs to survive is weeks
+  of silence, keyed on payer/policy/reason code rather than on a member. It
+  is unit-tested (`tests/test_memory.py`) and **no agent in the running
+  pipeline calls it yet** — the gateway grants and the collection name exist,
+  but a grant is not a call site.
 - Agent Runtime is not used; the pipeline terminates at a human gate and resumes
   from Firestore, which is not what a managed runtime session is for.
 - The payer endpoint is simulated. Nothing is transmitted to a real insurer.

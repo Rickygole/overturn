@@ -185,20 +185,28 @@ survive the multi-week gap between submitting an appeal and a payer answering
 it. The case state lives in a Firestore document instead, so any worker can
 resume a case cold, weeks later, having never seen it.
 
-The Fortified Enterprise Fleet components, on primitives where no managed
-surface was reachable on this project (documented in `docs/PLATFORM_PROBE.md`):
+The Fortified Enterprise Fleet components (probe recorded in
+`docs/PLATFORM_PROBE.md`):
 
-- **Agent Registry** — a versioned catalogue where every field is *derived*
-  from the same sources the running code uses, so an entry cannot drift from
-  the agent it describes. A wrong catalogue about who may touch patient data is
-  worse than no catalogue.
-- **Memory Bank** — cross-case memory of payer behaviour, keyed on payer,
-  policy and denial reason code, and never on a patient.
+- **Agent Registry** — on a primitive, because no managed surface was
+  reachable on this project. A versioned catalogue where every field is
+  *derived* from the same sources the running code uses, so an entry cannot
+  drift from the agent it describes. A wrong catalogue about who may touch
+  patient data is worse than no catalogue.
+- **Memory Bank** — the managed surface *was* reachable here, and this is not
+  used by choice: a session-scoped store does not fit memory that has to
+  survive weeks of silence between a submission and a payer's answer. The same
+  contract is implemented on Firestore instead, keyed on payer, policy and
+  denial reason code, never on a patient — and it is unit-tested but not yet
+  called by any agent in the running pipeline, disclosed as such rather than
+  wired in the day before a deadline.
 - **Agent Identity** — eight service accounts, one per role.
-- **Agent Gateway** — Firestore has no collection-level IAM, so per-agent
-  scoping is enforced in code and backed by tests that assert the absences.
-- **Model Armor** — one of Sentinel's three screening layers, running in the
-  deployment.
+- **Agent Gateway** — on a primitive, because no managed surface was reachable
+  on this project, and Firestore has no collection-level IAM regardless, so
+  per-agent scoping is enforced in code and backed by tests that assert the
+  absences.
+- **Model Armor** — the managed service, one of Sentinel's three screening
+  layers, running in the deployment.
 - **Observability** — an OpenTelemetry span per agent invocation, exported to
   Cloud Trace, so one trace shows a case's whole reasoning chain including the
   drafting/verification retries nested under it.

@@ -1,9 +1,20 @@
 """Cross-case memory.
 
 The track asks for persistent, secure, cross-session context over extended
-timelines. There is a managed Memory Bank; there is no public REST surface for
-it on this project (see `docs/PLATFORM_PROBE.md`), so this implements the same
-contract on Firestore.
+timelines. The managed Memory Bank *was* reachable on this project — the probe
+in `docs/PLATFORM_PROBE.md` got `200 {}` from it, the same as Agent Runtime.
+It is not used here by choice, not because it was unavailable: a managed
+Memory Bank is scoped to a session, and what this needs to survive is weeks
+between a submission and a payer's answer, queried by payer/policy/reason
+code rather than by session. That is the same reasoning `ARCHITECTURE.md`
+gives for running the fleet on Cloud Run instead of the managed Agent Runtime.
+So this implements the same contract directly on Firestore instead.
+
+Say the other half plainly too: this module is implemented and covered by
+`tests/test_memory.py`, but nothing in the running pipeline calls it. No agent
+imports `core.memory`. The write and read grants exist in `core/gateway.py`
+and the collection is named in `core/config.py`, but a grant is not a call
+site, and this is one until an agent actually reaches for it.
 
 What is worth remembering here is narrow and specific, and getting the scope
 right matters more than the storage:
