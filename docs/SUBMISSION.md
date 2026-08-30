@@ -13,7 +13,7 @@ for site malfunctions, and deadline-day load on Devpost is a real risk.
 | **Hosted project URL** | `https://overturn-kruy6aauaq-uc.a.run.app` — password `northbeck-appeals-2026` (see "Testing notes for judges" below) | ☑ |
 | **Text description** | Four parts, all drafted in [`PITCH.md`](PITCH.md) | ☑ |
 | **Spin-up instructions** | In `README.md`, verified from a clean clone on 2026-08-23 | ☑ |
-| **Architecture diagram** | [`architecture.svg`](architecture.svg), embedded in [`ARCHITECTURE.md`](ARCHITECTURE.md) | ☐ |
+| **Architecture diagram** | Paste `https://overturn-kruy6aauaq-uc.a.run.app/architecture.svg` — a URL a judge can open from the form. The repo-relative link is not a substitute: the last scoresheet recorded "I cannot evaluate what I cannot open" | ☑ |
 | **Demo video** | ≤4 min, **public** on YouTube, captions on | ☐ |
 
 **There is exactly one URL.** The site and the review queue are one Cloud Run
