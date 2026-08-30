@@ -13,15 +13,19 @@ calls are answered locally.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from agents.intake.documents import SourceDocument
 from agents.offline.handlers import build_offline_llm
+from agents.orchestrator import effects
 from agents.orchestrator.deps import build_fleet
 from agents.orchestrator.pipeline import Pipeline
 from core.audit import read_case_trail
+from core.gateway import Access, GatewayHandle, PolicyViolation
 from core.schemas.enums import ActionType, AgentName, CaseStatus, CriterionVerdictValue
+from core.schemas.sentinel import ScreeningResult
 from core.store import MemoryStore
 
 DENIALS = Path(__file__).resolve().parents[1] / "data" / "denials"
@@ -126,6 +130,68 @@ class TestInjectionCase:
             if row["action_type"] == ActionType.NOTIFY_HUMAN.value
         ]
         assert len(notifications) == 1
+
+
+class TestNoSecondDoor:
+    """`agents/orchestrator/effects.py` used to call `fleet.store.set` directly,
+    which bypassed `core/gateway.py` entirely -- the one file in this codebase
+    whose "no second door" claim is load-bearing for everything else it says
+    about the boundary being real rather than described. Worse, the bypassed
+    check would have refused the write it was skipping: `POLICY` grants the
+    orchestrator only `Access.READ` on `quarantine`, so a raw write succeeding
+    under the orchestrator's own name was never a coincidence -- it was the
+    second door.
+
+    These two tests pin the fix from both directions: the real pipeline run
+    actually calls through the gateway with the right identity, and a handle
+    that lacks the grant is refused rather than silently allowed through.
+    """
+
+    def test_the_quarantine_write_is_authorized_through_the_gateway(self, pipeline, monkeypatch):
+        """A spy on `GatewayHandle.authorize`, not a mock of the write itself.
+
+        If `quarantine_document` ever goes back to writing straight to
+        `fleet.store`, this call never happens and the assertion below fails
+        -- that is the regression this test exists to catch.
+        """
+        calls: list[tuple[AgentName, str, Access]] = []
+        original = GatewayHandle.authorize
+
+        def spy(self, collection, access):
+            calls.append((self.agent, collection, access))
+            return original(self, collection, access)
+
+        monkeypatch.setattr(GatewayHandle, "authorize", spy)
+        run(pipeline, "CASE-002")
+
+        assert (AgentName.SENTINEL, "quarantine", Access.WRITE) in calls, (
+            "the quarantine write did not go through GatewayHandle.authorize "
+            "as the Sentinel identity that actually holds the grant"
+        )
+
+    def test_the_quarantine_write_is_refused_under_an_identity_without_the_grant(self, store):
+        """Verification holds no grant on `quarantine` (`core/gateway.py`).
+
+        Routed through Verification's handle instead of Sentinel's, the same
+        write must raise `PolicyViolation` rather than land -- proof the check
+        is actually in the path, not merely available to it.
+        """
+        fake_fleet = SimpleNamespace(
+            store=store,
+            sentinel=SimpleNamespace(
+                deps=SimpleNamespace(gateway=GatewayHandle(AgentName.VERIFICATION))
+            ),
+        )
+        screening = ScreeningResult(
+            document_uri="gs://overturn-intake/CASE-XYZ.txt",
+            content_sha256="deadbeef",
+            quarantine=True,
+        )
+        with pytest.raises(PolicyViolation):
+            effects.quarantine_document(fake_fleet, "CASE-XYZ", screening)
+        assert store.get("quarantine", "deadbeef") is None, (
+            "a refused authorize() call must not be followed by the write anyway"
+        )
 
 
 class TestUndocumentedCriterion:
