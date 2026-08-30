@@ -119,6 +119,58 @@ wrong" but "a real model, given a harder input, produced a worse letter three
 times running, and the system refused to send it and asked a person instead."
 That is the safe failure mode this architecture is built to have.
 
+## Verification's false positives, measured
+
+Everything above is the run of 2026-08-28. The deployed system is a second run,
+and on 2026-08-30 a reviewer read its CASE-003 line by line and found something
+this document had not looked for: **two of the three rejections that killed that
+case are wrong.**
+
+Attempt 1 was rejected over the letter's statement of `NBH-CARD-014-3.5`. The
+policy says:
+
+> There is no contraindication to magnetic resonance imaging, or, where a
+> relative contraindication exists, the medical record documents that it has
+> been addressed.
+
+The letter said:
+
+> Requires that there is no contraindication to magnetic resonance imaging, or,
+> where a relative contraindication exists, the medical record documents that it
+> has been addressed.
+
+That is verbatim, with "Requires that" prefixed to what is already a criterion.
+Verification objected that "the source text does not require documentation to
+prove that *no* contraindication exists" -- a reading the letter does not make.
+Attempt 3 was rejected over where "within the twelve months" attaches in
+`3.2`, which is a modifier-scope quibble and not a fabrication.
+
+So on that case the system killed a well-founded appeal three times over
+paraphrase pedantry, and the cap fired on correct work. A cardiac MRI appeal
+that should have gone to a human for signature did not.
+
+**This is the honest reading, and it cuts against the headline.** The claim this
+project makes is that Verification catches real overreach. It does -- the
+telehealth overclaim on CASE-001 is real, and it reproduced across two backends
+and two days. But the same check also rejects restatements that are accurate,
+and an attempt cap that fails closed turns a false positive into a lost appeal
+rather than a bad letter. A safety net with an unmeasured false-positive rate is
+half a result.
+
+Two things follow, and both are recorded here rather than fixed quietly:
+
+1. **CASE-003 is not a showcase.** It was described in earlier drafts of this
+   project's materials as the cap holding. On the deployed run it is the cap
+   misfiring. The case that demonstrates the cap working correctly is CASE-007,
+   for the reasons in the section above; the case that demonstrates a genuine
+   catch is CASE-001.
+2. **The false-positive rate is not measured.** The eight-case harness scores
+   outcomes and grounding. It has no measure of how often Verification rejects a
+   claim that was true, because until this review nobody had read the rejections
+   against the policy text by hand. That is the gap this evaluation would close
+   next, and stating it is more useful than an eight-case number that would not
+   survive a re-run.
+
 ## The other miss: CASE-006's documentation judgment call
 
 CASE-006's manifest intent states the chart "probably" meets the criteria but

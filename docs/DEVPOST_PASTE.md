@@ -64,8 +64,13 @@ Worth clicking, in this order:
             a 14 July encounter was a "telehealth evaluation" — the chart calls
             it an "interim review" and never says how it was conducted. Nobody
             planted that. The rejection text is on the page.
-  CASE-003  Three drafts, three rejections, nothing sent. The attempt cap
-            holding on a real model.
+  CASE-003  Three drafts, three rejections, nothing sent -- and two of those
+            three rejections are wrong. Verification objected to an accurate
+            restatement of a policy criterion. We read the rejections against
+            the policy text by hand and recorded it in docs/EVALUATION.md
+            rather than presenting the case as a success. It is the clearest
+            evidence we have that the checker's false-positive rate is real
+            and that we have not yet measured it.
   CASE-002  Quarantined. A denial letter with an injected instruction in it.
             It never reaches the queue, which is why it is listed under
             "closed cases" rather than silently vanishing.
@@ -128,6 +133,21 @@ plausibly have come from. Verification runs on a separate model and can reject
 and explain but cannot edit — it has no path to writing its way to a pass.
 After three rejected attempts the case goes to a human with the reasons
 attached and **nothing is sent**. Failing to send is a designed outcome.
+
+### What we got wrong, and found by reading it
+
+The same check that catches real overreach also rejects restatements that are
+accurate. On the deployed CASE-003 it killed a well-founded cardiac MRI appeal
+three times over paraphrase -- once objecting to a sentence that was verbatim
+the policy criterion with "Requires that" in front of it. The attempt cap then
+turned a false positive into a lost appeal rather than a bad letter.
+
+We found that by reading the rejections against the policy text by hand, not
+from the harness, which scores outcomes and grounding and has no measure of how
+often the checker is wrong in the other direction. That gap is stated in
+docs/EVALUATION.md. A safety net with an unmeasured false-positive rate is half
+a result, and saying so is more useful than a number that would not survive a
+re-run.
 
 ### The finding this project exists to report
 
