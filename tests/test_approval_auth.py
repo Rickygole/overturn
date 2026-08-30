@@ -37,18 +37,34 @@ def guarded(monkeypatch) -> TestClient:
 
 
 class TestTheDoorIsShut:
+    """Reading is open; changing a case is not.
+
+    There is no password between a visitor and the queue. Everything here is
+    synthetic, so a wall in front of it bought nothing. The queue is a *staged*
+    demonstration though -- eight cases across six states, produced by real
+    model calls and not undoable -- so the three routes that change a case
+    still ask for the password, and nothing else does.
+    """
+
     @pytest.mark.parametrize(
         "path", ["/queue", "/case/CASE-001", "/case/CASE-001/clinical"]
     )
-    def test_a_page_showing_a_case_redirects_to_login(self, guarded, path):
-        response = guarded.get(path)
-        assert response.status_code == 303
-        assert response.headers["location"] == "/login"
+    def test_reading_a_case_needs_no_password(self, guarded, path):
+        assert guarded.get(path).status_code in (200, 404)
 
-    def test_a_post_is_also_guarded(self, guarded):
-        response = guarded.post("/case/CASE-001/approve", data={"draft_attempt": 1})
+    @pytest.mark.parametrize(
+        "path",
+        ["/case/CASE-001/approve", "/case/CASE-001/reject", "/case/CASE-001/cosign"],
+    )
+    def test_every_route_that_changes_a_case_is_guarded(self, guarded, path):
+        response = guarded.post(path, data={"draft_attempt": 1})
         assert response.status_code == 303
-        assert response.headers["location"] == "/login"
+        assert response.headers["location"].startswith("/login")
+
+    def test_the_login_sends_you_back_where_you_were(self, guarded):
+        """A reader deep in a case should not be dropped at the queue."""
+        response = guarded.post("/case/CASE-007/approve", data={"draft_attempt": 1})
+        assert response.headers["location"] == "/login?next=/case/CASE-007/approve"
 
     def test_the_login_page_itself_is_reachable(self, guarded):
         assert guarded.get("/login").status_code == 200
@@ -110,15 +126,20 @@ class TestSigningIn:
         assert "Secure" in raw
 
     def test_signing_out_clears_the_session(self, guarded):
+        """Reading survives signing out; the ability to sign something does not."""
         guarded.post("/login", data={"password": PASSWORD})
         guarded.post("/logout")
-        assert guarded.get("/queue").status_code == 303
+        response = guarded.post("/case/CASE-001/approve", data={"draft_attempt": 1})
+        assert response.status_code == 303
+        assert response.headers["location"].startswith("/login")
 
 
 class TestForgery:
     def test_a_made_up_cookie_is_refused(self, guarded):
         guarded.cookies.set(COOKIE_NAME, "99999999999.deadbeef")
-        assert guarded.get("/queue").status_code == 303
+        response = guarded.post("/case/CASE-001/approve", data={"draft_attempt": 1})
+        assert response.status_code == 303
+        assert response.headers["location"].startswith("/login")
 
     def test_a_tampered_cookie_is_refused(self):
         config = AuthConfig(password=PASSWORD, secret="s" * 64)
@@ -360,3 +381,25 @@ class TestCaching:
     def test_the_public_door_is_not_marked_no_store(self, guarded):
         """no-store on the door would defeat revalidation for no benefit."""
         assert "no-store" not in guarded.get("/").headers.get("cache-control", "")
+
+
+class TestOpenRedirect:
+    """`next` is attacker-controlled, on the one page that asks for a password."""
+
+    def test_an_offsite_target_is_discarded(self, guarded):
+        response = guarded.post(
+            "/login", data={"password": PASSWORD, "next": "https://evil.example/steal"}
+        )
+        assert response.headers["location"] == "/queue"
+
+    def test_a_protocol_relative_target_is_discarded(self, guarded):
+        response = guarded.post(
+            "/login", data={"password": PASSWORD, "next": "//evil.example/steal"}
+        )
+        assert response.headers["location"] == "/queue"
+
+    def test_a_same_site_path_is_honoured(self, guarded):
+        response = guarded.post(
+            "/login", data={"password": PASSWORD, "next": "/case/CASE-001"}
+        )
+        assert response.headers["location"] == "/case/CASE-001"

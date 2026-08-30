@@ -50,6 +50,7 @@
     <form method="post" action="/login" class="door__form">
       <div class="field">
         <label for="password">Access password</label>
+        <input type="hidden" name="next" value="{{ next|default('') }}">
         <input type="password" id="password" name="password" required autofocus
                autocomplete="current-password"
                {% if error %}aria-invalid="true" aria-describedby="login-error"{% endif %}>

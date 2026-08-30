@@ -129,7 +129,10 @@ SITE_PATHS = frozenset(
     }
 )
 
-PUBLIC_PATHS = frozenset({"/login", "/health", "/healthz", "/theme"}) | SITE_PATHS
+# /logout is public because signing out is not a privileged act: it clears a
+# cookie the caller already holds, and demanding a session before you may drop
+# one is a loop.
+PUBLIC_PATHS = frozenset({"/login", "/logout", "/health", "/healthz", "/theme"}) | SITE_PATHS
 
 
 def path_is_public(path: str) -> bool:

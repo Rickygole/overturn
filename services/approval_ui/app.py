@@ -55,6 +55,10 @@ from services.approval_ui.service import (
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
+# Methods that cannot change a case. Reading the queue needs no credential;
+# signing something does.
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
 # The public site ships from this process too, so the product has one address.
 # `docs/` is also what GitHub Pages publishes, which makes that deployment an
 # exact mirror rather than a second thing to keep in sync.
@@ -439,26 +443,50 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
 
     @app.middleware("http")
     async def require_session(request: Request, call_next):
-        """One door in front of everything that shows a case.
+        """Reading is open. Changing a case is not.
 
-        Health checks stay outside it — Cloud Run probes them before anything
-        else, and a health check behind a login reports the service unhealthy
-        the moment the login works.
+        There is no password between a visitor and the queue any more. Everything
+        here is synthetic -- an invented payer, generated charts, a payer endpoint
+        that is a local simulator -- so a wall in front of it bought nothing and
+        cost every reader thirty seconds and a copy-paste.
+
+        Writing is a different question, and it is not about secrecy. The queue
+        is a *staged* demonstration: eight cases across six states, one carried
+        through both signatures to `submitted`, one that Lifecycle escalated on
+        its own after the payer went quiet. Any passing crawler that followed a
+        form could approve or reject its way through that in a second, and the
+        states cost real model calls to produce and cannot be undone. So the
+        password still stands in front of the three routes that change a case,
+        and in front of nothing else.
+
+        Health checks stay outside both -- Cloud Run probes them before anything
+        else, and a health check behind a login reports the service unhealthy the
+        moment the login works.
         """
         if not auth.enabled or path_is_public(request.url.path):
             return await call_next(request)
+        if request.method in SAFE_METHODS:
+            return await call_next(request)
         if session_is_valid(request.cookies.get(COOKIE_NAME), auth):
             return await call_next(request)
-        return RedirectResponse("/login", status_code=303)
+        # Come back to the case the reader was on, not to the queue.
+        back = quote(request.url.path, safe="/")
+        return RedirectResponse(f"/login?next={back}", status_code=303)
 
     @app.get("/login")
-    def login_form(request: Request) -> Response:
+    def login_form(request: Request, next: str = "") -> Response:
         if not auth.enabled or session_is_valid(request.cookies.get(COOKIE_NAME), auth):
-            return RedirectResponse("/queue", status_code=303)
-        return templates.TemplateResponse(request, "login.html", {"error": None})
+            return RedirectResponse(_safe_next(next), status_code=303)
+        return templates.TemplateResponse(
+            request, "login.html", {"error": None, "next": _safe_next(next)}
+        )
 
     @app.post("/login")
-    def login(request: Request, password: Annotated[str, Form()] = "") -> Response:
+    def login(
+        request: Request,
+        password: Annotated[str, Form()] = "",
+        next: Annotated[str, Form()] = "",
+    ) -> Response:
         if not password_matches(password, auth):
             # Deliberately vague, and deliberately not rate limited here —
             # Cloud Run sits behind Google's edge and this is a single shared
@@ -466,10 +494,11 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
             return templates.TemplateResponse(
                 request,
                 "login.html",
-                {"error": "That password is not correct."},
+                {"error": "That password is not correct.", "next": _safe_next(next)},
                 status_code=401,
             )
-        response = RedirectResponse(_landing_path(service), status_code=303)
+        # Back to whatever the reader was trying to sign, if it was one of ours.
+        response = RedirectResponse(_safe_next(next) or _landing_path(service), status_code=303)
         response.set_cookie(
             COOKIE_NAME,
             issue_session(auth),
@@ -679,6 +708,20 @@ def _overview_or_none(service: ApprovalService) -> view.Overview | None:
     except Exception:
         logger.exception("could not build the dashboard summary; rendering the queue without it")
         return None
+
+
+def _safe_next(target: str) -> str:
+    """A same-site path, or nothing.
+
+    ``next`` arrives from a query string and a form field, so it is attacker
+    controlled. Anything that is not a plain absolute path on this host is
+    discarded rather than corrected -- the same rule the theme route's ``back``
+    already applies, and for the same reason: an open redirect on a page whose
+    whole job is asking for a password is how a credential gets phished.
+    """
+    if target.startswith("/") and not target.startswith("//"):
+        return target
+    return ""
 
 
 def _landing_path(service: ApprovalService) -> str:
