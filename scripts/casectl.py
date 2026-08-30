@@ -26,7 +26,6 @@ import sys
 from agents.offline.handlers import build_offline_llm
 from agents.orchestrator.deps import build_fleet
 from agents.orchestrator.pipeline import Pipeline
-from core.audit import read_case_trail
 from core.config import get_settings
 from core.schemas.case import CaseRecord
 from core.schemas.enums import CaseStatus
@@ -85,7 +84,8 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 def cmd_show(args: argparse.Namespace) -> int:
     store = _store()
-    case = ApprovalService(store).load(args.case_id)
+    service = ApprovalService(store)
+    case = service.load(args.case_id)
 
     print(f"{BOLD}{case.case_id}{RESET}  {case.status.value}")
     if case.denial:
@@ -116,7 +116,10 @@ def cmd_show(args: argparse.Namespace) -> int:
 
     if args.trail:
         print(f"\n{BOLD}audit trail{RESET}")
-        for event in read_case_trail(store, case.case_id):
+        # Through the service's own gateway handle rather than a raw store
+        # query: `read_case_trail` now requires one, the same as every other
+        # datastore reader in this codebase.
+        for event in service.trail(case.case_id):
             mark = " " if event.succeeded else "!"
             print(f" {mark} {event.agent.value:13} {event.operation:18} {event.decision[:80]}")
 

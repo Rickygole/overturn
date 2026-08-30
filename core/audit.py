@@ -128,14 +128,23 @@ class AuditLog:
 
 
 def read_case_trail(
-    store: DocumentStore, case_id: str, limit: int | None = None
+    store: DocumentStore, gateway: GatewayHandle, case_id: str, limit: int | None = None
 ) -> list[AuditEvent]:
     """Every event for one case, oldest first.
 
     This is what the approval interface shows a clerk and what gets pointed at
     in the demo when the question is 'why did it do that'.
+
+    Takes a ``GatewayHandle`` for the same reason every other reader of this
+    store does, `core/state.py`'s `CaseRepository` included: this function
+    used to query `AUDIT_COLLECTION` directly with no handle at all, which
+    made `core/gateway.py`'s "no second door" claim false about the one
+    collection every agent can read. Every agent holds at least `APPEND` on
+    `audit_events`, and `APPEND` implies `READ`, so this needs no `POLICY`
+    change -- callers pass whichever identity is already in scope.
     """
-    rows = store.query(AUDIT_COLLECTION, where=[("case_id", "==", case_id)])
+    collection = gateway.authorize(AUDIT_COLLECTION, Access.READ)
+    rows = store.query(collection, where=[("case_id", "==", case_id)])
     events = [AuditEvent.model_validate(data) for _, data in rows]
     events.sort(key=lambda e: e.at)
     return events[:limit] if limit else events

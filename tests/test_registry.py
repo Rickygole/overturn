@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.gateway import POLICY, Access
+from core.gateway import POLICY, Access, GatewayHandle, PolicyViolation
 from core.registry import (
     REGISTRY_COLLECTION,
     build_catalogue,
@@ -137,3 +137,48 @@ class TestSeeding:
             if agent is AgentName.ORCHESTRATOR:
                 continue
             assert f"`{agent.value}`" in table
+
+
+class TestNoSecondDoor:
+    """`seed()` and `discover()` used to call `store.set`/`store.query` on
+    `agent_registry` directly, no `GatewayHandle` in the path at all -- a
+    second door into a collection `core/gateway.py`'s own docstring claims
+    has none. Both default to the orchestrator identity now, which is what
+    `scripts/seed_registry.py` -- the only caller outside this suite -- has
+    always run as administratively. `POLICY` moved the orchestrator's
+    `agent_registry` grant from `READ` to `WRITE` to make `seed()`'s write
+    legal under that identity; `discover()` needed nothing new, since `WRITE`
+    implies `READ`.
+    """
+
+    def test_seed_and_discover_are_authorized_through_the_gateway(self, monkeypatch):
+        calls: list[tuple[AgentName, str, Access]] = []
+        original = GatewayHandle.authorize
+
+        def spy(self, collection, access):
+            calls.append((self.agent, collection, access))
+            return original(self, collection, access)
+
+        monkeypatch.setattr(GatewayHandle, "authorize", spy)
+        store = MemoryStore()
+        seed(store)
+        discover(store)
+
+        assert (AgentName.ORCHESTRATOR, "agent_registry", Access.WRITE) in calls
+        assert (AgentName.ORCHESTRATOR, "agent_registry", Access.READ) in calls
+
+    def test_seed_is_refused_under_an_identity_without_the_grant(self):
+        """Sentinel holds no grant at all on `agent_registry`
+        (`core/gateway.py`) -- routed through its handle instead of the
+        default, the write must raise rather than land.
+        """
+        store = MemoryStore()
+        with pytest.raises(PolicyViolation):
+            seed(store, gateway=GatewayHandle(AgentName.SENTINEL))
+        assert store.count(REGISTRY_COLLECTION) == 0
+
+    def test_discover_is_refused_under_an_identity_without_the_grant(self):
+        store = MemoryStore()
+        seed(store)  # under the default (orchestrator) identity, which is allowed
+        with pytest.raises(PolicyViolation):
+            discover(store, gateway=GatewayHandle(AgentName.SENTINEL))

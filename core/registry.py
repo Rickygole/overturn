@@ -32,7 +32,7 @@ from pathlib import Path
 
 from pydantic import Field
 
-from core.gateway import POLICY, Access
+from core.gateway import POLICY, Access, GatewayHandle
 from core.schemas.base import OverturnModel, utcnow
 from core.schemas.enums import AgentName
 from core.store import DocumentStore
@@ -153,11 +153,22 @@ def build_catalogue() -> list[RegisteredAgent]:
     return entries
 
 
-def seed(store: DocumentStore) -> list[RegisteredAgent]:
-    """Publish the catalogue. Safe to re-run; entries are replaced wholesale."""
+def seed(store: DocumentStore, gateway: GatewayHandle | None = None) -> list[RegisteredAgent]:
+    """Publish the catalogue. Safe to re-run; entries are replaced wholesale.
+
+    Takes a ``GatewayHandle`` for the same reason every other datastore writer
+    in this codebase does. This function used to call `store.set` directly
+    with no handle at all -- a second door into `agent_registry`, the exact
+    thing `core/gateway.py` claims does not exist. Defaults to the
+    orchestrator identity, which is what `scripts/seed_registry.py` -- the
+    only caller outside the test suite -- already runs as administratively;
+    `POLICY` grants it `agent_registry: WRITE`.
+    """
+    gateway = gateway or GatewayHandle(AgentName.ORCHESTRATOR)
+    collection = gateway.authorize(REGISTRY_COLLECTION, Access.WRITE)
     catalogue = build_catalogue()
     for entry in catalogue:
-        store.set(REGISTRY_COLLECTION, entry.agent_id, entry.to_firestore())
+        store.set(collection, entry.agent_id, entry.to_firestore())
     return catalogue
 
 
@@ -165,14 +176,22 @@ def discover(
     store: DocumentStore,
     writes_to: str | None = None,
     handles_untrusted_input: bool | None = None,
+    gateway: GatewayHandle | None = None,
 ) -> list[RegisteredAgent]:
     """Find agents by capability, which is how a catalogue is actually used.
 
     "Which agents can write to the cases collection" and "which agents touch
     data from outside the organisation" are the two questions a security review
     asks first, so they are the two the registry answers directly.
+
+    Same fix as `seed()` above, same reason: this queried `agent_registry`
+    directly with no handle. Defaults to the orchestrator identity, which
+    holds at least `READ` here regardless of what `seed()`'s default resolves
+    to, since `WRITE` implies `READ`.
     """
-    rows = store.query(REGISTRY_COLLECTION)
+    gateway = gateway or GatewayHandle(AgentName.ORCHESTRATOR)
+    collection = gateway.authorize(REGISTRY_COLLECTION, Access.READ)
+    rows = store.query(collection)
     found = [RegisteredAgent.model_validate(data) for _, data in rows]
 
     if writes_to is not None:

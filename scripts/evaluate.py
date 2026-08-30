@@ -41,6 +41,7 @@ from agents.offline.handlers import build_offline_llm
 from agents.orchestrator.deps import build_fleet
 from agents.orchestrator.pipeline import Pipeline
 from core.audit import read_case_trail
+from core.gateway import GatewayHandle
 from core.llm import build_llm
 from core.schemas.case import CaseRecord
 from core.schemas.enums import CaseStatus
@@ -148,7 +149,9 @@ def check_verification_recovery(case: CaseRecord) -> tuple[bool, bool, list[str]
     return rejected, recovered, reasons
 
 
-def summarise_cost(store: MemoryStore, case_id: str) -> tuple[int, int, dict[str, dict[str, int]]]:
+def summarise_cost(
+    store: MemoryStore, gateway: GatewayHandle, case_id: str
+) -> tuple[int, int, dict[str, dict[str, int]]]:
     """Sum billed tokens per case and per agent from the audit trail.
 
     Read from the audit log rather than threaded through by hand, because the
@@ -157,7 +160,7 @@ def summarise_cost(store: MemoryStore, case_id: str) -> tuple[int, int, dict[str
     """
     by_agent: dict[str, dict[str, int]] = {}
     total_in = total_out = 0
-    for event in read_case_trail(store, case_id):
+    for event in read_case_trail(store, gateway, case_id):
         if event.input_tokens is None and event.output_tokens is None:
             continue
         bucket = by_agent.setdefault(event.agent.value, {"input": 0, "output": 0, "calls": 0})
@@ -181,7 +184,9 @@ def run_case(case_id: str, scenario: str, live: bool = False) -> CaseResult:
     case = pipeline.ingest(document, case_id=case_id)
     fabricated, unlocatable = check_grounding(case)
     rejected, recovered, reasons = check_verification_recovery(case)
-    input_tokens, output_tokens, cost_by_agent = summarise_cost(store, case_id)
+    input_tokens, output_tokens, cost_by_agent = summarise_cost(
+        store, pipeline.fleet.orchestrator.gateway, case_id
+    )
 
     return CaseResult(
         case_id=case_id,

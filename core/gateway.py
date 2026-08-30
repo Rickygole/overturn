@@ -101,7 +101,13 @@ POLICY: dict[AgentName, dict[str, Access]] = {
         "audit_events": Access.APPEND,
         "quarantine": Access.READ,
         "case_memory": Access.WRITE,
-        "agent_registry": Access.READ,
+        # WRITE, not READ: `core/registry.py`'s `seed()` publishes the
+        # catalogue under this identity administratively (see
+        # `scripts/seed_registry.py`), and that write used to reach
+        # `agent_registry` with no gateway handle in the path at all --
+        # a second door into the one collection this dict exists to guard.
+        # WRITE implies READ, so `discover()` needs nothing more than this.
+        "agent_registry": Access.WRITE,
     },
 }
 

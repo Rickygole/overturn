@@ -21,6 +21,7 @@ from agents.orchestrator.deps import build_fleet
 from agents.orchestrator.pipeline import Pipeline
 from core.audit import read_case_trail
 from core.config import get_settings
+from core.gateway import Access
 from core.llm import build_llm
 from core.store import MemoryStore, build_store
 
@@ -72,7 +73,7 @@ def run_case(case_id: str, store: MemoryStore) -> None:
         print(f"  {entry.to_status.value:26} by {entry.actor}{note}")
 
     print(f"\n{BOLD}agent trail{RESET}")
-    for event in read_case_trail(store, case_id):
+    for event in read_case_trail(store, fleet.orchestrator.gateway, case_id):
         mark = " " if event.succeeded else "!"
         print(f" {mark} {event.agent.value:13} {event.operation:18} {event.decision}")
 
@@ -94,7 +95,8 @@ def run_case(case_id: str, store: MemoryStore) -> None:
                     print(f"      {GREY}{instruction[:96]}{RESET}")
 
     print(f"\n{BOLD}final status: {case.status.value}{RESET}")
-    actions = store.query("actions", where=[("case_id", "==", case_id)])
+    actions_collection = fleet.orchestrator.gateway.authorize("actions", Access.READ)
+    actions = store.query(actions_collection, where=[("case_id", "==", case_id)])
     for _, action in sorted(actions, key=lambda kv: kv[1]["action_key"]):
         print(
             f"  action {action['action_type']:22} {action['status']:10} "

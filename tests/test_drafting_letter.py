@@ -33,6 +33,7 @@ from agents.offline.handlers import build_offline_llm
 from agents.orchestrator.deps import build_fleet
 from agents.orchestrator.pipeline import Pipeline
 from core.audit import read_case_trail
+from core.gateway import GatewayHandle
 from core.schemas.case import CaseRecord
 from core.schemas.chart import Encounter, PatientChart, Provenance
 from core.schemas.criteria import ChartEvidence, CriteriaMatrix, CriterionVerdict
@@ -637,7 +638,7 @@ class TestOfflineAndLiveAgreeOnShape:
         case = _run("CASE-003", store)
         drafting = [
             event
-            for event in read_case_trail(store, case.case_id)
+            for event in read_case_trail(store, GatewayHandle(AgentName.ORCHESTRATOR), case.case_id)
             if event.agent is AgentName.DRAFTING
         ]
         assert drafting, "drafting recorded nothing"

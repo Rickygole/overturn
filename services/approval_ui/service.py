@@ -180,7 +180,7 @@ class ApprovalService:
         """Audit events for one case, oldest first."""
         from core.audit import read_case_trail
 
-        return read_case_trail(self._store, case_id)
+        return read_case_trail(self._store, self.gateway, case_id)
 
     # -- decisions ------------------------------------------------------------ #
 

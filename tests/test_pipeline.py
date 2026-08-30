@@ -106,7 +106,9 @@ class TestInjectionCase:
     def test_intake_never_runs(self, pipeline, store):
         """The pipeline must halt before anything extracts from the document."""
         run(pipeline, "CASE-002")
-        agents_that_ran = {e.agent for e in read_case_trail(store, "CASE-002")}
+        agents_that_ran = {
+            e.agent for e in read_case_trail(store, pipeline.fleet.orchestrator.gateway, "CASE-002")
+        }
         assert AgentName.SENTINEL in agents_that_ran
         assert AgentName.INTAKE not in agents_that_ran
         assert AgentName.DRAFTING not in agents_that_ran
@@ -133,22 +135,35 @@ class TestInjectionCase:
 
 
 class TestNoSecondDoor:
-    """`agents/orchestrator/effects.py` and `pipeline.py` both used to call
-    `fleet.store` methods directly, bypassing `core/gateway.py` entirely -- the
-    one file in this codebase whose "no second door" claim is load-bearing for
+    """`agents/orchestrator/effects.py`, `pipeline.py`, and -- found in the
+    next audit pass -- `core/audit.py::read_case_trail` all used to call
+    datastore methods directly, bypassing `core/gateway.py` entirely: the one
+    file in this codebase whose "no second door" claim is load-bearing for
     everything else it says about the boundary being real rather than
-    described. Three call sites, found by grepping for exactly the pattern
-    that made them findable: `quarantine_document` and `notify_human` in
-    `effects.py`, and the `"actions"` read inside `Pipeline._notification_attempt`.
-    The first of the three was also a privilege problem, not just a claim
-    problem: `POLICY` grants the orchestrator only `Access.READ` on
-    `quarantine`, so a raw write succeeding under the orchestrator's own name
-    was never a coincidence -- it was the second door.
+    described. Four call sites so far, found by grepping for exactly the
+    pattern that made them findable: `quarantine_document` and
+    `notify_human` in `effects.py`, the `"actions"` read inside
+    `Pipeline._notification_attempt`, and `read_case_trail` itself -- the
+    fourth one was doubly bad, because `core/gateway.py`'s own docstring
+    named `core/audit.py` specifically as a file that "will not accept" a
+    raw store, which was false about the very function this class exists to
+    guard against. (`core/registry.py`'s `seed()`/`discover()` had the same
+    bug; their coverage lives in `tests/test_registry.py`, next to the module
+    they belong to.) The first of the four was also a privilege problem, not
+    just a claim problem: `POLICY` grants the orchestrator only
+    `Access.READ` on `quarantine`, so a raw write succeeding under the
+    orchestrator's own name was never a coincidence -- it was the second
+    door.
 
-    These tests pin all three fixes from both directions: a real pipeline run
-    actually calls through the gateway with the right identity for each one,
-    and a handle that lacks the grant is refused rather than silently allowed
-    through.
+    These tests pin every fix from both directions where a refusal is
+    constructible: a real pipeline run actually calls through the gateway
+    with the right identity for each one, and a handle that lacks the grant
+    is refused rather than silently allowed through. `audit_events` has no
+    such refusal case to construct -- every agent in `POLICY` holds at least
+    `APPEND` on it, which implies `READ`, so there is no real identity left
+    to prove a refusal with. The spy test below is what is left to check:
+    that the identity actually passed in is the one asked of the gateway,
+    not a hardcoded one.
     """
 
     def test_every_raw_write_in_one_case_run_is_authorized_through_the_gateway(
@@ -228,6 +243,36 @@ class TestNoSecondDoor:
         )
         with pytest.raises(PolicyViolation):
             Pipeline._notification_attempt(fake_pipeline, "CASE-XYZ")
+
+    def test_the_audit_trail_read_uses_the_identity_it_was_actually_given(
+        self, pipeline, monkeypatch
+    ):
+        """`read_case_trail` used to query `audit_events` with no handle at
+        all. There is no identity in `POLICY` that lacks `audit_events`
+        access to build a refusal case from -- every agent holds at least
+        `APPEND`, which implies `READ` -- so what is left to prove is that
+        this actually asks the gateway, under the caller's own identity,
+        rather than either skipping the check or hardcoding one.
+        """
+        run(pipeline, "CASE-001")
+        calls: list[tuple[AgentName, str, Access]] = []
+        original = GatewayHandle.authorize
+
+        def spy(self, collection, access):
+            calls.append((self.agent, collection, access))
+            return original(self, collection, access)
+
+        monkeypatch.setattr(GatewayHandle, "authorize", spy)
+        from core.audit import read_case_trail
+
+        # Verification, deliberately not Orchestrator: proof this is the
+        # caller's identity in the call, not a name baked into the function.
+        events = read_case_trail(
+            pipeline.fleet.store, GatewayHandle(AgentName.VERIFICATION), "CASE-001"
+        )
+
+        assert events, "the trail should not come back empty for a case that actually ran"
+        assert (AgentName.VERIFICATION, "audit_events", Access.READ) in calls
 
 
 class TestUndocumentedCriterion:
@@ -332,7 +377,9 @@ class TestRedelivery:
 class TestAuditTrail:
     def test_every_agent_that_ran_left_an_event(self, pipeline, store):
         run(pipeline, "CASE-001")
-        agents = [e.agent for e in read_case_trail(store, "CASE-001")]
+        agents = [
+            e.agent for e in read_case_trail(store, pipeline.fleet.orchestrator.gateway, "CASE-001")
+        ]
         for expected in (
             AgentName.SENTINEL,
             AgentName.INTAKE,
@@ -345,7 +392,7 @@ class TestAuditTrail:
 
     def test_events_are_ordered_and_carry_a_decision(self, pipeline, store):
         run(pipeline, "CASE-001")
-        events = read_case_trail(store, "CASE-001")
+        events = read_case_trail(store, pipeline.fleet.orchestrator.gateway, "CASE-001")
         assert events == sorted(events, key=lambda e: e.at)
         for event in events:
             assert event.decision
@@ -354,7 +401,7 @@ class TestAuditTrail:
     def test_the_trail_never_contains_the_patient_name(self, pipeline, store):
         """The audit log is the broadest-read collection in the system."""
         run(pipeline, "CASE-001")
-        for event in read_case_trail(store, "CASE-001"):
+        for event in read_case_trail(store, pipeline.fleet.orchestrator.gateway, "CASE-001"):
             blob = f"{event.decision} {event.input_summary or ''}"
             assert "Jeromy" not in blob
             assert "Upton" not in blob
@@ -374,7 +421,7 @@ class TestOrchestratorHasNoBrain:
             run(pipeline, case_id)
 
         for case_id in ("CASE-001", "CASE-002", "CASE-003"):
-            for event in read_case_trail(store, case_id):
+            for event in read_case_trail(store, pipeline.fleet.orchestrator.gateway, case_id):
                 if event.agent is AgentName.ORCHESTRATOR:
                     assert event.model is None
 

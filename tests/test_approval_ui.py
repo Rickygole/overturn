@@ -414,7 +414,10 @@ def _approve(
 
 
 def _audit_ops(store: MemoryStore, case_id: str = CASE_ID) -> list[str]:
-    return [event.operation for event in read_case_trail(store, case_id)]
+    return [
+        event.operation
+        for event in read_case_trail(store, GatewayHandle(AgentName.ORCHESTRATOR), case_id)
+    ]
 
 
 # --------------------------------------------------------------------------- #

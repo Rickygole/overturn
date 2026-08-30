@@ -99,7 +99,7 @@ Agents receive a `GatewayHandle`, never a store client, and `core/state.py` and
 | **drafting** | `overturn-drafting` | `gemini-3.7-flash` | — | write | append | — | — | — | — |
 | **verification** | `overturn-verification` | `gemini-3.5-flash` | read | read | append | — | — | — | — |
 | **lifecycle** | `overturn-lifecycle` | `gemini-3.5-flash` | — | write | append | write | — | write | — |
-| **orchestrator** | `overturn-orchestrator` | *none* | — | write | append | write | read | write | read |
+| **orchestrator** | `overturn-orchestrator` | *none* | — | write | append | write | read | write | write |
 
 `write` = create and update. `append` = create only, never modify — every agent
 appends to `audit_events` and nobody can rewrite it, which is what makes the
