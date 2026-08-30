@@ -97,6 +97,32 @@ if [[ -n "${MODEL_ARMOR_TEMPLATE}" ]]; then
   COMMON_ENV+=",OVERTURN_MODEL_ARMOR_TEMPLATE=${MODEL_ARMOR_TEMPLATE}"
 fi
 
+# The login, carried through the deploy rather than restored after it.
+#
+# `--set-env-vars` replaces the container's whole environment. It does not
+# merge. So every run of this script used to strip OVERTURN_UI_PASSWORD and
+# OVERTURN_UI_SECRET off the approval service -- the two variables that put a
+# door in front of the queue -- and the app came back up serving patient names,
+# case ids and drafted appeals to anyone with the URL. open_public.sh put them
+# back, but only if somebody remembered to run it, and the window in between was
+# a public medical-looking record. That happened once, for real, on 2026-08-30.
+#
+# Read from Secret Manager, the same secret open_public.sh creates and reuses,
+# so the session signing key stays stable across revisions. If the secret does
+# not exist yet this stays empty and the service deploys closed: with no
+# password configured the app refuses to serve the queue at all, which is the
+# right way to fail.
+UI_ENV=""
+UI_PASSWORD="${OVERTURN_UI_PASSWORD:-northbeck-appeals-2026}"
+if gcloud secrets describe overturn-ui-secret --project="${PROJECT_ID}" >/dev/null 2>&1; then
+  UI_SECRET="$(gcloud secrets versions access latest \
+                 --secret=overturn-ui-secret --project="${PROJECT_ID}")"
+  UI_ENV="OVERTURN_UI_PASSWORD=${UI_PASSWORD},OVERTURN_UI_SECRET=${UI_SECRET}"
+else
+  echo "WARNING: no overturn-ui-secret found. The approval service will deploy" >&2
+  echo "         without a login configured. Run infra/open_public.sh." >&2
+fi
+
 deploy_service() {
   local name="$1" sa="$2" max_instances="$3" allow_unauth="$4" service_flag="$5"
   # Sixth argument is optional and defaults to scale-to-zero, which is right for
@@ -107,12 +133,20 @@ deploy_service() {
     auth_flag="--allow-unauthenticated"
   fi
 
+  # The approval surface carries the login with it. Appended here rather than
+  # applied afterwards, because "afterwards" is a window in which the queue is
+  # open to the internet.
+  local env_vars="${COMMON_ENV},OVERTURN_SERVICE=${service_flag}"
+  if [[ "${service_flag}" == "approval" && -n "${UI_ENV}" ]]; then
+    env_vars+=",${UI_ENV}"
+  fi
+
   gcloud run deploy "${name}" \
     --project="${PROJECT_ID}" \
     --region="${REGION}" \
     --image="${IMAGE}" \
     --service-account="${sa}" \
-    --set-env-vars="${COMMON_ENV},OVERTURN_SERVICE=${service_flag}" \
+    --set-env-vars="${env_vars}" \
     --min-instances="${min_instances}" \
     --max-instances="${max_instances}" \
     --memory="${MEMORY}" \
