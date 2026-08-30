@@ -85,6 +85,17 @@
     screening layer has three of them rather than one. Any single layer has a false-negative
     rate nobody has measured, including ours.</p>
 
+  <!-- The summary above is a summary. A judge asked for the evaluation itself
+       to be somewhere clickable, and until now the only way to the full
+       reading was a repository clone. These are one click, rendered. -->
+  <p class="deeper"><strong>The full evaluation</strong> &mdash; the scorecard offline
+    against live, the overclaim Verification caught in full, the false positives it
+    also produced, what Sentinel did on the poisoned letter, why Gemma was failing,
+    and what one appeal costs in tokens and dollars &mdash;
+    <a href="https://github.com/rickygole/overturn/blob/main/docs/EVALUATION.md">docs/EVALUATION.md</a>.
+    The architecture in prose, with the permission table and the trust boundaries, is
+    <a href="https://github.com/rickygole/overturn/blob/main/docs/ARCHITECTURE.md">docs/ARCHITECTURE.md</a>.</p>
+
   <h2 id="run">Run it yourself</h2>
   <p>All eight cases run end to end with no Google Cloud project, no credentials and no cost.
     Same agents, same orchestration, same grounding checks &mdash; only the model responses
@@ -105,6 +116,8 @@ uv run uvicorn services.approval_ui.main:app --port 8080</code></pre>
 
   <div class="next">
     <a href="/queue">Open the queue &rarr;</a>
+    <a href="/architecture.svg">The diagram &rarr;</a>
+    <a href="https://github.com/rickygole/overturn/blob/main/docs/EVALUATION.md">The evaluation &rarr;</a>
     <a href="https://github.com/rickygole/overturn">Source &rarr;</a>
   </div>
 </main>

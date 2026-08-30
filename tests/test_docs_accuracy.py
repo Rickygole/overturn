@@ -384,3 +384,37 @@ def test_the_premise_is_quantified_and_sourced_on_both_surfaces():
         assert "262,982" in text, "the appeal count is missing"
         assert "34%" in text, "the overturn rate is missing"
         assert "kff.org" in text, "the figures are stated without their source"
+
+
+# --------------------------------------------------------------------------- #
+# The evaluation has to be reachable, not merely written
+# --------------------------------------------------------------------------- #
+#
+# The remaining job on this submission is the video and "getting the
+# architecture and evaluation back somewhere a judge can actually click to."
+# The diagram is served from the deployment. The evaluation is 337 lines of
+# markdown that, until now, needed a clone to read: the reference page carried
+# a summary of it and nothing that led to the thing itself.
+
+def test_the_reference_page_leads_to_the_full_evaluation():
+    page = (DOCS / "system.html").read_text()
+    assert "docs/EVALUATION.md" in page, "no route from the summary to the evaluation"
+    assert (DOCS / "EVALUATION.md").is_file()
+
+
+def test_the_reference_page_leads_to_the_architecture_prose():
+    page = (DOCS / "system.html").read_text()
+    assert "docs/ARCHITECTURE.md" in page
+    assert (DOCS / "ARCHITECTURE.md").is_file()
+
+
+def test_the_video_script_does_not_promise_a_login_that_no_longer_appears():
+    """Reading the queue stopped needing a password; signing still does.
+
+    The script is a checklist for a one-take recording. It told the presenter
+    the queue sat behind the app password, which stopped being true when the
+    queue was opened deliberately, and a presenter waiting for a login wall at
+    /queue is waiting for a screen that will not render.
+    """
+    script = (DOCS / "VIDEO_SCRIPT.md").read_text()
+    assert "review queue at `/queue` behind the app password" not in script

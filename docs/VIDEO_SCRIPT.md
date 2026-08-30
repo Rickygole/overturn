@@ -66,9 +66,14 @@ Read this before scheduling a recording session, not after a failed take.
   wrong and following them would waste a session.
 
 - **Film the real URL directly — no proxy.** The whole product lives at one
-  address, `https://overturn-kruy6aauaq-uc.a.run.app`: the public site at `/`,
-  and the review queue at `/queue` behind the app password
-  `northbeck-appeals-2026`. Cloud Run's IAM gate has been removed from this
+  address, `https://overturn-kruy6aauaq-uc.a.run.app`: the public site at `/`
+  and the review queue at `/queue`, both open. **Reading the queue no longer
+  asks for a password** -- everything in it is synthetic, so a wall in front of
+  it bought nothing. The password `northbeck-appeals-2026` now stands in front
+  of exactly three routes: approve, reject, co-sign. So the login appears when
+  the clerk *signs*, not when the queue is opened, and a script that has the
+  presenter waiting for a login wall at `/queue` is describing a screen that
+  will not appear. Cloud Run's IAM gate has been removed from this
   one service; `overturn-ingest` and `overturn-scheduler` remain private and
   invokable only by Pub/Sub and Cloud Scheduler. Showing the address bar is
   itself part of the proof the rules ask for — a `.run.app` URL on screen.
