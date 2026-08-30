@@ -423,6 +423,21 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
     auth = load_config()
 
     @app.middleware("http")
+    async def no_store_behind_the_door(request: Request, call_next):
+        """Nothing that renders a case may be cached.
+
+        These pages carry a patient's chart, the letter written about them, and
+        the name of whoever signed it. Even synthetic, that is the wrong thing
+        to leave in a browser's on-disk cache or in any proxy between here and
+        the reader -- and a case page served from cache after a decision was
+        recorded would show a stale gate, which is worse than slow.
+        """
+        response = await call_next(request)
+        if not path_is_public(request.url.path):
+            response.headers["Cache-Control"] = "no-store, private"
+        return response
+
+    @app.middleware("http")
     async def require_session(request: Request, call_next):
         """One door in front of everything that shows a case.
 
@@ -528,7 +543,15 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
             # perfectly fine) points nowhere near the Dockerfile.
             logger.error("site asset %s is missing from %s", filename, SITE_DIR)
             return Response("This page is not available in this build.", status_code=404)
-        return FileResponse(path, media_type=media_type)
+        # `no-cache` means revalidate, not "do not store". Without any
+        # Cache-Control at all a browser falls back to heuristic freshness --
+        # roughly a tenth of the age since Last-Modified -- and serves a stale
+        # copy without asking. That is how a redeploy of this page went
+        # invisible in a real browser while curl showed the new one. The ETag
+        # is already emitted, so revalidation costs a 304 and nothing more.
+        return FileResponse(
+            path, media_type=media_type, headers={"Cache-Control": "no-cache"}
+        )
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def landing() -> Response:

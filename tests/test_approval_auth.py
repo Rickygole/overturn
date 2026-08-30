@@ -334,3 +334,29 @@ class TestWhereYouLandAfterSigningIn:
         response = client.post("/login", data={"password": PASSWORD})
         assert response.status_code == 303
         assert response.headers["location"] == "/queue"
+
+
+class TestCaching:
+    """A redeploy that a browser refuses to show is a redeploy that did not happen.
+
+    The front door emitted an ETag and a Last-Modified and no Cache-Control at
+    all, so browsers fell back to heuristic freshness and served a stale copy
+    without revalidating. curl showed the new page; a real browser showed the
+    old one for hours.
+    """
+
+    def test_the_front_door_must_be_revalidated(self, guarded):
+        for path in ("/", "/styles.css", "/app.js"):
+            cache = guarded.get(path).headers.get("cache-control", "")
+            assert "no-cache" in cache, f"{path} sent {cache!r}"
+
+    def test_nothing_holding_a_chart_is_stored(self, guarded):
+        """These pages carry a patient's chart and the name of whoever signed."""
+        guarded.post("/login", data={"password": PASSWORD})
+        for path in ("/queue", "/case/CASE-001"):
+            cache = guarded.get(path).headers.get("cache-control", "")
+            assert "no-store" in cache, f"{path} sent {cache!r}"
+
+    def test_the_public_door_is_not_marked_no_store(self, guarded):
+        """no-store on the door would defeat revalidation for no benefit."""
+        assert "no-store" not in guarded.get("/").headers.get("cache-control", "")
