@@ -1539,11 +1539,27 @@ class Tile:
 
 @dataclass(frozen=True)
 class Band:
-    """One segment of the caseload bar."""
+    """One segment of the caseload bar, and the filter it turns on.
+
+    The bar used to be decorative -- `aria-hidden`, proportioned by flex-grow,
+    every number in it repeated in a legend underneath and then a third time in
+    a row of tiles below that. Three statements of five numbers, and the only
+    one you could act on was the last. The segment is the control now: it
+    carries the count, the label, the sentence that makes the count mean
+    something, and a link that narrows the table to exactly those cases.
+
+    `href` is `None` for a band nobody can act on -- agents mid-run, cases with
+    the payer, closed work. There is no queue behind those, and a control that
+    filters to a list you cannot do anything with is a control that lies about
+    what it offers.
+    """
 
     label: str
     count: int
     tone: str
+    caption: str = ""
+    key: str | None = None
+    href: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1679,22 +1695,52 @@ def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
             )
     urgent.sort(key=lambda row: row["deadline"].days)  # type: ignore[union-attr,index]
 
-    # The same counts as one shape. Five numbers read as five facts; one bar
-    # reads as a workload -- how much of today is waiting on a person, how much
-    # is running, how much is done. Empty bands are dropped rather than drawn
-    # as slivers: a segment too thin to see is a segment that misleads.
+    # The same counts as one shape, and as the controls that act on them.
+    # Built from `tiles` rather than beside them: these were two literal lists
+    # of the same six counts, which is a drift waiting to happen -- change a
+    # status mapping in one and the bar and the tiles disagree about the
+    # caseload with nothing to catch it.
+    #
+    # The bar's palette is not the tiles' palette. A rejected draft is "act" to
+    # a tile, because the clerk must do something about it; it is its own colour
+    # in the bar, because the shape of a caseload is more legible when the work
+    # that came back looks different from the work that never left.
+    #
+    # Empty bands are dropped rather than drawn as slivers: a segment too thin
+    # to see is a segment that misleads.
+    band_tones = {"clerk": "act", "clinician": "act", "review": "review"}
     bands = [
-        Band("Waiting on you", len(clerk), "act"),
-        Band("Waiting on a clinician", len(clinician), "act"),
-        Band("Sent back to you", len(back), "review"),
-        Band("Agents still working", len(in_flight), "wait"),
-        Band("With the payer", len(with_payer), "wait"),
-        Band("Closed", sum(len(by_status.get(st, [])) for st, _, _ in CLOSED_STATUSES), "quiet"),
+        Band(
+            label=tile.label,
+            count=tile.count,
+            tone=band_tones.get(tile.key or "", "wait"),
+            caption=tile.caption,
+            key=tile.key,
+            # A filter that would return an empty table is not offered. The
+            # count is still drawn; it just is not a link to nothing.
+            href=tile.href if tile.count else None,
+        )
+        for tile in tiles
     ]
+    bands.append(
+        Band(
+            label="Closed",
+            count=sum(len(by_status.get(st, [])) for st, _, _ in CLOSED_STATUSES),
+            tone="quiet",
+            caption="Nothing is waiting on anyone. Listed below so a case that "
+            "disappears does not look like a case that was lost.",
+        )
+    )
 
     return Overview(
         tiles=tiles,
-        bands=[band for band in bands if band.count],
+        # A zero is dropped only where it says nothing. "0 closed" and "0 agents
+        # working" are noise; "0 waiting on a clinician" answers a question a
+        # clerk is actually asking, so the three actionable states keep their
+        # segment at zero and simply stop growing. An empty system draws no bar
+        # at all -- three zeroes is not a workload, and the heading has already
+        # said nothing is waiting.
+        bands=[band for band in bands if band.count or band.key] if cases else [],
         closed=closed,
         urgent=urgent,
         total=len(cases),

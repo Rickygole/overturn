@@ -26,23 +26,50 @@
   {% endif %}
 
   {% if overview.bands %}
-  {# The counts as one shape. Proportioned by flex-grow, so there is no
-     arithmetic here and no script on the page. The bar is decorative in the
-     strict sense -- every number in it is also written below -- so it is
-     hidden from assistive tech rather than read out as a row of empty divs. #}
-  <div class="load" aria-hidden="true">
+  {# The caseload as one object: proportion, count, meaning, and the control
+     that acts on it. This was three things -- a bar nobody could click, a
+     legend restating its numbers, and a row of tiles restating them a third
+     time. The same counts said three times over, interactive only on the
+     third pass.
+
+     Widths are proportional through flex-grow, with a floor so a segment of
+     one still fits its own label. That makes the width indicative rather than
+     exact, and it is the right trade because the exact figure is printed
+     inside every segment: the shape answers "how much of today is mine", the
+     number answers "how many". Segments wrap before they squeeze.
+
+     Still no script on the page. Each segment is an ordinary link to the same
+     `?waiting=` filter the route has always accepted, so the whole interaction
+     costs one GET and this screen still renders with the network unplugged.
+
+     Not `aria-hidden` any more. It was, correctly, while it was decoration
+     whose every number appeared in text below. It is the control now, and
+     hiding a list of links from assistive technology would hide the filter
+     itself. #}
+  <ul class="load" aria-label="Caseload, by who is holding each case">
     {% for band in overview.bands %}
-    <div class="load__band load__band--{{ band.tone }}" style="flex:{{ band.count }}"></div>
+    <li class="load__seg load__seg--{{ band.tone }}{% if band.key and band.key == active %} load__seg--on{% endif %}"
+        style="flex-grow:{{ band.count }}">
+      {% if band.href %}
+      <a href="{{ band.href }}"{% if band.key == active %} aria-current="page"{% endif %}>
+        <span class="load__n">{{ band.count }}</span>
+        <span class="load__label">{{ band.label }}</span>
+        <span class="load__cap">{{ band.caption }}</span>
+      </a>
+      {% else %}
+      <div class="load__static">
+        <span class="load__n">{{ band.count }}</span>
+        <span class="load__label">{{ band.label }}</span>
+        <span class="load__cap">{{ band.caption }}</span>
+      </div>
+      {% endif %}
+    </li>
     {% endfor %}
-  </div>
-  <p class="load__key">
-    {% for band in overview.bands %}
-    <span class="load__item">
-      <span class="load__swatch load__band--{{ band.tone }}"></span>
-      <span class="load__n">{{ band.count }}</span> {{ band.label | lower }}
-    </span>
-    {% endfor %}
-  </p>
+  </ul>
+  {% if active != "all" %}
+  <p class="load__reset"><a href="/queue?waiting=all">Show everything waiting on a person
+    ({{ total_open }})</a></p>
+  {% endif %}
   {% endif %}
 
   {% if overview.urgent %}
@@ -88,26 +115,6 @@
   </div>
   {% endif %}
 
-  {# The five counts are controls, not a table of contents. Three of them used
-     to link to an anchor two hundred pixels down this same page. They filter
-     the table below instead; the two nobody can act on stay as figures,
-     because there is no queue of work behind them to open. #}
-  <ul class="tiles">
-    {% for tile in overview.tiles %}
-    <li class="tile tile--{{ tile.tone }}{{ ' tile--zero' if not tile.count }}">
-      {% if tile.href and tile.count %}
-      <a href="{{ tile.href }}"{% if tile.key == active %} aria-current="page"{% endif %}>
-        <span class="tile__n">{{ tile.count }}</span>
-        <span class="tile__label">{{ tile.label }}</span>
-      </a>
-      {% else %}
-      <span class="tile__n">{{ tile.count }}</span>
-      <span class="tile__label">{{ tile.label }}</span>
-      {% endif %}
-      <span class="tile__caption">{{ tile.caption }}</span>
-    </li>
-    {% endfor %}
-  </ul>
 
   {% if overview.closed %}
   <details class="dash__closed">

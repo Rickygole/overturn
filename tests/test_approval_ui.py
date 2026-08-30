@@ -1956,10 +1956,22 @@ class TestDashboard:
 
 
 class TestDashboardOnThePage:
-    def test_the_queue_page_leads_with_the_counts(self, client):
+    def test_the_queue_page_leads_with_the_counts(self, client, seeded):
+        """Seeded, because the caseload bar is drawn from cases now.
+
+        This used to pass on an empty store: the tile row rendered all five
+        labels whatever the counts were. The bar replaced it, an empty system
+        draws no bar, and asserting the labels without a case in the store was
+        asserting the old widget rather than the behaviour.
+        """
         html = client.get("/queue").text
         assert "need" in html and "a person" in html
         assert "Waiting on you" in html
+
+    def test_an_empty_queue_says_so_instead_of_drawing_zeroes(self, client):
+        html = client.get("/queue").text
+        assert "Nothing is waiting on a person" in html
+        assert 'class="load"' not in html
 
     def test_a_broken_count_does_not_take_away_the_queue(self, monkeypatch):
         """The queue is the screen a clerk works from. Losing the summary is
@@ -2118,11 +2130,15 @@ class TestUnattributedVerificationFindings:
 class TestCaseloadVisuals:
     """Counts as a shape, and what Verification did to each attempt.
 
-    Both are decorative in the strict sense: every number in the bar is written
-    beside it, and the attempt marks sit next to the sentence that already said
-    the same thing. That is deliberate -- a shape a reader has to decode is
-    worse than a sentence. They are hidden from assistive tech for the same
-    reason, so a screen reader gets the words rather than a row of empty divs.
+    The attempt marks are still decoration -- they sit beside a sentence that
+    already says the same thing -- and stay hidden from assistive technology.
+
+    The caseload bar is not decoration any more. It used to be a 10px strip
+    with a legend under it repeating every number, and a row of tiles under
+    that repeating them a third time and carrying the only links. One object
+    now: the segment holds the count, the label, its caption and the filter.
+    That is why it is exposed to assistive technology rather than hidden --
+    hiding it would hide the filter with it.
     """
 
     TODAY = date(2026, 8, 29)
@@ -2143,14 +2159,53 @@ class TestCaseloadVisuals:
         result = view.overview(cases, today=self.TODAY)
         assert sum(band.count for band in result.bands) == result.total == 5
 
-    def test_empty_bands_are_dropped(self):
-        """A segment too thin to see is a segment that misleads."""
+    def test_a_zero_is_dropped_only_where_it_says_nothing(self):
+        """"0 closed" is noise. "0 waiting on a clinician" is an answer.
+
+        A segment too thin to see misleads, so a band nobody can act on
+        disappears at zero. The three actionable states keep their segment and
+        simply stop growing -- a clerk asking "is anything with the clinician"
+        should not have to infer the answer from an absence.
+        """
         result = view.overview([self._case("a", CaseStatus.AWAITING_APPROVAL)], today=self.TODAY)
-        assert [band.label for band in result.bands] == ["Waiting on you"]
-        assert all(band.count for band in result.bands)
+        labels = [band.label for band in result.bands]
+        assert labels == ["Waiting on you", "Waiting on a clinician", "Sent back to you"]
+        assert [band.count for band in result.bands] == [1, 0, 0]
 
     def test_an_empty_system_draws_no_bar(self):
+        """Three zeroes are not a workload, and the heading already said so."""
         assert view.overview([], today=self.TODAY).bands == []
+
+    def test_only_the_states_with_work_behind_them_are_filters(self):
+        """A control that filters to a list you cannot act on lies about itself."""
+        cases = [
+            self._case("a", CaseStatus.AWAITING_APPROVAL),
+            self._case("b", CaseStatus.SUBMITTED),
+        ]
+        bands = {band.label: band for band in view.overview(cases, today=self.TODAY).bands}
+        assert bands["Waiting on you"].href == "/queue?waiting=clerk"
+        # With the payer: real work, but nothing a person does anything about.
+        assert bands["With the payer"].href is None
+        # And a filter that would return an empty table is not offered.
+        assert bands["Sent back to you"].count == 0
+        assert bands["Sent back to you"].href is None
+
+    def test_the_bar_and_the_table_cannot_disagree_about_a_count(self):
+        """Bands are derived from the tiles, not written out beside them.
+
+        These were two literal lists of the same counts. Change a status
+        mapping in one and the shape and the figures disagree with nothing to
+        catch it.
+        """
+        cases = [
+            self._case("a", CaseStatus.AWAITING_APPROVAL),
+            self._case("b", CaseStatus.NEEDS_HUMAN_REVIEW),
+            self._case("c", CaseStatus.SUBMITTED),
+        ]
+        result = view.overview(cases, today=self.TODAY)
+        by_label = {band.label: band.count for band in result.bands}
+        for tile in result.tiles:
+            assert by_label.get(tile.label, 0) == tile.count, tile.label
 
     def test_marks_read_left_to_right_in_the_order_they_happened(self):
         from core.schemas.draft import AppealDraft
@@ -2224,12 +2279,29 @@ class TestCaseloadVisuals:
 
         assert "all 2 rejected by verification" in client.get("/queue").text
 
-    def test_the_bar_is_hidden_from_assistive_tech(self, client):
-        """The words carry the meaning; the bar must not be read as empty divs."""
+    def test_the_bar_is_exposed_and_labelled_because_it_is_now_a_control(self, client):
+        """It was hidden while it was decoration. It carries the filters now.
+
+        The old bar was a row of empty divs whose every number was written
+        beside it, so hiding it gave a screen reader the words instead of six
+        anonymous rectangles. Hiding the same element today would hide the only
+        way to narrow the queue.
+        """
         html = client.get("/queue").text
         if 'class="load"' in html:
-            segment = html[html.find('class="load"') - 60 : html.find('class="load"') + 60]
-            assert 'aria-hidden="true"' in segment
+            segment = html[html.find('class="load"') - 80 : html.find('class="load"') + 120]
+            assert 'aria-hidden="true"' not in segment
+            assert "aria-label=" in segment
+
+    def test_the_bar_carries_the_filter_links(self, client):
+        html = client.get("/queue").text
+        if 'class="load"' in html:
+            assert 'href="/queue?waiting=clerk"' in html
+
+    def test_the_bar_needs_no_javascript(self, client):
+        """The interaction is a link and a GET, so the page still ships none."""
+        html = client.get("/queue").text
+        assert "<script" not in html.lower()
 
 
 # --------------------------------------------------------------------------- #
