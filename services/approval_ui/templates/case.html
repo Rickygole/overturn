@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{{ case.case_id }} — appeal review{% endblock %}
-{% block masthead %}Appeal review — <span class="mono">{{ case.case_id }}</span>{% endblock %}
+{% block eyebrow %}Appeal review{% endblock %}
+{% block masthead %}<span class="mono">{{ case.case_id }}</span>{% endblock %}
+{% block pagesub %}
+  Status <span class="chip chip--neutral">{{ case.status.value }}</span>
+  &nbsp;·&nbsp; Appeal level: {{ case.appeal_level.value.replace("_", " ") }}
+  &nbsp;·&nbsp; Last updated {{ case.updated_at | fmt_datetime }}
+{% endblock %}
+{% block nav %}
+<a href="/queue">Review queue</a>
+<span aria-current="page">{{ case.case_id }}</span>
+{% endblock %}
 
 {% block content %}
 
@@ -29,12 +39,6 @@
   <p><a href="#s6">Jump to the decision</a></p>
 </div>
 {% endif %}
-
-<p class="muted meta">
-  Status <span class="chip chip--neutral">{{ case.status.value }}</span>
-  &nbsp;·&nbsp; Appeal level: {{ case.appeal_level.value.replace("_", " ") }}
-  &nbsp;·&nbsp; Last updated {{ case.updated_at | fmt_datetime }}
-</p>
 
 {# ---------------------------------------------------------------- 1 of 6 #}
 <section class="section" aria-labelledby="s1">
@@ -97,11 +101,16 @@
       <p class="muted">This document was not screened, or the result was not attached to the case.
       Treat its contents with more caution than usual.</p>
     </div>
+    {# A quarantine is not an error and is not painted as one. It is the screen
+       doing exactly what it is there for, and it is finished. A document let
+       through with findings attached is the live one: it is amber, because
+       there is still something for the reader to weigh. #}
     {% elif screening.findings or screening.quarantine %}
-    <div class="banner banner--danger">
+    <div class="banner banner--{{ 'note' if screening.quarantine else 'warn' }}">
       <h3>Sentinel found {{ screening.findings | length }} item{{ "" if screening.findings|length == 1 else "s" }} in this document</h3>
       <p>
         {% if screening.quarantine %}
+        <span class="chip chip--caught">Stopped here</span>
         The document was <strong>quarantined</strong>. Nothing downstream should have read it.
         {% else %}
         The document was allowed through with the findings below recorded. Read the drafted letter
@@ -124,7 +133,7 @@
         <tbody>
           {% for finding in screening.findings %}
           <tr>
-            <th scope="row"><span class="chip chip--danger">{{ finding.category.value.replace("_", " ") }}</span></th>
+            <th scope="row"><span class="chip chip--warn">{{ finding.category.value.replace("_", " ") }}</span></th>
             <td class="mono">{{ finding.detector }}</td>
             <td>{{ finding.confidence | pct }} <span class="muted">({{ finding.confidence | confidence_band }})</span></td>
             <td>{{ finding.rationale }}</td>
@@ -233,7 +242,7 @@
       <p class="muted">There is nothing to approve on this case yet.</p>
     </div>
     {% else %}
-    <div class="card">
+    <div class="card card--reading">
       <p><strong>Subject:</strong> {{ draft.subject_line }}</p>
       <hr class="divider">
       <div class="letter">{{ draft.body }}</div>
@@ -246,7 +255,7 @@
     </div>
 
     <h3 class="stack-6">Citations, each next to the claim it is used to make</h3>
-    <div class="card stack-4">
+    <div class="card card--reading stack-4">
       {% for citation in draft.citations %}
       <div class="citation">
         <p><span class="citation__id">{{ citation.section_id }}</span></p>
@@ -290,7 +299,7 @@
       {% if verification.passed %}
       <span class="chip chip--ok">Passed on attempt {{ verification.attempt }}</span>
       {% else %}
-      <span class="chip chip--danger">Rejected on attempt {{ verification.attempt }}</span>
+      <span class="chip chip--caught">Rejected on attempt {{ verification.attempt }}</span>
       {% endif %}
       {% if verification.checked_by_model %}
       <span class="muted">checked by {{ verification.checked_by_model }}{%
@@ -339,7 +348,10 @@
         {% if entry.passed %}
         <span class="chip chip--satisfied">{{ entry.outcome }}</span>
         {% elif entry.passed is false %}
-        <span class="chip chip--not_satisfied">{{ entry.outcome }}</span>
+        {# Amber, not red. An attempt verification sent back is the retry loop
+           working; the fatal finding inside it below is the thing that was
+           actually wrong. #}
+        <span class="chip chip--caught">{{ entry.outcome }}</span>
         {% else %}
         <span class="chip chip--none">{{ entry.outcome }}</span>
         {% endif %}
@@ -439,7 +451,7 @@
             {% if signature.present %}
             <span class="chip chip--satisfied">Signed</span>
             {% elif signature.required %}
-            <span class="chip chip--not_satisfied">Not signed</span>
+            <span class="chip chip--pending">Not signed</span>
             {% else %}
             <span class="chip chip--not_applicable">Not required</span>
             {% endif %}

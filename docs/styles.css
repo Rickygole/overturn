@@ -92,7 +92,13 @@ body{
   font-synthesis-weight:none;
 }
 
-.wrap{max-width:var(--container);margin:0 auto;padding:0 var(--s4)}
+/* Horizontal only. This used to be `padding:0 var(--s4)`, and because
+   `main` carries `.wrap`, the shorthand's `padding-top:0` outranked the
+   vertical padding on `main` and every page opened ~9px under a sticky
+   masthead. A longhand on `main` would not have fixed it either: `.wrap`
+   wins on specificity whatever form it takes. The container should never
+   have had an opinion about the vertical axis. */
+.wrap{max-width:var(--container);margin:0 auto;padding-left:var(--s4);padding-right:var(--s4)}
 
 /* Anything that is not prose — tables, code, diagrams — is allowed the full
  * container. Prose is not, because 52ch is where it stays readable. */

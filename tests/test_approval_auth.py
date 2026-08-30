@@ -192,10 +192,25 @@ class TestThemeControl:
         return TestClient(create_app(MemoryStore()), follow_redirects=False)
 
     def test_the_control_is_on_the_page(self, client):
+        """One button, offering the mode you are not currently in.
+
+        This asserted three segments (auto/light/dark) until the app was
+        brought onto the site's design. With the OS no longer consulted,
+        "auto" and "light" rendered identically, so two of the three buttons
+        did the same thing -- and the site next door already shipped a single
+        toggle. The control is the same on both sides of the sign-in seam now.
+        """
         html = client.get("/queue").text
         assert 'action="/theme"' in html
-        for mode in ("auto", "light", "dark"):
-            assert f'value="{mode}"' in html
+        # Light is the resting state, so the button on offer is the dark one.
+        assert 'value="dark"' in html
+        assert 'aria-pressed="false"' in html
+
+    def test_the_control_offers_the_way_back_once_dark(self, client):
+        """A toggle that cannot be untoggled is a trap."""
+        html = client.get("/queue", cookies={"overturn_theme": "dark"}).text
+        assert 'value="auto"' in html
+        assert 'aria-pressed="true"' in html
 
     def test_the_page_still_ships_no_script(self, client):
         assert "<script" not in client.get("/queue").text.lower()
@@ -232,18 +247,26 @@ class TestThemeControl:
         assert '<html lang="en" data-theme="dark">' in guarded.get("/login").text
 
 
-class TestBothPalettesAreDefined:
-    """A token defined only inside a media query has no value when a reader
-    stamps the opposite choice on the root."""
+class TestDarkIsOptInOnly:
+    """The site and the queue are one product at one address, so they have to
+    agree about what an unconfigured visitor sees.
 
-    def test_the_dark_palette_applies_from_both_rules(self):
+    The public site commits to light until a reader asks for dark. This used to
+    consult ``prefers-color-scheme``, which meant a reader on a dark-mode
+    machine got a light site, clicked "Sign in", and landed in a dark app —
+    the design changing under them at the one moment they cross from the
+    argument into the thing the argument is about. The absence of that media
+    query is the behaviour worth guarding, so it is what is asserted.
+    """
+
+    def test_the_dark_palette_is_reached_only_by_stamping_the_root(self):
         from pathlib import Path
 
         css = (
             Path(__file__).resolve().parents[1] / "services/approval_ui/templates/base.html"
         ).read_text()
-        assert ':root:not([data-theme="light"])' in css
         assert ':root[data-theme="dark"]' in css
+        assert "prefers-color-scheme" not in css
 
     def test_the_body_paints_its_own_background(self):
         from pathlib import Path

@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
 <link rel="stylesheet" href="styles.css">
 <script>/* Before first paint, so a reader who chose dark never sees a light flash. */
-try{if(localStorage.getItem("overturn-theme")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}</script>
+try{if(localStorage.getItem("overturn-theme")==="dark"||/(^|;\s*)overturn_theme=dark/.test(document.cookie))document.documentElement.setAttribute("data-theme","dark")}catch(e){}</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>

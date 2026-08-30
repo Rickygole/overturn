@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Review queue — Overturn{% endblock %}
+{% block eyebrow %}Appeal review{% endblock %}
 {% block masthead %}Review queue{% endblock %}
-{% block nav %}<span class="muted" aria-current="page">Review queue</span>{% endblock %}
+{% block nav %}<span aria-current="page">Review queue</span>{% endblock %}
 
 {% macro queue_table(rows, caption, show_reason=False, link_suffix="") %}
 <div class="table-scroll">
@@ -29,10 +30,22 @@
           {{ row.deadline.stated }}<br>
           <span class="chip chip--{{ row.deadline.tone }}">{{ row.deadline.label }}</span>
         </td>
+        {# How many of those attempts verification sent back depends on how the
+           last one came out, and the row carries that. Assuming the newest
+           attempt passed is right in the two queues above and wrong in the one
+           below it: a case that exhausted its retries had *every* attempt
+           rejected, and the old `attempts - 1` said 2 of 3 on a case whose own
+           reason line said all 3. The reason line was the true one. #}
         <td>
           {{ row.attempts }}
-          {% if row.attempts > 1 %}
-          <span class="muted">({{ row.attempts - 1 }} rejected by verification)</span>
+          {% if row.verified == "rejected" %}
+            {% if row.attempts > 1 %}
+            <span class="dim">(all {{ row.attempts }} rejected by verification)</span>
+            {% else %}
+            <span class="dim">(rejected by verification)</span>
+            {% endif %}
+          {% elif row.verified == "passed" and row.attempts > 1 %}
+          <span class="dim">({{ row.attempts - 1 }} rejected by verification)</span>
           {% endif %}
         </td>
         {% if show_reason %}<td>{{ row.reason or "No reason recorded" }}</td>{% endif %}

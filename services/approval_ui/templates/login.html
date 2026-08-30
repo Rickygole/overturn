@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Sign in — Overturn{% endblock %}
 
-{# This page's own h1 is the page title, so the masthead prints a wordmark
-   instead of a second one. The theme control in the masthead is untouched:
+{# This page carries its own h1, so it drops the standard page head rather
+   than printing a second one. The theme control in the masthead is untouched:
    choosing a colour is not a privileged act and works before signing in. #}
-{% block masthead_id %}<p class="wordmark">Overturn</p>{% endblock %}
+{% block pagehead %}{% endblock %}
 {% block nav %}{% endblock %}
 
 {% block content %}

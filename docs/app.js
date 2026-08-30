@@ -7,10 +7,19 @@
 //
 // The document head applies the stored choice before first paint; this file
 // only wires the control and writes the choice down.
+//
+// The choice is written twice, to localStorage and to a cookie, because this
+// site and the review queue behind it are one product at one address but not
+// one runtime. These pages are static and read localStorage; the queue is
+// server-rendered and reads the `overturn_theme` cookie before it emits any
+// HTML, and it ships no JavaScript of its own to consult storage with. Writing
+// only one of the two is what made a reader who chose dark on this page arrive
+// at a light queue -- the exact seam this design set out to close.
 (function () {
   "use strict";
 
   var KEY = "overturn-theme";
+  var COOKIE = "overturn_theme";
   var root = document.documentElement;
   var button = document.querySelector(".theme");
   if (!button) return;
@@ -39,6 +48,11 @@
       if (next) localStorage.setItem(KEY, "dark");
       else localStorage.removeItem(KEY);
     } catch (e) {}
+    // Same choice, in the form the server can read. A year, because a
+    // preference that expires is a preference the reader has to set again.
+    document.cookie = next
+      ? COOKIE + "=dark;path=/;max-age=31536000;samesite=lax"
+      : COOKIE + "=;path=/;max-age=0;samesite=lax";
   });
 })();
 

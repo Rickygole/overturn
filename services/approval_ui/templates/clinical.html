@@ -1,9 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{{ case.case_id }} — clinical co-sign{% endblock %}
-{% block masthead %}Clinical co-sign — <span class="mono">{{ case.case_id }}</span>{% endblock %}
+{% block eyebrow %}Clinical co-sign{% endblock %}
+{% block masthead %}<span class="mono">{{ case.case_id }}</span>{% endblock %}
+{% block pagesub %}
+  Status <span class="chip chip--neutral">{{ case.status.value }}</span>
+  &nbsp;·&nbsp; Appeal deadline: {{ deadline.stated }}
+  <span class="chip chip--{{ deadline.tone }}">{{ deadline.label }}</span>
+{% endblock %}
 {% block nav %}
-<a href="/queue">Review queue</a> &nbsp;·&nbsp;
+<a href="/queue">Review queue</a>
 <a href="/case/{{ case.case_id }}">Full case record</a>
+<span aria-current="page">Clinical co-sign</span>
 {% endblock %}
 
 {% block content %}
@@ -32,16 +39,10 @@
 </div>
 {% endif %}
 
-<p class="prose">
+<p class="lede">
   You are being asked one question: is the clinical argument below accurate? A billing clerk
   confirms separately that the citations and quotations hold up, which is a different question
   and not one you have to re-check here.
-</p>
-
-<p class="muted meta">
-  Status <span class="chip chip--neutral">{{ case.status.value }}</span>
-  &nbsp;·&nbsp; Appeal deadline: {{ deadline.stated }}
-  <span class="chip chip--{{ deadline.tone }}">{{ deadline.label }}</span>
 </p>
 
 {# ---------------------------------------------------------------- 1 of 4 #}
@@ -158,7 +159,7 @@
       <p class="muted">There is nothing to co-sign on this case yet.</p>
     </div>
     {% else %}
-    <div class="card">
+    <div class="card card--reading">
       <p><strong>Subject:</strong> {{ draft.subject_line }}</p>
       <hr class="divider">
       <div class="letter">{{ draft.body }}</div>
@@ -202,7 +203,7 @@
             {% if signature.present %}
             <span class="chip chip--satisfied">Signed</span>
             {% elif signature.required %}
-            <span class="chip chip--not_satisfied">Not signed</span>
+            <span class="chip chip--pending">Not signed</span>
             {% else %}
             <span class="chip chip--not_applicable">Not required</span>
             {% endif %}
