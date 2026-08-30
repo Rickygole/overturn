@@ -41,11 +41,16 @@ project isn't open to the public without one:
   `.run.app` URLs is correct**, not a broken deployment. Point a judge at the
   approval UI, the Cloud Run console, or a Cloud Trace waterfall instead if
   they want to see them alive.
-- The approval login only works if the live service currently has
-  `OVERTURN_UI_PASSWORD` set and is deployed `--allow-unauthenticated`.
-  `infra/deploy.sh` does not set either by default — see "The approval UI's
-  login, and what `deploy.sh` doesn't do for it" in `docs/RUNBOOK.md` before
-  assuming a redeploy preserved this.
+- The approval login is carried by `infra/deploy.sh` itself now, not by a
+  separate step run after it. It reads the `overturn-ui-secret` secret from
+  Secret Manager and appends `OVERTURN_UI_PASSWORD`/`OVERTURN_UI_SECRET` to
+  the approval service's environment inside the same `gcloud run deploy`
+  call, so re-running it no longer strips the login the way an earlier
+  version of this script did. The one real precondition: the secret has to
+  already exist. If it does not, `deploy.sh` deploys the approval service
+  with no login configured — on purpose, since with no password set the app
+  refuses to serve the queue at all rather than fail open. Run
+  `infra/open_public.sh` once, first, if the secret has never been created.
 
 ### The four text-description parts
 
