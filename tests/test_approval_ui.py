@@ -2587,3 +2587,252 @@ class TestDisplayName:
     def test_nothing_becomes_the_not_stated_sentence(self):
         assert view.display_name(None) == view.NOT_STATED
         assert view.display_name("") == view.NOT_STATED
+
+
+# --------------------------------------------------------------------------- #
+# Where a first-time reader should look, and what this queue is
+#
+# The queue sorts by deadline, which is right and stays. But the case with the
+# nearest deadline is CASE-003 — the one where Verification is demonstrably
+# wrong — so the deadline sort made the system's worst moment the front page of
+# the product, with nothing on the page telling a first-time reader where to
+# look instead. Three fixes: name the case worth opening first, say on
+# CASE-003's row what a reviewer found when they read its rejections by hand,
+# and let the summary say what it is a summary of.
+# --------------------------------------------------------------------------- #
+
+
+def _marked(case_id: str, marks: list[str], status: CaseStatus = CaseStatus.AWAITING_APPROVAL):
+    """A case whose attempt marks are exactly ``marks``.
+
+    Built from bare drafts and verifications rather than the seeded fixture,
+    because the only thing under test here is the sequence of verdicts.
+    """
+    case = CaseRecord(case_id=case_id, source_document_uri=f"gs://b/{case_id}.pdf")
+    case.transition(status, actor="test")
+    case.denial = _denial(_claim_for(case_id))
+    case.drafts = [
+        AppealDraft(case_id=case_id, attempt=n + 1, subject_line="s", body="b" * 80)
+        for n in range(len(marks))
+    ]
+    case.verifications = [
+        VerificationResult(
+            case_id=case_id,
+            attempt=n + 1,
+            findings=[]
+            if mark == "passed"
+            else [
+                VerificationFinding(
+                    check="citation_accurate", severity="fatal", locus="L", detail="d"
+                )
+            ],
+        )
+        for n, mark in enumerate(marks)
+        if mark != "pending"
+    ]
+    return case
+
+
+class TestTheLeadCase:
+    """One named entry point, computed from the record, reordering nothing."""
+
+    def test_the_lead_is_a_rejection_followed_by_a_pass(self):
+        """The only thing on a case record that shows the retry loop closing."""
+        lead = view.lead_case(
+            [
+                _marked("CASE-005", ["passed"]),
+                _marked("CASE-001", ["rejected", "passed"]),
+            ]
+        )
+        assert lead is not None
+        assert lead.case_id == "CASE-001"
+
+    def test_a_case_that_never_passed_is_not_the_lead(self):
+        """CASE-003 is three rejections and no pass. It is the case this whole
+        change exists to stop leading with."""
+        assert view.lead_case([_marked("CASE-003", ["rejected"] * 3)]) is None
+
+    def test_a_case_that_passed_first_time_is_not_the_lead(self):
+        """Nothing was caught, so there is nothing to show."""
+        assert view.lead_case([_marked("CASE-005", ["passed"])]) is None
+
+    def test_the_pass_has_to_come_after_the_rejection(self):
+        """A pass followed by a rejection is the loop opening, not closing."""
+        assert view.lead_case([_marked("CASE-009", ["passed", "rejected"])]) is None
+
+    def test_the_hardest_won_pass_wins(self):
+        """Two rejections before a pass leaves two rejected drafts on the case
+        page to read. One leaves one."""
+        lead = view.lead_case(
+            [
+                _marked("CASE-007", ["rejected", "passed"]),
+                _marked("CASE-001", ["rejected", "rejected", "passed"]),
+            ]
+        )
+        assert lead is not None
+        assert lead.case_id == "CASE-001"
+        assert lead.rejected == 2
+
+    def test_ties_break_deterministically(self):
+        """The same reader must get the same answer twice."""
+        pair = [
+            _marked("CASE-007", ["rejected", "passed"]),
+            _marked("CASE-001", ["rejected", "passed"]),
+        ]
+        assert view.lead_case(pair).case_id == "CASE-001"
+        assert view.lead_case(list(reversed(pair))).case_id == "CASE-001"
+
+    def test_an_empty_system_names_no_case(self):
+        """Manufacturing a best case out of a queue where nothing was ever sent
+        back would be the exact failure this screen is trying not to commit."""
+        assert view.lead_case([]) is None
+
+    def test_the_sentence_says_only_what_the_marks_prove(self):
+        lead = view.lead_case([_marked("CASE-001", ["rejected", "rejected", "passed"])])
+        assert "rejected 2 drafts" in lead.why
+        assert "before one passed" in lead.why
+
+    def test_the_sentence_inflects_on_one_rejection(self):
+        lead = view.lead_case([_marked("CASE-007", ["rejected", "passed"])])
+        assert "rejected 1 draft of" in lead.why
+        assert "The rejected draft is on the case page" in lead.why
+
+    def test_the_queue_names_it_and_links_to_it(self, client, repo):
+        repo.create(_marked("CASE-001", ["rejected", "rejected", "passed"]))
+        repo.create(_case("CASE-003", CaseStatus.NEEDS_HUMAN_REVIEW))
+
+        html = client.get("/queue").text
+        assert "Start here" in html
+        assert 'href="/case/CASE-001"' in html
+
+    def test_it_does_not_reorder_the_worklist(self, client, repo):
+        """The named case is an entry point, not a priority. CASE-003 has the
+        nearer deadline and still sorts first in the table."""
+        lead = _marked("CASE-001", ["rejected", "rejected", "passed"])
+        lead.denial.appeal_deadline = datetime.now(UTC).date() + timedelta(days=200)
+        repo.create(lead)
+        repo.create(_case("CASE-003", CaseStatus.NEEDS_HUMAN_REVIEW))
+
+        body = client.get("/queue").text
+        table = body[body.index("<tbody") :]
+        assert table.index("CASE-003") < table.index("CASE-001")
+        assert "soonest appeal deadline first" in body
+
+    def test_a_queue_with_nothing_to_show_shows_no_block(self, client, repo):
+        repo.create(_marked("CASE-003", ["rejected"] * 3, CaseStatus.NEEDS_HUMAN_REVIEW))
+        assert "Start here" not in client.get("/queue").text
+
+
+class TestTheReviewNote:
+    """CASE-003's row said "all 3 rejected by verification" and stopped there.
+
+    Two of those three rejections are wrong — the finding recorded in
+    docs/EVALUATION.md on 30 August 2026. A reader who opens the case and works
+    that out for themselves trusts nothing else on the page.
+    """
+
+    def _three_rejections(self) -> CaseRecord:
+        case = _marked("CASE-003", ["rejected"] * 3, CaseStatus.NEEDS_HUMAN_REVIEW)
+        case.needs_human_reason = "verification rejected all 3 drafting attempts"
+        return case
+
+    def test_the_row_says_the_rejections_were_wrong(self, client, repo):
+        repo.create(self._three_rejections())
+        html = client.get("/queue").text
+
+        assert "two of those three rejections were wrong" in html
+        assert "false positive, not the cap holding" in html
+
+    def test_the_row_still_says_what_actually_happened(self, client, repo):
+        """The correction sits beside the record, it does not replace it."""
+        repo.create(self._three_rejections())
+        html = client.get("/queue").text
+        assert "all 3 rejected by verification" in html
+        assert "Sent back because: verification rejected all 3 drafting attempts" in html
+
+    def test_it_names_the_objection_a_reader_can_go_and_check(self, client, repo):
+        """Specificity is the whole of the trust here. A reader can open the
+        case, find the criterion, and confirm the restatement is verbatim."""
+        repo.create(self._three_rejections())
+        html = client.get("/queue").text
+        assert "Requires that" in html
+        assert "docs/EVALUATION.md" in html
+
+    def test_it_is_on_the_case_page_too(self, client, repo):
+        """The queue row is where a reader decides to open the case. The case
+        page is where the sentence it corrects is actually printed."""
+        repo.create(self._three_rejections())
+        html = client.get("/case/CASE-003").text
+        assert "two of those three rejections were wrong" in html
+
+    def test_a_case_the_reviewer_never_read_carries_no_note(self, client, seeded):
+        """The seeded CASE-003 is two attempts, one rejected. That is not the
+        record the note was written against."""
+        assert "rejections were wrong" not in client.get("/queue").text
+
+    def test_the_note_is_withheld_if_the_record_changes_under_it(self):
+        """A stale correction is worse than no correction. If the case is
+        re-run and comes out differently the note describes nothing on screen,
+        so it is withheld rather than shown against a record it does not fit."""
+        assert view.review_note(_marked("CASE-003", ["rejected"] * 3)) is not None
+        assert view.review_note(_marked("CASE-003", ["rejected", "rejected", "passed"])) is None
+        assert view.review_note(_marked("CASE-003", ["rejected"] * 4)) is None
+
+    def test_no_other_case_is_annotated(self):
+        assert view.review_note(_marked("CASE-001", ["rejected"] * 3)) is None
+
+    def test_the_correction_does_not_rely_on_colour(self, client, repo):
+        """It contradicts the line above it. The words carry that, not the hue:
+        a monochrome screen and a printed page still read the correction."""
+        repo.create(self._three_rejections())
+        html = client.get("/queue").text
+        note = html[html.index('class="rownote"') : html.index('class="rownote"') + 700]
+        assert "Read by hand" in note
+
+
+class TestTheQueueSaysWhatItIsShowing:
+    """ "3 need you · 8 in the system" is a count. It is not an answer to "what
+    am I looking at", and the answer matters: three of these cases are the
+    system refusing to produce an appeal."""
+
+    def _spread(self, repo) -> None:
+        for case_id, status in (
+            ("CASE-001", CaseStatus.AWAITING_APPROVAL),
+            ("CASE-002", CaseStatus.QUARANTINED),
+            ("CASE-003", CaseStatus.NEEDS_HUMAN_REVIEW),
+            ("CASE-004", CaseStatus.DECLINED_NO_BASIS),
+            ("CASE-005", CaseStatus.SUBMITTED),
+            ("CASE-006", CaseStatus.DECLINED_NO_BASIS),
+        ):
+            repo.create(_marked(case_id, ["passed"], status))
+
+    def test_it_counts_the_states_off_the_records(self, client, repo):
+        self._spread(repo)
+        html = client.get("/queue").text
+        assert "5 states of one pipeline" in html
+
+    def test_it_names_the_refusals_and_says_what_a_refusal_is(self, client, repo):
+        self._spread(repo)
+        html = client.get("/queue").text
+        assert "3 of them are refusals" in html
+        assert "A refusal here is the system working, not a gap in it." in html
+
+    def test_it_discloses_that_none_of_this_is_real(self, client, repo):
+        """The queue is a signed-out page now. It is the first screen a visitor
+        sees, so the disclosure cannot live only behind the sign-in door."""
+        self._spread(repo)
+        assert "All of them are synthetic" in client.get("/queue").text
+
+    def test_a_system_with_no_refusals_does_not_explain_one(self, client, repo):
+        repo.create(_marked("CASE-001", ["passed"]))
+        assert "All of them are synthetic" in client.get("/queue").text
+        # Asserted on the sentence rather than on the page: the stylesheet is
+        # inlined and its own comments use the word.
+        assert "refusal" not in view.synopsis([_marked("CASE-001", ["passed"])])
+
+    def test_an_empty_system_says_nothing_about_nothing(self):
+        assert view.synopsis([]) == ""
+
+    def test_the_sentence_inflects_on_a_single_refusal(self):
+        cases = [_marked("CASE-002", [], CaseStatus.QUARANTINED)]
+        assert "1 of them is a refusal" in view.synopsis(cases)

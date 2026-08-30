@@ -136,6 +136,11 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
             "mapping": view.mapping_rows(case),
             "mapping_caveats": view.unattributed_findings(view.case_findings(case)),
             "provenance": view.provenance(case, draft),
+            # The queue row carries this too. It has to be on both: the row is
+            # where a reader decides whether to open the case, and this page is
+            # where the sentence it corrects — "Verification sent attempts 1, 2
+            # and 3 back — it caught ..." — is actually printed.
+            "review_note": view.review_note(case),
             "screened": view.screening_view(case.screening),
             "status_phrase": view.status_phrase(case.status),
             "service_line": view.service_line(case.denial),

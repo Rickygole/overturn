@@ -250,6 +250,12 @@ def queue_row(case: CaseRecord) -> dict[str, object]:
         # and on a case with a pass in the middle a false one — and now that the
         # marks beside it render correctly, a visibly false one.
         "rejected": attempt_marks(case).count("rejected"),
+        # A correction a person made by hand, when there is one for this record.
+        # See `REVIEW_NOTES`: the row said Verification rejected all three drafts
+        # and stopped there, which reads as the cap holding. On CASE-003 two of
+        # those three rejections are wrong, and a reader who discovers that after
+        # opening the case has been misled by this screen.
+        "review_note": review_note(case),
         "link_suffix": "/clinical" if case.status == WAITING_ON_CLINICIAN else "",
         # For `mark_shared_claims`, which needs to compare rows against each
         # other and cannot do it from the case objects it never sees.
@@ -334,6 +340,68 @@ def attempt_marks(case: CaseRecord) -> list[str]:
         passed = verdicts.get(attempt)
         marks.append("pending" if passed is None else "passed" if passed else "rejected")
     return marks
+
+
+# --------------------------------------------------------------------------- #
+# What a reviewer found by hand, and the system cannot compute
+# --------------------------------------------------------------------------- #
+#
+# On 30 August 2026 a reviewer read CASE-003's three rejections against the
+# policy text word by word and found that two of them are wrong: Verification
+# objected to a sentence that is the criterion verbatim with "Requires that" in
+# front of it, and to where a modifier attaches. The cap then fired on a
+# well-founded appeal and nothing was sent.
+#
+# That finding is written up in `docs/EVALUATION.md`. It belongs on the row as
+# well, because this is the first case a reader opens -- it carries the nearest
+# deadline, so the deadline sort puts it at the top -- and a reader who works
+# out on their own that the row overstated what happened stops believing the
+# rest of the screen.
+#
+# It is typed here rather than derived, and that is the honest choice, not a
+# shortcut. Deciding that an objection to a paraphrase was unfounded means
+# reading the letter against the source, which is exactly the measurement
+# `docs/EVALUATION.md` states this project has *not* automated. A heuristic in
+# the view layer that guessed at it would be a fabricated confidence on the one
+# screen where a fabricated confidence is unforgivable -- and it would be the
+# same mistake, in the other direction, as the sentence it is correcting. When
+# a real false-positive check exists, it replaces this table.
+
+
+@dataclass(frozen=True)
+class ReviewNote:
+    """A human finding about one case, pinned to the record it was made against.
+
+    ``marks`` is the attempt sequence the reviewer actually read. If the case is
+    re-run and comes out differently the note no longer describes anything on
+    screen, so it is withheld rather than shown against a record it does not
+    match. A stale correction is worse than no correction.
+    """
+
+    marks: tuple[str, ...]
+    body: str
+
+
+REVIEW_NOTES: Mapping[str, ReviewNote] = {
+    "CASE-003": ReviewNote(
+        marks=("rejected", "rejected", "rejected"),
+        body=(
+            "Read by hand on 30 August 2026: two of those three rejections were wrong. "
+            "Verification objected to a sentence that is the policy criterion word for "
+            "word with “Requires that” in front of it, and to where “within the "
+            "twelve months” attaches. The cap then fired on a sound appeal — a false "
+            "positive, not the cap holding. docs/EVALUATION.md has the full reading."
+        ),
+    ),
+}
+
+
+def review_note(case: CaseRecord) -> str | None:
+    """The reviewer's correction for this case, if it still fits the record."""
+    note = REVIEW_NOTES.get(case.case_id)
+    if note is None or tuple(attempt_marks(case)) != note.marks:
+        return None
+    return note.body
 
 
 def attempt_history(case: CaseRecord) -> list[dict[str, object]]:
@@ -730,7 +798,17 @@ def mapping_rows(case: CaseRecord) -> list[dict[str, object]]:
 
 @dataclass(frozen=True)
 class Provenance:
-    """One sentence naming which attempt this is and what was caught before it."""
+    """One sentence naming which attempt this is and what Verification objected to.
+
+    The verb is "objected to" and not "caught", deliberately. "Caught" asserts
+    the objection was correct, and on the deployed CASE-003 two of the three
+    were not -- Verification rejected a restatement that was verbatim the
+    policy criterion. A sentence generated for every case cannot vouch for the
+    merit of an objection it has not evaluated; it can only report that one was
+    raised. Where the objection is genuinely a catch, as on CASE-001, the
+    quoted finding underneath makes that plain without the summary line having
+    to claim it.
+    """
 
     text: str
     attempt: int
@@ -751,7 +829,7 @@ def provenance(case: CaseRecord, draft: AppealDraft | None) -> Provenance | None
 
     listed = _join_numbers(sent_back)
     text = f"Attempt {draft.attempt}. Verification sent {listed} back" + (
-        f" — it caught {_join_prose(caught)}." if caught else "."
+        f" — it objected to {_join_prose(caught)}." if caught else "."
     )
     return Provenance(text, draft.attempt, sent_back, caught)
 
@@ -1469,6 +1547,27 @@ class Band:
 
 
 @dataclass(frozen=True)
+class Lead:
+    """The one case worth opening first, and the marks that say why.
+
+    Not a priority and not a place in the worklist -- the table below is still
+    sorted by deadline, which is the only ordering a clerk with eleven letters
+    can defend. This is an entry point for somebody who has never seen the
+    system and has no way to know which row shows it doing its job.
+    """
+
+    case_id: str
+    patient: str
+    service: str
+    marks: list[str]
+    rejected: int
+    # Assembled here rather than in Jinja, because it inflects on a count and
+    # a template that has to pick between "draft" and "drafts" is a template
+    # that has started doing prose.
+    why: str
+
+
+@dataclass(frozen=True)
 class Overview:
     """The whole workload in one glance."""
 
@@ -1478,6 +1577,11 @@ class Overview:
     urgent: list[dict[str, object]]
     total: int
     actionable: int
+    # What the queue is showing, in one sentence. "5 open, 3 need you" is a
+    # count; a first-time reader also needs to know that a refusal on this
+    # screen is the system working rather than a hole in it.
+    synopsis: str = ""
+    lead: Lead | None = None
 
 
 def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
@@ -1595,6 +1699,100 @@ def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
         urgent=urgent,
         total=len(cases),
         actionable=len(clerk) + len(clinician) + len(back),
+        synopsis=synopsis(cases),
+        lead=lead_case(cases),
+    )
+
+
+# The two closed states that are the system declining to act rather than
+# finishing: no honest argument was available, or the document carried an
+# injected instruction and no agent was allowed to read it. Both are refusals,
+# and on a first read they look like failures unless the page says otherwise.
+REFUSAL_STATUSES: frozenset[CaseStatus] = frozenset(
+    {CaseStatus.DECLINED_NO_BASIS, CaseStatus.QUARANTINED}
+)
+
+
+def synopsis(cases: list[CaseRecord]) -> str:
+    """One sentence saying what this queue is, for somebody who has never seen it.
+
+    The heading above it counts. A count answers "how much" and leaves "what am
+    I looking at" unanswered, and the answer matters here: three of these cases
+    are the system refusing to produce an appeal, and a reader who does not know
+    that reads three failures.
+
+    Every number is counted off the records. "Synthetic" is not -- it is a
+    property of this deployment, stated on the sign-in page and in the README,
+    and repeated here because the queue is now the first screen a visitor sees.
+    """
+    if not cases:
+        return ""
+    states = len({case.status for case in cases})
+    refusals = sum(1 for case in cases if case.status in REFUSAL_STATUSES)
+    line = (
+        f"All of them are synthetic — an invented payer, generated charts — and they span "
+        f"{states} state{'' if states == 1 else 's'} of one pipeline."
+    )
+    if not refusals:
+        return line
+    refusal = "1 of them is a refusal" if refusals == 1 else f"{refusals} of them are refusals"
+    return (
+        f"{line} {refusal}: a case the system declined to argue, or a document it "
+        f"quarantined unread. A refusal here is the system working, not a gap in it."
+    )
+
+
+def lead_case(cases: list[CaseRecord]) -> Lead | None:
+    """The case that best shows what this system does, or nothing.
+
+    The signal is not invented and it is not a score. It is the one thing in the
+    record that shows the retry loop closing: a draft Verification rejected,
+    followed by an attempt that passed. Nothing else on a case record
+    distinguishes "the check ran" from "the check found something and the next
+    letter was better for it".
+
+    Among cases that qualify, the one whose pass took the most rejections to
+    reach is the clearest -- it has the most rejected drafts on its page to read
+    -- and ties break on case id so the same reader gets the same answer twice.
+
+    Returns ``None`` when no case qualifies, and the template shows nothing.
+    Manufacturing a "best" case out of a queue where nothing was ever sent back
+    would be the exact failure this whole screen is trying not to commit.
+    """
+    best: tuple[int, str] | None = None
+    chosen: CaseRecord | None = None
+    for case in cases:
+        marks = attempt_marks(case)
+        if "passed" not in marks:
+            continue
+        before = marks[: marks.index("passed")].count("rejected")
+        if not before:
+            continue
+        key = (-before, case.case_id)
+        if best is None or key < best:
+            best, chosen = key, case
+    if chosen is None:
+        return None
+    marks = attempt_marks(chosen)
+    denial = chosen.denial
+    rejected = marks[: marks.index("passed")].count("rejected")
+    plural = "" if rejected == 1 else "s"
+    return Lead(
+        case_id=chosen.case_id,
+        patient=display_name(denial.patient_name if denial else None),
+        service=service_line(denial),
+        marks=marks,
+        rejected=rejected,
+        # Only what the marks prove. The record says a draft was sent back and
+        # the next one was not; it does not say the objection was a good one,
+        # and this sentence must not either.
+        why=(
+            f"Verification rejected {rejected} draft{plural} of this letter before one "
+            f"passed. The rejected draft{plural} {'is' if rejected == 1 else 'are'} on the "
+            f"case page in full, beside the objection that stopped "
+            f"{'it' if rejected == 1 else 'each one'} — the shortest way to see what this "
+            f"system is for."
+        ),
     )
 
 

@@ -604,6 +604,40 @@ fieldset.gate{
 .dash__total{font-size:var(--fs-xs);font-weight:400;color:var(--dim);
              font-variant-numeric:tabular-nums}
 
+/* One sentence saying what this queue is. Not a lede in the site's sense — it
+   sits under a heading that has already counted, and its job is to stop three
+   refusals reading as three failures. Measure, not container width. */
+.dash__lede{font-size:var(--fs-md);line-height:1.6;color:var(--muted);
+            max-width:var(--measure);margin:0 0 var(--s5)}
+
+/* --- Where to look first --------------------------------------------------
+   The worklist is sorted by deadline and stays that way. This names one case
+   and says what is on it, for a reader who has never seen the system and would
+   otherwise open whichever row happens to be at the top.
+
+   Deliberately quieter than `.dash__urgent`: a hairline and a rule in ink, not
+   in amber. A real deadline outranks a good demonstration, and the two blocks
+   must not look like they are shouting at the same volume. */
+.lead{
+  border:1px solid var(--hair);border-left:3px solid var(--ink);
+  background:var(--panel);border-radius:var(--r);
+  padding:var(--s4);margin-bottom:var(--s5);
+}
+.lead__h{
+  font-size:var(--fs-eyebrow);font-weight:500;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--dim);margin:0 0 var(--s2);
+}
+.lead__who{
+  display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;
+  margin:0 0 var(--s2);max-width:none;font-size:var(--fs-sm);
+}
+/* 66ch, not the 52ch of `--measure`: these are set a size down, where 52
+   characters is a narrow column inside a wide block. The same number
+   `.provenance` uses, for the same reason. */
+.lead__why{margin:0 0 var(--s2);font-size:var(--fs-sm);line-height:1.55;max-width:66ch}
+.lead__caveat{margin:0;font-size:var(--fs-xs);line-height:1.5;color:var(--dim);
+              max-width:66ch}
+
 /* Deadline pressure earns the top of the page only when it exists. Amber, not
    red: the strip is a list of dates, and the row that is genuinely critical
    says so on its own chip. */
@@ -813,6 +847,34 @@ fieldset.gate{
 .mark--passed{background:var(--good);border-color:var(--good)}
 .mark--rejected{background:transparent;border-style:dashed;border-color:var(--warn)}
 .mark--pending{background:var(--hair);border-color:var(--hair)}
+
+/* --- A correction a person made by hand -----------------------------------
+   Where a reviewer read Verification's objections against the policy text and
+   found them wrong. It contradicts the line above it, so it has to be visibly
+   a different kind of statement — but the words carry that, not the colour:
+   the text is --muted, which clears AA on every surface here and on a printed
+   page, and the amber rule beside it only agrees. Nothing on this screen is
+   allowed to mean something in hue alone. */
+.rownote{
+  margin:var(--s3) 0 0;padding-left:var(--s3);
+  border-left:2px solid var(--warn);
+  /* Same size as the sentence it corrects, not a step down. A correction set
+     as fine print is a correction being hidden. */
+  font-size:var(--fs-sm);line-height:1.55;color:var(--muted);max-width:66ch;
+}
+
+/* In the queue it is a row of its own spanning the table, not a line inside a
+   cell: the sentence is about the whole case, and a column three words wide
+   would set it as a column of three words. Attached to the row above by taking
+   that row's rule away, so the two read as one. */
+tbody tr.noted td,tbody tr.noted th{border-bottom:0}
+.rownote-row td{padding-top:0;padding-bottom:var(--s3)}
+/* Pinned to the left of the viewport inside the sideways scroller, the same
+   way the caption is and for the same reason: the table is 34rem wide at its
+   narrowest, and a correction you have to scroll to read is a correction
+   nobody reads. */
+.rownote-row .rownote{margin:0;position:sticky;left:0;
+                      max-width:min(66ch,calc(100vw - var(--s7)))}
 </style>
 </head>
 <body>

@@ -17,6 +17,14 @@
     <span class="dash__total">{{ overview.total }} case{{ "" if overview.total == 1 else "s" }} in the system</span>
   </h2>
 
+  {# The heading counts. A count answers "how much" and leaves "what am I
+     looking at" unanswered, and the answer matters here: three of these cases
+     are the system refusing to produce an appeal, and a reader who is not told
+     that reads three failures. #}
+  {% if overview.synopsis %}
+  <p class="dash__lede">{{ overview.synopsis }}</p>
+  {% endif %}
+
   {% if overview.bands %}
   {# The counts as one shape. Proportioned by flex-grow, so there is no
      arithmetic here and no script on the page. The bar is decorative in the
@@ -49,6 +57,34 @@
       </li>
       {% endfor %}
     </ul>
+  </div>
+  {% endif %}
+
+  {# An entry point, not a ranking. The table below is still soonest deadline
+     first, which is the only ordering a clerk with eleven letters can defend --
+     but that ordering puts the case where Verification was demonstrably wrong
+     at the top of the page, and nothing told a first-time reader where to look
+     instead. The signal is the one thing on a record that shows the retry loop
+     closing: a rejected draft followed by one that passed. Nothing is hidden
+     and nothing is reordered; one case is named.
+
+     Below the deadline strip on purpose. A case running out of time outranks a
+     good demonstration, every time. #}
+  {% if overview.lead %}
+  <div class="lead">
+    <h3 class="lead__h">Start here</h3>
+    <p class="lead__who">
+      <a class="mono" href="/case/{{ overview.lead.case_id }}">{{ overview.lead.case_id }}</a>
+      <span class="marks" aria-hidden="true">
+        {% for mark in overview.lead.marks %}
+        <span class="mark mark--{{ mark }}"></span>
+        {% endfor %}
+      </span>
+      <span class="muted">{{ overview.lead.patient }} — {{ overview.lead.service }}</span>
+    </p>
+    <p class="lead__why">{{ overview.lead.why }}</p>
+    <p class="lead__caveat">This is not a priority and it has not moved anything: the
+    worklist below is unchanged, soonest appeal deadline first.</p>
   </div>
   {% endif %}
 
@@ -113,6 +149,9 @@
           arrival is its own case, and each row names its twin.
           {% endif %}
         </caption>
+        {# One number for the width of this table, set where the header row is
+           written so the two cannot drift apart. The note row below spans it. #}
+        {% set columns = 6 if payer else 7 %}
         <thead>
           <tr>
             <th scope="col">Case</th>
@@ -126,7 +165,7 @@
         </thead>
         <tbody>
           {% for row in rows %}
-          <tr>
+          <tr{% if row.review_note %} class="noted"{% endif %}>
             <th scope="row"><a class="mono" href="/case/{{ row.case_id }}{{ row.link_suffix }}">{{ row.case_id }}</a></th>
             <td>{{ row.patient }}</td>
             {% if not payer %}<td>{{ row.payer }}</td>{% endif %}
@@ -203,6 +242,25 @@
               {% endif %}
             </td>
           </tr>
+          {# Where a person has read those rejections against the policy text and
+             found them wanting, what they found. "Verification rejected all 3
+             drafting attempts" is true, and on its own it reads as the cap
+             holding; on that case two of the three objections are wrong, and a
+             reader who works that out for themselves after opening it has been
+             misled by this row.
+
+             A row of its own rather than a line in the service cell. The
+             sentence is a statement about the whole case, not about the service
+             denied, and a column three words wide would set it as a column of
+             three words. Attached to the row above by dropping that row's rule,
+             so the two read as one thing. #}
+          {% if row.review_note %}
+          <tr class="rownote-row">
+            <td colspan="{{ columns }}">
+              <p class="rownote">{{ row.review_note }}</p>
+            </td>
+          </tr>
+          {% endif %}
           {% endfor %}
         </tbody>
       </table>

@@ -192,6 +192,15 @@
       {% if provenance.sent_back %}<a href="#history">See what it caught</a>.{% endif %}
     </p>
     {% endif %}
+
+    {# Directly under the sentence it corrects. The line above says what
+       Verification caught; on this case a person has since read those
+       objections against the policy text and found that most of them caught
+       nothing. Leaving that in a document and not on the screen is how a
+       reader ends up discovering it themselves. #}
+    {% if review_note %}
+    <p class="rownote">{{ review_note }}</p>
+    {% endif %}
     {% endif %}
   </div>
 </section>
