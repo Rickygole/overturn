@@ -2399,6 +2399,23 @@ class TestEscalation:
         is a block that says nothing."""
         assert view.escalation(seeded) is None
 
+    def test_a_self_contradicting_record_gets_nothing_rather_than_a_nonsense_sentence(self):
+        """`escalation_count >= 1` on a case still sitting at the first rung
+        is a record that disagrees with itself -- there is no rung before the
+        first one for it to have moved from. The old code clamped the
+        "previous rung" lookup to the first rung itself, which produced
+        "escalated itself to first-level appeal ... on the first-level appeal
+        lapsed": the same rung named as both where the case came from and
+        where it landed. `AppealLevel.FIRST_LEVEL` is index 0 on the ladder
+        (`test_the_ladder_order_is_read_from_the_table_not_written_twice`
+        pins the order), so this is that exact case.
+        """
+        case = _case("CASE-999", CaseStatus.SUBMITTED)
+        case.appeal_level = AppealLevel.FIRST_LEVEL
+        case.escalation_count = 1  # inconsistent with appeal_level, on purpose
+
+        assert view.escalation(case) is None
+
     def test_the_ladder_order_is_read_from_the_table_not_written_twice(self):
         assert view._ladder_order() == [
             AppealLevel.FIRST_LEVEL,

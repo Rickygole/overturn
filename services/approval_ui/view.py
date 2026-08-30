@@ -1339,8 +1339,19 @@ def escalation(case: CaseRecord, now: datetime | None = None) -> Escalation | No
         index = order.index(case.appeal_level)
     except ValueError:  # a level not on the ladder; say nothing rather than guess
         return None
+    if index == 0:
+        # `escalation_count >= 1` on a case still sitting at the first rung is
+        # a record that disagrees with itself -- there is no rung before the
+        # first one for it to have moved from. `order[max(0, index - 1)]`
+        # below used to paper over that by clamping to `order[0]`, which
+        # produced "escalated itself to first-level appeal ... on the
+        # first-level appeal lapsed": the same rung named as both where the
+        # case came from and where it landed. Say nothing rather than
+        # describe a move that didn't happen, the same choice the
+        # `ValueError` branch above already makes for an unrecognised level.
+        return None
 
-    previous = order[max(0, index - 1)]
+    previous = order[index - 1]
     rung = APPEAL_LADDER[case.appeal_level]
     moved = next((t for t in reversed(case.history) if t.to_status == CaseStatus.ESCALATED), None)
 
