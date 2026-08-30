@@ -1725,20 +1725,19 @@ class TestUnattributedVerificationFindings:
     characterisation with nothing beside it.
     """
 
-    def _finding(self, locus: str, detail: str) -> view.Finding:
+    def _finding(self, locus: str, detail: str, check: str = "assertion_grounded") -> view.Finding:
         return view.Finding(
-            attempt=1,
-            check="assertion_grounded",
-            severity="fatal",
-            locus=locus,
-            detail=detail,
-            source_text=None,
+            attempt=1, check=check, severity="fatal", locus=locus, detail=detail, source_text=None
         )
 
     def test_assertion_findings_are_separated_from_row_findings(self):
         findings = [
             self._finding("clinical_assertions", "the chart does not say telehealth"),
-            self._finding("NBH-ENDO-031-3.1", "the source text does not exclusively require"),
+            self._finding(
+                "NBH-ENDO-031-3.1",
+                "the source text does not exclusively require",
+                check="citation_accurate",
+            ),
         ]
         unattributed = view.unattributed_findings(findings)
         assert len(unattributed) == 1
@@ -1746,12 +1745,29 @@ class TestUnattributedVerificationFindings:
 
     def test_a_row_finding_is_not_swept_into_the_caveat(self):
         """Anything with a real locus belongs on its row, not in the banner."""
-        findings = [self._finding("NBH-ENDO-031-3.3", "objection about a real row")]
+        findings = [
+            self._finding(
+                "NBH-ENDO-031-3.3", "objection about a real row", check="citation_accurate"
+            )
+        ]
         assert view.unattributed_findings(findings) == []
         assert view.findings_at(findings, "NBH-ENDO-031-3.3")
 
     def test_nothing_to_say_when_every_finding_has_a_home(self):
         assert view.unattributed_findings([]) == []
+
+    def test_it_catches_the_deployed_shape_not_only_the_offline_one(self):
+        """The live path records the asserted sentence as the locus.
+
+        Keying on the literal "clinical_assertions" matched the offline backend
+        and missed every real run, which is how the flagship case's best catch
+        went on landing nowhere.
+        """
+        live = self._finding(
+            "The patient had a telehealth evaluation with endocrinology on July 14, 2026.",
+            "The medical record describes the encounter as an 'Interim review'.",
+        )
+        assert view.unattributed_findings([live]) == [live]
 
     def test_the_caveat_reaches_the_page_above_the_matrix(self, client, repo, seeded):
         """It must not be behind the same fold as the rows it qualifies."""

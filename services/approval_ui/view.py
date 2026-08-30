@@ -310,11 +310,13 @@ def case_findings(case: CaseRecord) -> list[Finding]:
     ]
 
 
-# `check_assertions_grounded` records its findings under this literal rather
-# than under any criterion (agents/verification/checks.py:97). They are
-# therefore structurally unattributable to a matrix row, and text-matching them
-# onto one would be a guess presented as a fact.
-UNATTRIBUTABLE_LOCUS = "clinical_assertions"
+# Findings from the assertion-grounding check name no criterion, so they can
+# never join to a matrix row. Identify them by the check that raised them, not
+# by their locus: the offline path records the literal "clinical_assertions"
+# (agents/verification/checks.py:97) while the deployed ADK path records the
+# asserted sentence itself. Keying on the locus string matched the first and
+# missed the second, which is to say it missed every real run.
+ASSERTION_CHECK = "assertion_grounded"
 
 
 def unattributed_findings(findings: list[Finding]) -> list[Finding]:
@@ -326,14 +328,15 @@ def unattributed_findings(findings: list[Finding]) -> list[Finding]:
     "telehealth evaluation", which is the single best piece of evidence this
     project has that the system works.
 
-    It carries `locus="clinical_assertions"`, so it lands on no criterion row,
-    and until this existed the matrix went on stating the rejected
-    characterisation with nothing beside it. Attributing it to a row by
-    matching text would be a guess dressed as a citation. Saying it plainly
+    Its locus is not a criterion id in either code path -- the offline backend
+    writes a literal, the deployed one writes the asserted sentence -- so it
+    lands on no row, and until this existed the matrix went on stating the
+    rejected characterisation with nothing beside it. Attributing it to a row
+    by matching text would be a guess dressed as a citation. Saying it plainly
     above the whole matrix is the honest form: the objection is real, and which
     row it lands on is not something we know.
     """
-    return [f for f in findings if f.locus == UNATTRIBUTABLE_LOCUS]
+    return [f for f in findings if f.check == ASSERTION_CHECK]
 
 
 def findings_at(findings: list[Finding], *loci: str) -> list[Finding]:
