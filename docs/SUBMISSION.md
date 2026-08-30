@@ -14,6 +14,8 @@ for site malfunctions, and deadline-day load on Devpost is a real risk.
 | **Text description** | Four parts, all drafted in [`PITCH.md`](PITCH.md) | ☑ |
 | **Spin-up instructions** | In `README.md`, verified from a clean clone on 2026-08-23 | ☑ |
 | **Architecture diagram** | Paste `https://overturn-kruy6aauaq-uc.a.run.app/architecture.svg` — a URL a judge can open from the form. The repo-relative link is not a substitute: the last scoresheet recorded "I cannot evaluate what I cannot open" | ☑ |
+| **Multi-week asynchronous operation** | Paste `https://overturn-kruy6aauaq-uc.a.run.app/case/CASE-006` — a case that escalated itself to peer-to-peer review weeks after submission, unattended. The last scoresheet: "The track's defining claim is asserted and never shown... I click. There is nothing to see." Now there is, and the URL goes straight to it | ☑ |
+| **Agent discovery / GEAP mapping** | Paste `https://overturn-kruy6aauaq-uc.a.run.app/system.html#geap` — what was probed on day one, what is managed, what is a primitive and why, for all seven GEAP components. The last scoresheet: "Agent discovery is absent." It was on the record in `ARCHITECTURE.md` and off the two pages a judge actually opens; it is now on one of them, at this anchor | ☑ |
 | **Demo video** | ≤4 min, **public** on YouTube, captions on | ☐ |
 
 **There is exactly one URL.** The site and the review queue are one Cloud Run
@@ -36,6 +38,12 @@ project isn't open to the public without one:
   not a Google account. This is deliberate and disclosed, not an oversight —
   see `services/approval_ui/auth.py`. Everything behind the login is synthetic:
   an invented payer, invented policies, generated patients.
+- **Two links worth opening directly, not navigating to**:
+  `.../case/CASE-006` — a case that escalated itself to peer-to-peer review
+  weeks after submission with nobody watching, which is the multi-week
+  asynchronous claim this track asks for, on the record rather than asserted;
+  and `.../system.html#geap` — every GEAP component, what was probed, what is
+  managed, what is a primitive and why.
 - **`overturn-ingest` and `overturn-scheduler` are private by design** — Pub/Sub
   and Cloud Scheduler invoke them, not a browser. A **403 from either of their
   `.run.app` URLs is correct**, not a broken deployment. Point a judge at the

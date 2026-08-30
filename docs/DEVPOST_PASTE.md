@@ -109,12 +109,16 @@ overturned, which means many of the ones nobody appeals were winnable.
 
 Overturn runs that research task as a fleet of seven single-purpose agents.
 Sentinel screens the incoming document for injected instructions before
-anything reads it as instructions. Intake extracts the claim. Retrieval finds
-the payer's published policy, and stops the case entirely if no policy applies.
-Mapping rules on each criterion against the chart with the locator that
-supports it. Drafting writes the appeal. Verification tries to break it.
-Lifecycle holds the case for weeks and escalates when the payer's clock runs
-out.
+anything reads it as instructions, in three layers — and on the deployed run,
+Google Cloud Model Armor missed a real injection payload (`NO_MATCH_FOUND`) on
+a poisoned letter; a second, deterministic layer caught what the sponsor's own
+guardrail missed. The third layer is Gemma (`gemma-4-26b-a4b-it-maas`) running
+as a guard model. Intake extracts the claim. Retrieval finds the payer's
+published policy, and stops the case entirely if no policy applies. Mapping
+rules on each criterion against the chart with the locator that supports it.
+Drafting writes the appeal. Verification tries to break it. Lifecycle holds
+the case for weeks and escalates when the payer's clock runs out — on its own,
+unattended, when the payer goes silent past the response window.
 
 Two humans sign before anything is transmitted — a clerk on the paper trail, a
 clinician on the medicine — and both signatures must land on the same draft
@@ -269,10 +273,11 @@ for it.
 ## Built with
 
 ```
-google-adk, google-genai, gemini-3.5-flash, gemini-3.7-flash, gemma, vertex-ai,
-text-embedding-005, cloud-run, firestore, pub-sub, cloud-storage,
-cloud-scheduler, cloud-trace, model-armor, secret-manager, opentelemetry,
-python, fastapi, pydantic, jinja, uv, pytest, docker, synthea
+gemma-4-26b-a4b-it-maas, google-adk, google-genai, gemini-3.5-flash,
+gemini-3.7-flash, vertex-ai, text-embedding-005, cloud-run, firestore,
+pub-sub, cloud-storage, cloud-scheduler, cloud-trace, model-armor,
+secret-manager, opentelemetry, python, fastapi, pydantic, jinja, uv, pytest,
+docker, synthea
 ```
 
 ---
