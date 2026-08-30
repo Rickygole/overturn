@@ -18,17 +18,11 @@ try{if(localStorage.getItem("overturn-theme")==="dark"||/(^|;\s*)overturn_theme=
 <header class="masthead">
   <div class="masthead__inner">
     <a class="wordmark" href="index.html">Overturn</a>
-    <nav class="nav" aria-label="Site">
-      <a href="how-it-works.html">How it works</a>
-      <a href="demo.html">See it run</a>
-      <a href="evidence.html">Evidence</a>
-      <a href="architecture.html">Architecture</a>
-    </nav>
     <div class="masthead__end">
       <button type="button" class="theme" aria-pressed="false">
         <span class="theme__dot" aria-hidden="true"></span>Dark mode
       </button>
-      <a class="nav__app" href="https://overturn-kruy6aauaq-uc.a.run.app/queue">Sign in</a>
+      <a class="nav__app" href="/queue">Sign in</a>
     </div>
   </div>
 </header>
@@ -46,21 +40,9 @@ try{if(localStorage.getItem("overturn-theme")==="dark"||/(^|;\s*)overturn_theme=
     <p class="lede">A model writes an appeal citing the insurer’s own policy, and a
       second model tries to tear it apart before any human reads it.</p>
 
-    <a class="btn" href="how-it-works.html">Start</a>
+    <a class="btn" href="/queue">Start</a>
   </div>
 
-  <div class="door__finding">
-    <p class="eyebrow">The finding</p>
-    <p>On the case the manifest calls easy, the first draft said the 14 July encounter
-      was a “telehealth evaluation.” The chart calls it an “interim review” and never
-      says how it was conducted. Nobody planted that. A second model caught it, sent the
-      reasons back, and the rewrite passed — so the letter a clinician signed had nothing
-      in it for a clinician to catch.</p>
-    <p>Then it happened again. A second trial, a different backend, a different day: the
-      same overclaim on the same encounter, and the same check caught it. Once is an
-      anecdote. Twice is a failure mode with a detector in front of it.</p>
-    <p class="small"><a href="evidence.html">Both trials, quoted verbatim →</a></p>
-  </div>
 
   <p class="door__meta">Seven agents on Google’s Agent Development Kit, running Gemini on
     Vertex AI. Measured against real models on 28 August 2026: 8/8 cases fully grounded,
@@ -70,8 +52,7 @@ try{if(localStorage.getItem("overturn-theme")==="dark"||/(^|;\s*)overturn_theme=
 </main>
 <footer>
   <div class="wrap">
-    <p>Overturn — built for the All Things Agentic Hackathon.
-      <a href="https://github.com/rickygole/overturn">Source on GitHub</a>.</p>
+    <p>Overturn. <a href="https://github.com/rickygole/overturn">Source on GitHub</a>.</p>
     <p>Northbeck Health Plan is a fictional payer. Every patient, chart, and policy
       document in this project is synthetic. Overturn drafts administrative appeal
       correspondence for a human to review, sign, and send. It is not medical advice,

@@ -53,7 +53,7 @@ class TestTheDoorIsShut:
     def test_the_login_page_itself_is_reachable(self, guarded):
         assert guarded.get("/login").status_code == 200
 
-    @pytest.mark.parametrize("path", ["/", "/how-it-works.html", "/styles.css"])
+    @pytest.mark.parametrize("path", ["/", "/styles.css", "/app.js"])
     def test_the_public_site_stays_outside_the_door(self, guarded, path):
         """The site ships from this process so the product has one address.
 
@@ -158,13 +158,15 @@ class TestPublicPaths:
         assert not path_is_public("/queue")
         assert not path_is_public("/case/CASE-001")
 
-    def test_the_marketing_site_is_outside_the_door(self):
-        """The site explains the product and holds no case data.
+    def test_the_front_door_is_outside_the_door(self):
+        """What remains of the site is a sign-in page and its assets.
 
-        It ships from this process so the whole product lives at one address,
-        which only works if someone who has never signed in can read it.
+        The explanatory pages are gone: a product's signed-out page says what
+        the product is and offers the way in, and the pitch belongs in the
+        submission writeup and the video, not in a nav bar. What is left holds
+        no case data, so it sits beside the login rather than behind it.
         """
-        for path in ("/", "/how-it-works.html", "/evidence.html", "/styles.css"):
+        for path in ("/", "/index.html", "/styles.css", "/app.js"):
             assert path_is_public(path), path
 
     def test_nothing_that_renders_a_case_is_public(self):

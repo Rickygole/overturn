@@ -113,19 +113,16 @@ def password_matches(supplied: str, config: AuthConfig) -> bool:
 # Choosing a colour is not a privileged act, and the login page has the control
 # on it like every other page.
 #
-# The public site is served from this same process (see SITE_FILES in app.py) so
-# that the whole product lives at one hostname: a reader arrives at the landing
-# page, reads how it works, and signs in without the address ever changing. Those
-# pages describe the system and contain no case data, so they sit outside the
-# door alongside the login screen. Everything that renders a case stays behind it.
+# The signed-out front door is served from this same process (see SITE_FILES in
+# app.py) so the whole product lives at one hostname. It is a door, not a
+# brochure -- the explanatory pages that used to sit here were removed, because
+# no product a person actually uses puts "how it works" in its nav. It holds no
+# case data, so it sits outside the door alongside the login screen. Everything
+# that renders a case stays behind it.
 SITE_PATHS = frozenset(
     {
         "/",
         "/index.html",
-        "/how-it-works.html",
-        "/demo.html",
-        "/evidence.html",
-        "/architecture.html",
         "/styles.css",
         "/app.js",
         "/architecture.svg",

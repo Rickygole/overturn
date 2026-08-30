@@ -202,7 +202,13 @@ def _site_text() -> dict[Path, str]:
 
 
 def test_there_is_a_site_to_check():
-    """A guard on the guard: if the pages move, these tests must not pass vacuously."""
+    """A guard on the guard: if the pages move, these tests must not pass vacuously.
+
+    The site is one page now -- the explanatory pages were removed, because a
+    product's signed-out surface is a door, not a brochure. These checks still
+    matter: the front door names the model tier and the grounding result, and
+    those are exactly the claims that drifted before.
+    """
     assert SITE_PAGES, "no docs/*.html found — the tests below would be checking nothing"
 
 

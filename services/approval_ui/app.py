@@ -65,10 +65,6 @@ SITE_DIR = Path(__file__).resolve().parents[2] / "docs"
 # means a traversal attempt has nothing to traverse to.
 SITE_FILES: dict[str, tuple[str, str]] = {
     "index.html": ("index.html", "text/html; charset=utf-8"),
-    "how-it-works.html": ("how-it-works.html", "text/html; charset=utf-8"),
-    "demo.html": ("demo.html", "text/html; charset=utf-8"),
-    "evidence.html": ("evidence.html", "text/html; charset=utf-8"),
-    "architecture.html": ("architecture.html", "text/html; charset=utf-8"),
     "styles.css": ("styles.css", "text/css; charset=utf-8"),
     "app.js": ("app.js", "text/javascript; charset=utf-8"),
     "architecture.svg": ("architecture.svg", "image/svg+xml"),
