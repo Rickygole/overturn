@@ -17,7 +17,8 @@ from core.schemas.case import CaseRecord
 from core.schemas.criteria import CriterionVerdict
 from core.schemas.denial import DenialExtraction, DeniedService
 from core.schemas.draft import AppealDraft
-from core.schemas.enums import CaseStatus, CriterionVerdictValue
+from core.schemas.enums import AppealLevel, CaseStatus, CriterionVerdictValue
+from core.schemas.lifecycle import APPEAL_LADDER
 from core.schemas.verification import VerificationResult
 
 NOT_STATED = "Not stated in the letter"
@@ -54,6 +55,10 @@ def fmt_datetime(value: datetime | None) -> str:
     return f"{value.day} {value:%B %Y}, {value:%H:%M} UTC"
 
 
+# Both of these survive for exactly one caller: Sentinel's detector score on a
+# screening finding, which is a detector's own calibrated output about a string
+# it matched, not a model's opinion of a clinical judgement. The criteria matrix
+# used to carry them too and no longer does -- see `mapping_rows`.
 def pct(value: float | None) -> str:
     return "—" if value is None else f"{round(value * 100)}%"
 
@@ -139,6 +144,59 @@ def deadline_view(deadline: date | None, today: date | None = None) -> DeadlineV
     return DeadlineView(fmt_date(deadline), days, label, tone)
 
 
+# --------------------------------------------------------------------------- #
+# What the appeal is worth
+#
+# The money was in an intake footnote, three folds down, on the screen whose
+# entire subject is whether to spend a clinician's signature on this letter.
+# It is what the appeal is *for*, and it belongs beside the patient and the
+# clock.
+# --------------------------------------------------------------------------- #
+
+# A currency figure inside Intake's free-text note. Deliberately narrow: it has
+# to look like money, not like a code, a date or a quantity.
+_MONEY = re.compile(r"\$\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?")
+
+
+@dataclass(frozen=True)
+class Amount:
+    """What was billed, and where the number came from.
+
+    ``stated`` is the honest half of this. When Intake filled
+    ``DeniedService.billed_amount`` the number is a field, and the header says
+    it plainly. When it did not -- and on every case in the corpus today it did
+    not, dropping the figure into ``extraction_notes`` instead -- the number is
+    a string a model wrote in a sentence. It still goes on the header, because a
+    reader needs it, but it goes up marked as a quotation from that sentence
+    rather than dressed as data. Lifting a number out of model prose and
+    printing it as a field is precisely the kind of laundering this screen
+    exists to prevent.
+    """
+
+    text: str
+    stated: bool
+    quote: str | None  # the sentence it was read out of, when it is not a field
+
+
+def amount(denial: DenialExtraction | None) -> Amount | None:
+    """The money on this denial, or nothing if the record does not carry it."""
+    if denial is None:
+        return None
+
+    billed = [s.billed_amount for s in denial.services if s.billed_amount is not None]
+    if billed:
+        return Amount(f"${sum(billed):,.2f}", stated=True, quote=None)
+
+    note = denial.extraction_notes
+    if not note:
+        return None
+    for sentence in re.split(r"(?<=\.)\s+", note):
+        found = _MONEY.search(sentence)
+        if found:
+            return Amount(found.group().replace("$ ", "$"), stated=False, quote=sentence.strip())
+    return None
+
+
 def service_line(denial: DenialExtraction | None) -> str:
     """One line naming what was refused, for the queue table."""
     if denial is None or not denial.services:
@@ -182,14 +240,68 @@ def queue_row(case: CaseRecord) -> dict[str, object]:
         "service": service_line(denial),
         "deadline": deadline_view(denial.appeal_deadline if denial else None),
         "attempts": case.draft_attempts,
-        "verified": _verification_summary(case),
         "reason": case.needs_human_reason,
         "updated": case.updated_at,
         "waiting_on": waiting_on(case.status),
         "waiting_key": waiting_key(case.status),
         "attempt_marks": attempt_marks(case),
+        # Counted, not inferred. The row said "all 3 rejected by verification"
+        # whenever the *latest* attempt was rejected, which is a different claim
+        # and on a case with a pass in the middle a false one — and now that the
+        # marks beside it render correctly, a visibly false one.
+        "rejected": attempt_marks(case).count("rejected"),
         "link_suffix": "/clinical" if case.status == WAITING_ON_CLINICIAN else "",
+        # For `mark_shared_claims`, which needs to compare rows against each
+        # other and cannot do it from the case objects it never sees.
+        "claim_number": denial.claim_number if denial else None,
+        "document_hash": case.screening.content_sha256 if case.screening else None,
+        # Filled in by `mark_shared_claims`. Present with a null value here so a
+        # template can read it on every row rather than guarding each access.
+        "same_claim": None,
     }
+
+
+def mark_shared_claims(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Say on the row when two cases carry one claim number.
+
+    CASE-001 and CASE-007 are the same patient, the same denied service and the
+    same claim number, sitting two lines apart in a queue whose headline
+    engineering claim is a guard against duplicate filings. They are two
+    genuinely different intakes -- the second is that denial delivered as a
+    scanned fax -- but the queue said nothing, and a reader reaches "duplicate
+    bug" long before they reach the README.
+
+    What is said is only what the record proves. The claim number is the same;
+    the screened content hash is not, and that is the whole of the difference
+    this interface can stand behind. It does not claim which one is the fax:
+    nothing on the case record says so. It says there are two documents, which
+    is the fact that turns a suspected bug into a visible decision.
+
+    Mutates the rows in place and returns them, because the caller already
+    owns the list and copying it to add one key is ceremony.
+    """
+    by_claim: dict[str, list[dict[str, object]]] = {}
+    for row in rows:
+        claim = row.get("claim_number")
+        if claim:
+            by_claim.setdefault(str(claim), []).append(row)
+
+    for shared in by_claim.values():
+        if len(shared) < 2:
+            continue
+        hashes = {row.get("document_hash") for row in shared}
+        distinct = len(hashes) == len(shared) and None not in hashes
+        for row in shared:
+            others = [str(o["case_id"]) for o in shared if o is not row]
+            row["same_claim"] = {
+                "cases": others,
+                "line": (
+                    "Same claim number, a different source document"
+                    if distinct
+                    else "Same claim number and the same source document"
+                ),
+            }
+    return rows
 
 
 def one_payer(rows: list[dict[str, object]]) -> str | None:
@@ -222,13 +334,6 @@ def attempt_marks(case: CaseRecord) -> list[str]:
         passed = verdicts.get(attempt)
         marks.append("pending" if passed is None else "passed" if passed else "rejected")
     return marks
-
-
-def _verification_summary(case: CaseRecord) -> str:
-    latest = case.latest_verification
-    if latest is None:
-        return "not verified"
-    return "passed" if latest.passed else "rejected"
 
 
 def attempt_history(case: CaseRecord) -> list[dict[str, object]]:
@@ -335,6 +440,10 @@ def case_findings(case: CaseRecord) -> list[Finding]:
     against the matrix row it named when attempt 3 is the one being read. The
     attempt number rides along so the page can say when the objection was
     raised rather than implying it is fresh.
+
+    This is the *matrix's* view of the findings, and it is the only place the
+    cross-attempt join is correct. The claim ledger shows the letter currently
+    on screen, and uses `findings_on_attempt` instead.
     """
     return [
         Finding(
@@ -348,6 +457,23 @@ def case_findings(case: CaseRecord) -> list[Finding]:
         for result in case.verifications
         for finding in result.findings
     ]
+
+
+def findings_on_attempt(case: CaseRecord, attempt: int) -> list[Finding]:
+    """Only what Verification said about one drafting attempt.
+
+    The ledger is a reading of the letter on screen. An objection raised
+    against attempt 1 is an objection to a sentence attempt 3 does not contain
+    -- Drafting was handed that finding and rewrote to answer it, which is the
+    whole point of the retry loop. Carrying it forward onto the current letter
+    prints a warning about a claim nobody is making, and a warning a reader
+    checks and finds untrue costs every other warning on the page its credit.
+
+    The matrix is the opposite case and keeps `case_findings`: it is written
+    once, before the first draft, and never revised, so an objection to what it
+    says stands until somebody rewrites it, which nothing does.
+    """
+    return [f for f in case_findings(case) if f.attempt == attempt]
 
 
 # Findings from the assertion-grounding check name no criterion, so they can
@@ -392,7 +518,31 @@ def findings_at(findings: list[Finding], *loci: str) -> list[Finding]:
     return [f for f in findings if f.locus in keys]
 
 
-def claim_ledger(case: CaseRecord, draft: AppealDraft | None) -> list[dict[str, object]]:
+@dataclass(frozen=True)
+class Ledger:
+    """The letter's claims, split into the ones a clerk can check and the one
+    kind they cannot.
+
+    ``rows`` is the table. ``folded`` holds citations to a *parent* section
+    whose subsections are already rows of their own -- see `_is_parent`.
+    """
+
+    rows: list[dict[str, object]]
+    folded: list[dict[str, object]]
+
+
+def _is_parent(section_id: str, cited: set[str]) -> list[str]:
+    """The cited subsections of this section, if any.
+
+    ``NBH-CARD-014-3`` is the parent of ``NBH-CARD-014-3.1``; the dot is the
+    corpus's own convention and every policy in `data/policies` follows it.
+    Prefix alone would be wrong -- ``NBH-CARD-014-3`` is a prefix of
+    ``NBH-CARD-014-31`` -- so the separator is required.
+    """
+    return sorted(other for other in cited if other.startswith(f"{section_id}."))
+
+
+def claim_ledger(case: CaseRecord, draft: AppealDraft | None) -> Ledger:
     """One row per claim the letter makes: the claim, the policy text it rests
     on, the chart evidence under it, and the verdict.
 
@@ -403,13 +553,29 @@ def claim_ledger(case: CaseRecord, draft: AppealDraft | None) -> list[dict[str, 
 
     Flagged rows sort first. Everything else keeps the letter's own order,
     which is the order the reader just met the claims in.
+
+    Two things are deliberately narrower than they look:
+
+      * **Findings are scoped to the attempt on screen.** See
+        `findings_on_attempt`. A ledger showing the current letter must not
+        warn about a sentence an earlier draft contained and this one does not.
+      * **A citation to a parent section is folded out of the table.** The
+        letter's opening sentence cites the whole of `NBH-CARD-014-3` and
+        names all five of its subsections; that one row carried five
+        subsections of policy text, eight chart quotations and five verdicts,
+        and it sorted first, so it was the first thing the eye landed on. It is
+        not a claim anyone can check -- every checkable part of it is one of
+        the five rows underneath. It is folded to a sentence under the table,
+        and only when every criterion it names is genuinely carried by a row
+        that survived, so nothing goes quiet.
     """
     if draft is None:
-        return []
+        return Ledger([], [])
 
     retrieval = case.retrieval
     verdicts = {v.criterion_id: v for v in (case.criteria.verdicts if case.criteria else [])}
-    findings = case_findings(case)
+    findings = findings_on_attempt(case, draft.attempt)
+    cited = {c.section_id for c in draft.citations}
 
     rows: list[dict[str, object]] = []
     for position, citation in enumerate(draft.citations):
@@ -418,9 +584,7 @@ def claim_ledger(case: CaseRecord, draft: AppealDraft | None) -> list[dict[str, 
 
         supporting = [verdicts[c] for c in citation.supporting_criterion_ids if c in verdicts]
         unevaluated = [c for c in citation.supporting_criterion_ids if c not in verdicts]
-        contested = findings_at(
-            findings, citation.section_id, *citation.supporting_criterion_ids
-        )
+        contested = findings_at(findings, citation.section_id, *citation.supporting_criterion_ids)
 
         # The offline drafter copies criterion text straight into `claim`, so on
         # seeded rows the two are the same paragraph. Printing it twice per row
@@ -448,11 +612,39 @@ def claim_ledger(case: CaseRecord, draft: AppealDraft | None) -> list[dict[str, 
                 "findings": contested,
                 "flagged": flagged,
                 "flag_reason": _flag_reason(contested, source_note, unevaluated, weak, unevidenced),
+                "children": _is_parent(citation.section_id, cited),
+                "criteria": list(citation.supporting_criterion_ids),
             }
         )
 
-    rows.sort(key=lambda row: (not row["flagged"], row["position"]))
-    return rows
+    kept, folded = _fold_parents(rows)
+    kept.sort(key=lambda row: (not row["flagged"], row["position"]))
+    return Ledger(kept, folded)
+
+
+def _fold_parents(
+    rows: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Split parent-section rows off the table, but only the safe ones.
+
+    A parent is folded only when the rows that remain already carry every
+    criterion it names and its own policy text is on the screen. Fold a row
+    that was flagged for something no surviving row repeats and the warning
+    disappears with it, which is a worse bug than the one being fixed.
+    """
+    covered: set[str] = set()
+    for row in rows:
+        if not row["children"]:
+            covered.update(row["criteria"])  # type: ignore[arg-type]
+
+    kept: list[dict[str, object]] = []
+    folded: list[dict[str, object]] = []
+    for row in rows:
+        safe = (
+            row["children"] and row["source_note"] is None and set(row["criteria"]) <= covered  # type: ignore[arg-type]
+        )
+        (folded if safe else kept).append(row)
+    return kept, folded
 
 
 def _flag_reason(
@@ -462,9 +654,15 @@ def _flag_reason(
     weak: list[CriterionVerdict],
     unevidenced: list[CriterionVerdict],
 ) -> str | None:
-    """One line naming why a row sorted to the top, in severity order."""
+    """One line naming why a row sorted to the top, in severity order.
+
+    ``None`` when Verification contested the row, because the objection itself
+    is printed immediately under the chip. Saying "Verification objected to this
+    claim" one line above "Verification objected: ..." is a stutter, and the
+    second of the two is the one carrying the information.
+    """
     if contested:
-        return f"Verification contested this on attempt {contested[0].attempt}."
+        return None
     if source_note:
         return "The policy text behind this claim is not on the screen."
     if unevaluated:
@@ -498,9 +696,15 @@ def mapping_rows(case: CaseRecord) -> list[dict[str, object]]:
     replace one wrong row with another. The objection is printed under the
     reasoning instead, and the row says a second model disagreed.
 
-    Confidence is suppressed on a contested or unevidenced row. `100%` beside
-    an evidence cell reading "No chart evidence cited" is a contradiction on
-    its face, and a clerk reads the number and moves on.
+    There is no confidence here. There was, and it was suppressed on the rows
+    where it was most obviously wrong -- contested, or with no evidence under
+    it -- which left the number standing on every other row as though those
+    were the only two ways a language model's self-report can mislead. Four
+    rows read `100% high` on a live case. The caption already made the argument
+    against the column: a clerk cannot act differently at ninety-four percent
+    than at eighty-eight, and there is no third thing they do at one hundred.
+    A number that changes no action and lends unearned weight to the row it
+    sits on is not information, and it is worse than blank.
     """
     matrix = case.criteria
     if matrix is None:
@@ -510,25 +714,8 @@ def mapping_rows(case: CaseRecord) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for verdict in matrix.verdicts:
         contested = findings_at(findings, verdict.criterion_id)
-        show_confidence = not contested and bool(verdict.evidence)
-        rows.append(
-            {
-                "verdict": verdict,
-                "findings": contested,
-                "contested": bool(contested),
-                "show_confidence": show_confidence,
-                "confidence_note": _confidence_note(contested, verdict),
-            }
-        )
+        rows.append({"verdict": verdict, "findings": contested, "contested": bool(contested)})
     return rows
-
-
-def _confidence_note(contested: list[Finding], verdict: CriterionVerdict) -> str | None:
-    if contested:
-        return "Not shown — Verification contested this row."
-    if not verdict.evidence:
-        return "Not shown — no chart evidence is cited on this row."
-    return None
 
 
 # --------------------------------------------------------------------------- #
@@ -559,16 +746,12 @@ def provenance(case: CaseRecord, draft: AppealDraft | None) -> Provenance | None
     caught = _caught(case, draft, sent_back)
 
     if not sent_back:
-        text = (
-            f"Attempt {draft.attempt}, and Verification passed it. "
-            f"Nothing was sent back."
-        )
+        text = f"Attempt {draft.attempt}, and Verification passed it. Nothing was sent back."
         return Provenance(text, draft.attempt, [], [])
 
     listed = _join_numbers(sent_back)
-    text = (
-        f"Attempt {draft.attempt}. Verification sent {listed} back"
-        + (f" — it caught {_join_prose(caught)}." if caught else ".")
+    text = f"Attempt {draft.attempt}. Verification sent {listed} back" + (
+        f" — it caught {_join_prose(caught)}." if caught else "."
     )
     return Provenance(text, draft.attempt, sent_back, caught)
 
@@ -686,9 +869,7 @@ def screening_view(screening: Any | None) -> ScreeningView:
         findings=findings,
         quarantined=quarantined,
         prominent=True,
-        headline=(
-            f"Sentinel found {count} item{'' if count == 1 else 's'} in this document"
-        ),
+        headline=(f"Sentinel found {count} item{'' if count == 1 else 's'} in this document"),
         line=f"{count} item{'' if count == 1 else 's'} found. See the banner above the letter.",
     )
 
@@ -1000,6 +1181,192 @@ def submission(case: CaseRecord) -> SubmissionView | None:
     )
 
 
+# --------------------------------------------------------------------------- #
+# The appeal ladder
+#
+# This is the claim the whole project rests on -- that a case is carried for
+# weeks with nobody watching it -- and it was one sentence on the page:
+# "Escalated to the next appeal level". CASE-006 has actually climbed a rung
+# unattended: the payer's thirty-day window lapsed, the scheduler woke, and
+# Lifecycle moved it from a first-level appeal to peer-to-peer review with a
+# fresh fourteen-day clock. Every part of that is on the record and none of it
+# was on the screen.
+# --------------------------------------------------------------------------- #
+
+LEVEL_LABELS: dict[AppealLevel, str] = {
+    AppealLevel.FIRST_LEVEL: "First-level appeal",
+    AppealLevel.PEER_TO_PEER: "Peer-to-peer review",
+    AppealLevel.SECOND_LEVEL: "Second-level appeal",
+    AppealLevel.EXTERNAL_REVIEW: "Independent external review",
+}
+
+
+def _ladder_order() -> list[AppealLevel]:
+    """The rungs in the order Lifecycle climbs them.
+
+    Walked from the table rather than written out again: two lists that both
+    claim to be the appeal ladder is how one of them goes stale.
+    """
+    order: list[AppealLevel] = []
+    level: AppealLevel | None = AppealLevel.FIRST_LEVEL
+    while level is not None and level not in order:
+        order.append(level)
+        level = APPEAL_LADDER[level].next_level
+    return order
+
+
+@dataclass(frozen=True)
+class Rung:
+    """One step of the ladder, and where the case is relative to it."""
+
+    label: str
+    window_days: int
+    state: str  # "climbed" | "here" | "ahead"
+
+
+@dataclass(frozen=True)
+class Escalation:
+    """A case that moved up the ladder without anyone asking it to."""
+
+    from_label: str
+    to_label: str
+    position: int  # 1-based rung the case is on now
+    total: int
+    count: int  # how many times it has escalated
+    at: datetime | None
+    actor: str | None
+    reason: str | None
+    lapsed_days: int | None  # the window that ran out to cause this
+    window_days: int | None  # the window it is now inside
+    deadline: datetime | None
+    deadline_days: int | None
+    next_label: str | None  # where it goes if nothing comes back
+    rungs: list[Rung]
+    line: str
+
+
+def escalation(case: CaseRecord, now: datetime | None = None) -> Escalation | None:
+    """Where this case is on the appeal ladder, and what put it there.
+
+    Returns ``None`` for a case that has never escalated, which is almost all of
+    them. Nothing is inferred that the record does not carry: the rung it was on
+    is read off the ladder table and ``escalation_count``, and the moment, the
+    actor and the reason are the transition the orchestrator wrote.
+    """
+    if case.escalation_count < 1:
+        return None
+
+    order = _ladder_order()
+    try:
+        index = order.index(case.appeal_level)
+    except ValueError:  # a level not on the ladder; say nothing rather than guess
+        return None
+
+    previous = order[max(0, index - 1)]
+    rung = APPEAL_LADDER[case.appeal_level]
+    moved = next((t for t in reversed(case.history) if t.to_status == CaseStatus.ESCALATED), None)
+
+    deadline = case.response_deadline
+    days: int | None = None
+    if deadline is not None:
+        days = (deadline - (now or datetime.now(UTC))).days
+
+    return Escalation(
+        from_label=LEVEL_LABELS.get(previous, str(previous.value).replace("_", " ")),
+        to_label=LEVEL_LABELS.get(case.appeal_level, str(case.appeal_level.value)),
+        position=index + 1,
+        total=len(order),
+        count=case.escalation_count,
+        at=moved.at if moved else None,
+        actor=moved.actor if moved else None,
+        reason=moved.note if moved else None,
+        lapsed_days=APPEAL_LADDER[previous].response_window_days,
+        window_days=rung.response_window_days,
+        deadline=deadline,
+        deadline_days=days,
+        next_label=(LEVEL_LABELS.get(rung.next_level) if rung.next_level else None),
+        rungs=[
+            Rung(
+                label=LEVEL_LABELS.get(level, str(level.value)),
+                window_days=APPEAL_LADDER[level].response_window_days,
+                state="here" if i == index else ("climbed" if i < index else "ahead"),
+            )
+            for i, level in enumerate(order)
+        ],
+        line=(
+            f"No answer came back within the "
+            f"{APPEAL_LADDER[previous].response_window_days}-day window on the "
+            f"{LEVEL_LABELS.get(previous, previous.value).lower()}, so this case moved itself "
+            f"to {LEVEL_LABELS.get(case.appeal_level, case.appeal_level.value).lower()}. "
+            f"Nobody asked it to."
+        ),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Traces
+#
+# `core/telemetry.py` opens a span per agent invocation and `core/audit.py`
+# stamps the trace and span id onto the audit event before it is written. Both
+# have been on the record since the first run and neither had ever reached a
+# screen, so the observability claim was a claim about a file rather than about
+# anything a reader could check.
+#
+# No link is offered. Cloud Trace is behind a Google sign-in and a project a
+# reader almost certainly cannot see, and a link that 403s is worse than an
+# identifier they can paste. The id is the thing; it is presented as the thing.
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class Traces:
+    """The distinct traces this case's agent invocations were recorded under."""
+
+    ids: list[str]
+    events: int  # events carrying a trace id
+    total: int  # events on the case
+    summary: str
+
+
+def traces(trail: list[Any]) -> Traces:
+    """Read the trace ids off the audit trail, oldest first, deduplicated.
+
+    Ordinarily one pipeline run is one trace, so this is one id. A case picked
+    up again later -- resumed after a failure, escalated weeks after it was
+    filed -- genuinely has more than one, and listing them is the honest shape:
+    the ladder is asynchronous, and its spans are not going to be in the same
+    trace as the intake that started it.
+    """
+    ids: list[str] = []
+    carried = 0
+    for event in trail:
+        trace_id = getattr(event, "trace_id", None)
+        if not trace_id:
+            continue
+        carried += 1
+        if trace_id not in ids:
+            ids.append(trace_id)
+
+    if not ids:
+        summary = (
+            "No trace id is recorded against this case. It ran in a process with "
+            "tracing switched off, so there is nothing to open in Cloud Trace."
+        )
+    elif len(ids) == 1:
+        summary = (
+            f"All {carried} recorded invocation{'' if carried == 1 else 's'} below "
+            f"belong to one trace. Every row is a span under it, including the "
+            f"drafting attempts Verification sent back."
+        )
+    else:
+        summary = (
+            f"{carried} recorded invocations across {len(ids)} traces — this case was "
+            f"picked up more than once, which is what a multi-week lifecycle looks "
+            f"like in a tracing backend."
+        )
+    return Traces(ids=ids, events=carried, total=len(trail), summary=summary)
+
+
 def approved_but_not_sent(case: CaseRecord) -> str | None:
     """The reason an approved case was pushed back to a human, if it was.
 
@@ -1198,11 +1565,10 @@ def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
             urgent.append(
                 {
                     "case_id": case.case_id,
-                    "patient": (
-                        case.denial.patient_name
-                        if case.denial and case.denial.patient_name
-                        else NOT_STATED
-                    ),
+                    # Through `display_name` like the table below it. The strip
+                    # showed "Creola518 Heller342" four inches above a row
+                    # reading "Creola Heller", which reads as two records.
+                    "patient": display_name(case.denial.patient_name if case.denial else None),
                     "deadline": seen,
                     "waiting_on": waiting_on(case.status),
                 }

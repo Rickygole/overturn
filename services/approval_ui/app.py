@@ -121,6 +121,7 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
         case = service.load(case_id)
         draft = view.draft_under_review(case)
         verification = _verification_for(case, draft)
+        trail = service.trail(case.case_id)
         context: dict[str, Any] = {
             "case": case,
             "denial": case.denial,
@@ -137,11 +138,15 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
             "screened": view.screening_view(case.screening),
             "status_phrase": view.status_phrase(case.status),
             "service_line": view.service_line(case.denial),
+            "patient": view.display_name(case.denial.patient_name if case.denial else None),
+            "amount": view.amount(case.denial),
             "readiness": view.readiness(case),
             "submission": view.submission(case),
+            "escalation": view.escalation(case),
             "stalled": view.approved_but_not_sent(case),
             "deadline": view.deadline_view(case.denial.appeal_deadline if case.denial else None),
-            "trail": service.trail(case.case_id),
+            "trail": trail,
+            "traces": view.traces(trail),
             "decidable": case.status == REVIEWABLE_STATUS,
             "error": str(error) if error else None,
             "error_field": error_field or getattr(error, "field", None),
@@ -183,6 +188,12 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
             "denial": case.denial,
             "matrix": case.criteria,
             "draft": draft,
+            # Both of these were the review screen's answers and not this one's:
+            # the head rendered `awaiting_human_approval` raw and the patient
+            # carried Synthea's numeric suffixes. Two spellings of one
+            # convention across two screens of one product is a seam.
+            "status_phrase": view.status_phrase(case.status),
+            "patient": view.display_name(case.denial.patient_name if case.denial else None),
             "readiness": view.readiness(case),
             "submission": view.submission(case),
             "stalled": view.approved_but_not_sent(case),
@@ -235,7 +246,10 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
         field somebody can type, and this is the screen a clerk works from.
         """
         active = view.waiting_filter(waiting)
-        rows = [view.queue_row(c) for c in service.open_cases()]
+        # Marked before the filter, not after: whether two cases share a claim
+        # number is a fact about the caseload, and a row that stops saying so
+        # because a filter hid its twin is a row that lies when narrowed.
+        rows = view.mark_shared_claims([view.queue_row(c) for c in service.open_cases()])
         shown = rows if active == "all" else [r for r in rows if r["waiting_key"] == active]
         return templates.TemplateResponse(
             request,
@@ -578,9 +592,7 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
         # copy without asking. That is how a redeploy of this page went
         # invisible in a real browser while curl showed the new one. The ETag
         # is already emitted, so revalidation costs a 304 and nothing more.
-        return FileResponse(
-            path, media_type=media_type, headers={"Cache-Control": "no-cache"}
-        )
+        return FileResponse(path, media_type=media_type, headers={"Cache-Control": "no-cache"})
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def landing() -> Response:

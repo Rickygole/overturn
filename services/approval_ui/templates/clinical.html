@@ -3,7 +3,10 @@
 {% block eyebrow %}Clinical co-sign{% endblock %}
 {% block masthead %}<span class="mono">{{ case.case_id }}</span>{% endblock %}
 {% block pagesub %}
-  Status <span class="chip chip--neutral">{{ case.status.value }}</span>
+  {# The status as a person would say it, the same phrasing the review screen
+     uses. This rendered `awaiting_human_approval` raw, one screen away from a
+     page that has spelled it out for months. #}
+  {{ status_phrase }}
   &nbsp;·&nbsp; Appeal deadline: {{ deadline.stated }}
   <span class="chip chip--{{ deadline.tone }}">{{ deadline.label }}</span>
 {% endblock %}
@@ -52,7 +55,7 @@
   <div class="section__body">
     {% if denial %}
     <dl class="facts">
-      <dt>Patient</dt><dd>{{ denial.patient_name or "Not stated in the letter" }}</dd>
+      <dt>Patient</dt><dd>{{ patient }}</dd>
       <dt>Payer</dt><dd>{{ denial.payer_name }}</dd>
       <dt>Service denied</dt>
       <dd>
@@ -97,14 +100,14 @@
           Each row is a requirement in the payer's own policy, the verdict reached on it, and the
           chart text that verdict rests on. {{ matrix.satisfied_count }} of
           {{ matrix.verdicts | length }} are satisfied with evidence. Read the quotations against
-          what you remember of the care.
+          what you remember of the care. There is no confidence column: nothing you are about to
+          sign changes at ninety-four percent rather than eighty-eight.
         </caption>
         <thead>
           <tr>
             <th scope="col">Criterion</th>
             <th scope="col">Verdict</th>
             <th scope="col">Chart evidence</th>
-            <th scope="col">Confidence</th>
           </tr>
         </thead>
         <tbody>
@@ -128,10 +131,6 @@
               {% else %}
               <span class="muted">No chart evidence cited</span>
               {% endfor %}
-            </td>
-            <td>
-              {{ row.confidence | pct }}<br>
-              <span class="muted">{{ row.confidence | confidence_band }}</span>
             </td>
           </tr>
           {% endfor %}

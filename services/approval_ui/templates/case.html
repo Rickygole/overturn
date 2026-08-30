@@ -4,8 +4,53 @@
 {% block masthead %}<span class="mono">{{ case.case_id }}</span>{% endblock %}
 {% block pagesub %}
   {% if denial %}{{ service_line }} · {{ denial.payer_name }}{% else %}Nothing has been extracted from this document yet{% endif %}<br>
-  {{ status_phrase }} ·
-  {% if deadline.days is not none %}Appeal due {{ deadline.stated }}{% else %}{{ deadline.label }}{% endif %}
+  {{ status_phrase }}
+{% endblock %}
+
+{# The three facts a reader needs before they read anything else: who, how much,
+   and by when. The amount used to sit three folds down inside an intake
+   footnote, on the one screen whose whole subject is whether this letter is
+   worth a clinician's signature. The deadline used to be said twice, in the
+   line above and again in that same fold; it is said once, here, where the
+   money joined it. #}
+{% block pagehead %}
+{{ super() }}
+{% if denial %}
+<dl class="facts casehead">
+  <dt>Patient</dt>
+  <dd>{{ patient }}{% if denial.member_id %} <span class="dim">· member <span class="mono">{{ denial.member_id }}</span></span>{% endif %}</dd>
+  <dt>Amount denied</dt>
+  <dd>
+    {% if amount %}
+    <strong>{{ amount.text }}</strong>
+    {% if not amount.stated %}
+    {# Not a field. Intake dropped the figure into its free-text note instead of
+       filling `billed_amount`, so the number is quoted from that sentence and
+       shown as a quotation. Printing it as though it were structured is how a
+       model's prose becomes somebody's data. #}
+    <br><span class="dim">Not extracted as a field. Intake recorded: “{{ amount.quote }}”</span>
+    {% endif %}
+    {% else %}
+    <span class="muted">No amount was extracted from the letter.</span>
+    {% endif %}
+  </dd>
+  <dt>Appeal deadline</dt>
+  <dd>
+    {{ deadline.stated }}
+    {% if deadline.days is not none %}
+    ·
+    {% if deadline.tone == "ok" and deadline.days > 30 %}
+    <span class="dim">{{ deadline.label }}</span>
+    {% else %}
+    <span class="chip chip--{{ deadline.tone }}">{{ deadline.label }}</span>
+    {% endif %}
+    {% endif %}
+  </dd>
+  {# No appeal level here. On an escalated case the block below carries it in
+     full, and the head already says the status; a third statement of one fact
+     is the noise this page was rebuilt to get rid of. #}
+</dl>
+{% endif %}
 {% endblock %}
 {% block nav %}
 <a href="/queue">Review queue</a>
@@ -66,6 +111,48 @@
     <blockquote class="evidence">{{ finding.excerpt }}</blockquote>
   </div>
   {% endfor %}
+</div>
+{% endif %}
+
+{# The one claim this project's whole architecture is for: that a case is
+   carried for weeks with nobody watching it. It used to be the six words
+   "Escalated to the next appeal level" in the page head. Every fact below was
+   already on the record — `case.history`, `case.appeal_level`,
+   `case.escalation_count` — and none of it was on a screen.
+
+   Renders on a case that has actually climbed a rung, and on no other. #}
+{% if escalation %}
+<div class="banner banner--note" role="status">
+  <h2>This case escalated itself</h2>
+  <p>{{ escalation.line }}</p>
+  <dl class="facts">
+    <dt>Was on</dt>
+    <dd>{{ escalation.from_label }} <span class="dim">· {{ escalation.lapsed_days }}-day response window, which lapsed</span></dd>
+    <dt>Now on</dt>
+    <dd><strong>{{ escalation.to_label }}</strong>
+      <span class="dim">· rung {{ escalation.position }} of {{ escalation.total }}{% if escalation.count > 1 %} · escalated {{ escalation.count }} times{% endif %}</span></dd>
+    <dt>Moved</dt>
+    <dd>
+      {% if escalation.at %}{{ escalation.at | fmt_datetime }}{% else %}No transition was recorded for the move.{% endif %}
+      {% if escalation.actor %}<br><span class="dim">by <span class="mono">{{ escalation.actor }}</span> on the schedule — no person was involved</span>{% endif %}
+    </dd>
+    {% if escalation.reason %}
+    <dt>Reason recorded</dt>
+    <dd>{{ escalation.reason }}</dd>
+    {% endif %}
+    <dt>Payer response due</dt>
+    <dd>
+      {% if escalation.deadline %}
+      {{ escalation.deadline | fmt_datetime }}
+      <span class="dim">· {{ escalation.window_days }}-day window{% if escalation.deadline_days is not none %}, {{ escalation.deadline_days }} day{{ "" if escalation.deadline_days == 1 else "s" }} left{% endif %}</span>
+      <br>{% if escalation.next_label %}If nothing comes back by then it escalates again, to
+      {{ escalation.next_label | lower }}, without being asked.{% else %}This is the last rung of the
+      ladder. If nothing comes back the case goes to a person.{% endif %}
+      {% else %}
+      <span class="muted">No response window is recorded, so nothing is watching this case for a reply.</span>
+      {% endif %}
+    </dd>
+  </dl>
 </div>
 {% endif %}
 
@@ -294,7 +381,7 @@
 <section class="section" aria-labelledby="ledger-h">
   <h2 id="ledger-h">What the letter claims, and the policy text behind it</h2>
   <div class="section__body">
-    {% if not ledger %}
+    {% if not ledger.rows %}
     <div class="card prose">
       <h3>This letter cites no policy section</h3>
       <p class="muted">An appeal with no citation is an opinion, and there is nothing here to
@@ -304,9 +391,10 @@
     <div class="table-scroll">
       <table class="ledger">
         <caption>
-          One row per claim the letter makes. The second column is the insurer's own words,
-          quoted from the policy set Retrieval returned — this is what the second confirmation
-          above asks you to check. Anything flagged sorts to the top.
+          One row per checkable claim the letter makes. The second column is the insurer's own
+          words, quoted from the policy set Retrieval returned — this is what the second
+          confirmation above asks you to check. Anything flagged sorts to the top, and every
+          flag here belongs to the attempt on screen.
         </caption>
         <thead>
           <tr>
@@ -317,7 +405,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for row in ledger %}
+          {% for row in ledger.rows %}
           <tr>
             <th scope="row">
               <span class="mono">{{ row.section_id }}</span><br>
@@ -360,10 +448,13 @@
               <span class="locator">{{ id }}</span></p>
               {% endfor %}
               {% if row.flagged %}
-              <p><span class="chip chip--caught">Flagged</span> <span class="note">{{ row.flag_reason }}</span></p>
+              {# No reason beside the chip when Verification contested the row:
+                 the objection itself is printed directly below, and the two
+                 said the same words one line apart. #}
+              <p><span class="chip chip--caught">Flagged</span>{% if row.flag_reason %} <span class="note">{{ row.flag_reason }}</span>{% endif %}</p>
               {% endif %}
               {% for finding in row.findings %}
-              <p class="note"><strong>Verification, attempt {{ finding.attempt }}:</strong> {{ finding.detail }}</p>
+              <p class="note"><strong>Verification objected:</strong> {{ finding.detail }}</p>
               {% endfor %}
             </td>
           </tr>
@@ -371,6 +462,19 @@
         </tbody>
       </table>
     </div>
+    {# The letter also cites the parent section that contains the rows above.
+       That citation used to be the first row of this table, and it carried five
+       subsections of policy text, eight chart quotations and five verdicts in
+       three cells — the first thing the eye landed on, and the one row nobody
+       can check, because everything checkable in it is one of the rows above.
+       It is a sentence now. Nothing is hidden: a parent is only folded when the
+       surviving rows already carry every criterion it names. #}
+    {% for row in ledger.folded %}
+    <p class="note">The letter also cites <span class="mono">{{ row.section_id }}</span>, the parent section holding
+    {% for child in row.children %}<span class="mono">{{ child }}</span>{% if not loop.last %}, {% endif %}{% endfor %}.
+    A citation to a whole section is not a claim you can check on its own; its requirements are the
+    rows above, one at a time.</p>
+    {% endfor %}
     {% endif %}
   </div>
 </section>
@@ -471,16 +575,15 @@
         <table>
           <caption>
             Whether the chart documents what the payer's own policy asks for. This is a
-            documentation judgement, not a clinical one. Confidence lives here rather than
-            beside the decision: a clerk cannot act differently at ninety-four percent than at
-            eighty-eight.
+            documentation judgement, not a clinical one. There is no confidence column: a clerk
+            cannot act differently at ninety-four percent than at eighty-eight, and there is no
+            third thing they do at one hundred. Read the evidence.
           </caption>
           <thead>
             <tr>
               <th scope="col">Criterion</th>
               <th scope="col">Verdict</th>
               <th scope="col">Chart evidence</th>
-              <th scope="col">Confidence</th>
             </tr>
           </thead>
           <tbody>
@@ -518,14 +621,6 @@
                 {% else %}
                 <span class="muted">No chart evidence cited</span>
                 {% endfor %}
-              </td>
-              <td>
-                {% if row.show_confidence %}
-                {{ row.verdict.confidence | pct }}<br>
-                <span class="muted">{{ row.verdict.confidence | confidence_band }}</span>
-                {% else %}
-                <span class="muted">{{ row.confidence_note }}</span>
-                {% endif %}
               </td>
             </tr>
             {% endfor %}
@@ -591,7 +686,7 @@
     </details>
 
     <details>
-      <summary>Audit trail — {{ trail | length }} recorded event{{ "" if trail|length == 1 else "s" }}</summary>
+      <summary>Audit trail — {{ trail | length }} recorded event{{ "" if trail|length == 1 else "s" }}{% if traces.ids %}, {{ traces.ids | length }} trace{{ "" if traces.ids | length == 1 else "s" }}{% endif %}</summary>
       {# One line when the screen was clean. A chip reading "No threats found"
          is a chip for a null result, and a page that shouts every time nothing
          happened has nothing left to shout with when something does. #}
@@ -605,6 +700,20 @@
         <dd class="mono">{{ screening.content_sha256[:16] }}…</dd>
       </dl>
       {% endif %}
+
+      {# OpenTelemetry has been emitting a span per agent invocation since the
+         first run, and `core/audit.py` stamps the trace and span id onto every
+         event before it is written. None of it had ever reached a screen, so
+         the observability claim was a claim about a source file.
+
+         No link. Cloud Trace is behind a Google sign-in and a project number a
+         reader almost certainly cannot see; a link that 403s is worse than an
+         identifier they can paste into a console they do have. #}
+      <p class="prose stack-4">{{ traces.summary }}</p>
+      {% for id in traces.ids %}
+      <p class="locator">Trace {{ id }}</p>
+      {% endfor %}
+
       <div class="table-scroll stack-4">
         <table>
           <thead>
@@ -620,7 +729,14 @@
             <tr>
               <td>{{ event.at | fmt_datetime }}</td>
               <td class="mono">{{ event.agent.value }}</td>
-              <td class="mono">{{ event.operation }}</td>
+              <td>
+                <span class="mono">{{ event.operation }}</span>
+                {# The span, on the row it belongs to. A column of its own would
+                   be sixteen hex characters wide on every row of a four-column
+                   table; under the operation it is a locator, which is what it
+                   is. #}
+                {% if event.span_id %}<br><span class="locator">span {{ event.span_id }}</span>{% endif %}
+              </td>
               <td>{{ event.decision }}{% if not event.succeeded %} <span class="chip chip--danger">failed</span>{% endif %}</td>
             </tr>
             {% else %}

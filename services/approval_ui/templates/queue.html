@@ -105,6 +105,13 @@
         <caption>
           Soonest appeal deadline first; cases with no stated deadline last.
           {% if payer %}Every case here is with {{ payer }}.{% endif %}
+          {# Said once here rather than argued on each row. Two cases carrying
+             one claim number is what a duplicate filing would look like, and a
+             reader who is not told otherwise reads it as one. #}
+          {% if rows | selectattr("same_claim") | first %}
+          Two rows here share a claim number: one denial arrived twice, on different paper. Each
+          arrival is its own case, and each row names its twin.
+          {% endif %}
         </caption>
         <thead>
           <tr>
@@ -131,6 +138,23 @@
               {% if row.waiting_key == "review" %}
               <br><span class="dim">Sent back because: {{ row.reason or "no reason recorded" }}</span>
               {% endif %}
+              {# CASE-001 and CASE-007 are the same patient, the same denied
+                 service and the same claim number, two rows apart, in a system
+                 whose headline engineering claim is a guard against duplicate
+                 filings. They are two arrivals of one denial — the second came
+                 as a scanned fax — and the queue said nothing at all, so a
+                 reader reaches "duplicate bug" long before the README.
+
+                 It sits in this cell for the same reason the sentence above
+                 does: it is a sentence, and the case column is one identifier
+                 wide. Only what the record proves is said — the claim number
+                 matches and the screened content hash does not. Which of the
+                 two is the fax is not on the case record, so this does not
+                 claim to know. #}
+              {% if row.same_claim %}
+              <br><span class="dim">{{ row.same_claim.line }} as
+                {% for other in row.same_claim.cases %}<a class="mono" href="/case/{{ other }}">{{ other }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</span>
+              {% endif %}
             </td>
             {# Spelled out here rather than interpolated. `view.waiting_on` is
                phrased to sit after the words "waiting on" in the urgent strip
@@ -154,12 +178,11 @@
               <span class="chip chip--{{ row.deadline.tone }}">{{ row.deadline.label }}</span>
               {% endif %}
             </td>
-            {# How many of those attempts verification sent back depends on how the
-               last one came out, and the row carries that. Assuming the newest
-               attempt passed is right on a case awaiting a decision and wrong on
-               one that exhausted its retries: that case had *every* attempt
-               rejected, and the old `attempts - 1` said 2 of 3 on a case whose own
-               reason line said all 3. The reason line was the true one. #}
+            {# How many attempts verification sent back is counted off the marks
+               rather than inferred from how the last one came out. Both earlier
+               rules were wrong on some real row: `attempts - 1` said 2 of 3 on a
+               case that had all 3 rejected, and "latest rejected means all
+               rejected" says 3 of 3 on a case whose second attempt passed. #}
             <td>
               {% if row.attempt_marks %}
               {# One mark per attempt, in the order they happened. The prose
@@ -173,14 +196,10 @@
               </span>
               {% endif %}
               {{ row.attempts }}
-              {% if row.verified == "rejected" %}
-                {% if row.attempts > 1 %}
-                <span class="dim">(all {{ row.attempts }} rejected by verification)</span>
-                {% else %}
-                <span class="dim">(rejected by verification)</span>
-                {% endif %}
-              {% elif row.verified == "passed" and row.attempts > 1 %}
-              <span class="dim">({{ row.attempts - 1 }} rejected by verification)</span>
+              {% if row.rejected and row.rejected == row.attempts %}
+              <span class="dim">({{ "rejected by verification" if row.attempts == 1 else "all " ~ row.attempts ~ " rejected by verification" }})</span>
+              {% elif row.rejected %}
+              <span class="dim">({{ row.rejected }} rejected by verification)</span>
               {% endif %}
             </td>
           </tr>

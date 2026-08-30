@@ -366,6 +366,16 @@ tbody th .normal,tbody th .locator{white-space:normal}
   .facts dt:first-child{margin-top:0}
 }
 
+/* The three facts a reader needs before they read anything: who, how much, by
+   when. The amount used to be three folds down inside an intake footnote, and
+   it is what the appeal is for.
+
+   Not a new component — the same `.facts` grid the record already uses, ruled
+   off the head above it. It has to come *after* `.facts` in this file: that
+   rule sets `margin:0` at equal specificity, and declared first this one lost
+   its spacing entirely and the block below it collided with the head. */
+.casehead{margin:0 0 var(--s7);padding-top:var(--s4);border-top:1px solid var(--hair)}
+
 /* ── verdict and status chips ────────────────────────────────────────────
    Three independent channels carry the same meaning: the word, the colour,
    and the border style. Remove any two and the table still reads.
@@ -477,11 +487,13 @@ summary::marker{color:var(--dim)}
   max-width:66ch;
 }
 
-/* The claim ledger. Four columns of quotation, so the first two get the room
-   and the last two get out of the way. */
+/* The claim ledger. Four columns of quotation, so they are given equal room
+   rather than left to the browser's content-based guess: the verdict column now
+   carries Verification's objection in full, and auto layout was handing it the
+   narrowest cell on the row to set a paragraph in. */
 .ledger td,.ledger th{vertical-align:top}
-.ledger tbody th{white-space:normal;width:26%}
-.ledger td:first-of-type{width:30%}
+.ledger tbody th{white-space:normal;width:22%}
+.ledger td:nth-of-type(1),.ledger td:nth-of-type(2),.ledger td:nth-of-type(3){width:26%}
 .ledger td>.note:first-child{margin-top:0}
 
 label{display:block;font-weight:500;font-size:var(--fs-md);margin-bottom:var(--s1)}
@@ -794,7 +806,11 @@ fieldset.gate{
    thing: most letters pass first time, some are sent back, one never passes. */
 .marks{display:inline-flex;gap:3px;vertical-align:middle;margin-right:var(--s2)}
 .mark{width:7px;height:14px;border-radius:1px;border:1px solid var(--dim)}
-.mark--passed{background:var(--ok);border-color:var(--ok)}
+/* `var(--ok)`, which is not a token in this file — the tokens for meaning are
+   --good, --bad and --warn. Both declarations were invalid, so a passed attempt
+   fell back to the bare outline and was indistinguishable from one that had not
+   been checked yet. The whole point of the mark is telling those apart. */
+.mark--passed{background:var(--good);border-color:var(--good)}
 .mark--rejected{background:transparent;border-style:dashed;border-color:var(--warn)}
 .mark--pending{background:var(--hair);border-color:var(--hair)}
 </style>

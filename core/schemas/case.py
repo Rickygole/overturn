@@ -8,7 +8,6 @@ Firestore, and any worker that picks the case up can resume from it.
 from __future__ import annotations
 
 import re
-
 from datetime import datetime, timedelta
 
 from pydantic import Field, computed_field
