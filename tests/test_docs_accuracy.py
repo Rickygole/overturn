@@ -281,3 +281,44 @@ def test_the_site_names_the_cloud_run_services_that_exist(page: Path):
         f"{page.name} enumerates three Cloud Run services without the scheduler -- "
         f"the one that makes the multi-week escalation claim real"
     )
+
+
+# --------------------------------------------------------------------------- #
+# Artifacts the contest rules require a judge to be able to reach
+# --------------------------------------------------------------------------- #
+#
+# A judge scoring this submission recorded a Stage One FAIL: the architecture
+# diagram was unreachable. It was being served the whole time and nothing linked
+# to it, because the pages that used to link to it were deleted. Stage One is
+# pass/fail on whether the required artifacts are present, so an unreachable
+# diagram is worth exactly as much as no diagram.
+
+def test_the_architecture_diagram_exists():
+    assert (DOCS / "architecture.svg").is_file()
+
+
+def test_the_diagram_is_reachable_from_the_front_door():
+    """One click from the root, not one clone of the repository."""
+    index = (DOCS / "index.html").read_text()
+    reference = (DOCS / "system.html")
+    assert reference.is_file(), "the page carrying the required artifacts is gone"
+    assert "system.html" in index, "nothing on the front door links to it"
+    assert "architecture.svg" in reference.read_text()
+
+
+def test_the_reference_page_carries_setup_instructions():
+    """The rules ask for reproducible spin-up steps a judge can find."""
+    page = (DOCS / "system.html").read_text()
+    for token in ("git clone", "uv sync", "scripts/evaluate.py"):
+        assert token in page, f"{token!r} missing from the reference page"
+
+
+def test_the_front_door_states_both_measures_not_only_the_flattering_one():
+    """8/8 grounded and 6/8 outcomes measure different things.
+
+    Publishing only the grounding figure, on a project whose credibility rests
+    on having published the unflattering one, is the worst available trade.
+    """
+    index = (DOCS / "index.html").read_text()
+    if "8/8" in index:
+        assert "6/8" in index, "the front door publishes 8/8 without 6/8"

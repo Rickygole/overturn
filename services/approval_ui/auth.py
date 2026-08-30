@@ -123,6 +123,7 @@ SITE_PATHS = frozenset(
     {
         "/",
         "/index.html",
+        "/system.html",
         "/styles.css",
         "/app.js",
         "/architecture.svg",
