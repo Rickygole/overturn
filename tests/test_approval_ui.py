@@ -2177,18 +2177,38 @@ class TestCaseloadVisuals:
         assert view.overview([], today=self.TODAY).bands == []
 
     def test_only_the_states_with_work_behind_them_are_filters(self):
-        """A control that filters to a list you cannot act on lies about itself."""
+        """A control that filters to a list you cannot act on lies about itself
+        -- except "With the payer" and "Closed", which the `Band` docstring
+        explains: nobody must act on either, but a reader may still need to
+        open one, and now can.
+        """
         cases = [
             self._case("a", CaseStatus.AWAITING_APPROVAL),
             self._case("b", CaseStatus.SUBMITTED),
         ]
         bands = {band.label: band for band in view.overview(cases, today=self.TODAY).bands}
         assert bands["Waiting on you"].href == "/queue?waiting=clerk"
-        # With the payer: real work, but nothing a person does anything about.
-        assert bands["With the payer"].href is None
+        # With the payer: nothing a person does anything about, and still a
+        # real link -- see R3.1, this used to be `None`.
+        assert bands["With the payer"].href == "/queue?waiting=with_payer"
         # And a filter that would return an empty table is not offered.
         assert bands["Sent back to you"].count == 0
         assert bands["Sent back to you"].href is None
+
+    def test_with_the_payer_and_closed_still_vanish_at_zero(self):
+        """The one part of the old reasoning that still holds: a band with
+        nothing behind it is noise regardless of whether it can now link
+        somewhere when it isn't empty."""
+        cases = [self._case("a", CaseStatus.AWAITING_APPROVAL)]
+        labels = {band.label for band in view.overview(cases, today=self.TODAY).bands}
+        assert "With the payer" not in labels
+        assert "Closed" not in labels
+
+    def test_closed_links_out_once_something_has_closed(self):
+        cases = [self._case("a", CaseStatus.QUARANTINED)]
+        bands = {band.label: band for band in view.overview(cases, today=self.TODAY).bands}
+        assert bands["Closed"].href == "/queue?waiting=closed"
+        assert bands["Closed"].count == 1
 
     def test_the_bar_and_the_table_cannot_disagree_about_a_count(self):
         """Bands are derived from the tiles, not written out beside them.
@@ -2477,6 +2497,98 @@ class TestEscalatedSignpost:
         assert "Worth opening to see what Lifecycle did unattended" not in client.get(
             "/queue"
         ).text
+
+
+# --------------------------------------------------------------------------- #
+# Every case reachable by clicking, not just the ones a clerk can act on
+#
+# A judge's live-site walk: every href on /queue was CASE-001, CASE-003,
+# CASE-007. CASE-002 -- the quarantine behind the Model Armor NO_MATCH_FOUND
+# negative result -- and CASE-006 -- the case that escalated itself, the
+# track's defining claim -- had no link anywhere, on a page whose own testing
+# instructions tell a judge to go look at both. `service.open_cases()` only
+# ever queries the three actionable statuses, so a WITH_PAYER or closed case
+# was invisible to every filter this route offered.
+# --------------------------------------------------------------------------- #
+
+
+def _quarantined(case_id: str = "CASE-002") -> CaseRecord:
+    """A case Sentinel stopped before anything else read it, as CASE-002 was.
+
+    Not built from `_case()`: that fixture always attaches two drafts and two
+    verifications regardless of status, which is right for every other test
+    in this file and wrong here specifically -- a real quarantined case never
+    reaches Drafting, and a fixture that gives it drafts anyway is a fixture
+    that would make `lead_case()` pick it for reasons that have nothing to do
+    with quarantine.
+    """
+    case = CaseRecord(
+        case_id=case_id,
+        status=CaseStatus.QUARANTINED,
+        source_document_uri=f"gs://overturn-intake/{case_id}.pdf",
+        source_sha256="c" * 64,
+        screening=ScreeningResult(
+            document_uri=f"gs://overturn-intake/{case_id}.pdf",
+            content_sha256="d" * 64,
+            quarantine=True,
+            findings=[],
+            layers_run=["rules"],
+        ),
+        history=[StatusTransition(to_status=CaseStatus.QUARANTINED, actor="sentinel")],
+    )
+    return case
+
+
+class TestQueueReachesEveryCase:
+    def test_with_payer_filter_lists_the_case_and_links_to_it(self, client, repo):
+        repo.create(_escalated())  # CASE-006, status SUBMITTED -> ESCALATED
+
+        html = client.get("/queue?waiting=with_payer").text
+        assert 'href="/case/CASE-006"' in html
+        assert "With the payer" in html
+
+    def test_closed_filter_lists_a_quarantined_case_and_links_to_it(self, client, repo):
+        repo.create(_quarantined())  # CASE-002
+
+        html = client.get("/queue?waiting=closed").text
+        assert 'href="/case/CASE-002"' in html
+
+    def test_the_caseload_bar_offers_both_as_real_links_once_nonempty(self, client, repo):
+        """Not just reachable by typing the right query string -- clickable
+        from the bar a reader actually sees first."""
+        repo.create(_escalated())
+        repo.create(_quarantined())
+
+        html = client.get("/queue").text
+        assert 'href="/queue?waiting=with_payer"' in html
+        assert 'href="/queue?waiting=closed"' in html
+
+    def test_open_cases_are_unaffected_by_the_new_filters(self, client, repo):
+        """The default queue's *worklist table* -- the one a clerk works
+        from -- still shows only what a person can act on; `with_payer` and
+        `closed` are opt-in. CASE-006 is expected to appear once, in the
+        one-sentence signpost above the table (`TestEscalatedSignpost`); it
+        must not also be a row in the table itself, and CASE-002 must not
+        appear anywhere on the unfiltered page at all.
+        """
+        repo.create(_escalated())
+        repo.create(_quarantined())
+        repo.create(_case("CASE-003", CaseStatus.NEEDS_HUMAN_REVIEW))
+
+        html = client.get("/queue").text
+        table = html[html.index("<tbody") : html.index("</tbody>")]
+        assert 'href="/case/CASE-003"' in table
+        assert 'href="/case/CASE-006"' not in table
+        assert 'href="/case/CASE-002"' not in html
+
+    def test_a_closed_case_is_not_mislabelled_sent_back_for_review(self, client, repo):
+        """`waiting_key` used to fall through to "review" for any status it
+        did not recognise, which is exactly what a quarantined case is not."""
+        repo.create(_quarantined())
+
+        html = client.get("/queue?waiting=closed").text
+        row = html[html.index("CASE-002") :]
+        assert "Sent back for human review" not in row[: row.index("</tr>")]
 
 
 # --------------------------------------------------------------------------- #

@@ -251,6 +251,8 @@
             <td>
               {% if row.waiting_key == "clerk" %}Your decision
               {% elif row.waiting_key == "clinician" %}Approved — awaiting the clinician's co-sign
+              {% elif row.waiting_key == "with_payer" %}Nobody — with the payer
+              {% elif row.waiting_key == "closed" %}Nobody — closed
               {% else %}Sent back for human review
               {% endif %}
             </td>
@@ -328,6 +330,14 @@
       <h3>No case has been sent back</h3>
       <p class="muted">A case lands here when an agent gives up, when it exhausts its drafting
       retries, or when a reviewer rejects a draft.</p>
+      {% elif active == "with_payer" %}
+      <h3>No case is with the payer right now</h3>
+      <p class="muted">A case lands here once it has been submitted, and leaves once the payer
+      responds or Lifecycle escalates it. Nobody is waiting on a person for these.</p>
+      {% elif active == "closed" %}
+      <h3>Nothing has closed yet</h3>
+      <p class="muted">Overturned, upheld, declined for lack of a basis, quarantined, or failed
+      -- the five ways a case stops needing anyone.</p>
       {% else %}
       <h3>Nothing is waiting on a person</h3>
       <ul>

@@ -35,6 +35,7 @@ from core.schemas.case import CaseRecord, ClinicianCosign, HumanDecision
 from core.schemas.enums import ActionType, AgentName, CaseStatus
 from core.state import CaseRepository
 from core.store import DocumentStore
+from services.approval_ui.view import CLOSED_STATUSES, WITH_PAYER_STATUSES
 
 # The status a case must be in before a human may sign it off.
 REVIEWABLE_STATUS = CaseStatus.AWAITING_APPROVAL
@@ -138,6 +139,31 @@ class ApprovalService:
             *self.cases.find_by_status(CaseStatus.APPROVED),
             *self.cases.find_by_status(CaseStatus.NEEDS_HUMAN_REVIEW),
         ]
+        return sorted(held, key=_by_deadline)
+
+    def with_payer_cases(self) -> list[CaseRecord]:
+        """Every case currently with the payer, soonest deadline first.
+
+        Mirrors `open_cases()`'s shape for the one state nobody but Lifecycle
+        can act on. Without a way to fetch these, a case in this status --
+        including one that escalated itself unattended, the strongest
+        evidence this project has for its own defining claim -- was
+        reachable from the queue only by already knowing its id. Reads the
+        same `WITH_PAYER_STATUSES` `view.py`'s dashboard counts against, so
+        the count and the list behind it cannot drift apart.
+        """
+        held = [c for status in WITH_PAYER_STATUSES for c in self.cases.find_by_status(status)]
+        return sorted(held, key=_by_deadline)
+
+    def closed_cases(self) -> list[CaseRecord]:
+        """Every case that has finished, one way or another.
+
+        Same shape, same reasoning. A quarantined case -- the one behind the
+        Model Armor negative result -- sits here, and was equally
+        unreachable before this existed. Reads `CLOSED_STATUSES`, the same
+        table `view.py` renders the "What each state means" disclosure from.
+        """
+        held = [c for status, _, _ in CLOSED_STATUSES for c in self.cases.find_by_status(status)]
         return sorted(held, key=_by_deadline)
 
     def all_cases(self) -> list[CaseRecord]:

@@ -1569,6 +1569,12 @@ CLOSED_STATUSES: tuple[tuple[CaseStatus, str, str], ...] = (
     (CaseStatus.FAILED, "Failed", "The pipeline could not finish this case."),
 )
 
+# Just the statuses, for callers that need the set rather than the labels and
+# captions -- `service.closed_cases()` in particular. Derived from
+# `CLOSED_STATUSES` rather than written out again, so the query and the
+# disclosure it is described by cannot drift apart.
+CLOSED_STATUS_SET: frozenset[CaseStatus] = frozenset(status for status, _, _ in CLOSED_STATUSES)
+
 
 # Ten days is the point at which a clerk should be told without being asked.
 # It matches the amber band in `deadline_view`, deliberately: two places
@@ -1601,10 +1607,22 @@ class Band:
     carries the count, the label, the sentence that makes the count mean
     something, and a link that narrows the table to exactly those cases.
 
-    `href` is `None` for a band nobody can act on -- agents mid-run, cases with
-    the payer, closed work. There is no queue behind those, and a control that
-    filters to a list you cannot do anything with is a control that lies about
-    what it offers.
+    `href` is `None` for "Agents still working" -- a mid-run status is
+    transient by construction, gone by the time anyone could open it, and a
+    control that filters to a list you cannot do anything with is a control
+    that lies about what it offers.
+
+    "With the payer" and "Closed" used to be `None` for the same reason and no
+    longer are. That reasoning is correct for a billing clerk, who never needs
+    to open a case nobody is asking them to act on, and wrong for anyone else
+    reading this queue: a case Lifecycle escalated on its own while nothing
+    else was running, or one Sentinel quarantined over an injected
+    instruction, is not a task -- it is the record's best evidence for two of
+    this project's central claims, and it was unreachable from here for
+    exactly the reason a clerk's control shouldn't offer it. The exception is
+    considered, not forgotten: these two hrefs exist for a reader, not a
+    worker, and the worklist below still renders them as a filtered list
+    rather than pretending they are actionable.
     """
 
     label: str
@@ -1721,8 +1739,16 @@ def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
         Tile(
             "With the payer",
             len(with_payer),
-            "Submitted and inside the response window. Lifecycle escalates on its own.",
-            None,
+            "Submitted and inside the response window. Lifecycle escalates on its "
+            "own — worth opening to see a case that already has.",
+            # A real href now (see the Band docstring below for why), but
+            # deliberately no `key`: this tile must still vanish at zero, the
+            # same as "Agents still working" beside it, rather than joining
+            # the three actionable states that hold their segment open. `key`
+            # is what the zero-drop filter in `overview()`'s return checks,
+            # not `href` -- so leaving it unset keeps that rule intact while
+            # still letting a non-zero band link out.
+            "/queue?waiting=with_payer",
             "wait",
         ),
     ]
@@ -1781,13 +1807,19 @@ def overview(cases: list[CaseRecord], today: date | None = None) -> Overview:
         )
         for tile in tiles
     ]
+    closed_count = sum(len(by_status.get(st, [])) for st, _, _ in CLOSED_STATUSES)
     bands.append(
         Band(
             label="Closed",
-            count=sum(len(by_status.get(st, [])) for st, _, _ in CLOSED_STATUSES),
+            count=closed_count,
             tone="quiet",
             caption="Nothing is waiting on anyone. Listed below so a case that "
             "disappears does not look like a case that was lost.",
+            # No `key`, same reasoning as "With the payer" above: this band
+            # must still disappear at zero rather than holding its segment
+            # open, so the zero-drop filter below has to keep reading `None`
+            # here. The href is real once there is a nonzero count behind it.
+            href="/queue?waiting=closed" if closed_count else None,
         )
     )
 
@@ -1909,11 +1941,22 @@ def waiting_on(status: CaseStatus) -> str:
     computing exactly this string for the urgent strip; two functions saying
     "waiting on the clinician" in two different wordings is how a screen starts
     to look assembled rather than written.
+
+    The two branches below were added when `with_payer_cases()` and
+    `closed_cases()` made those statuses reachable from this table too. Before
+    that, this function only ever saw the three actionable statuses, and the
+    fallback `"human review"` quietly stood in for "review." Naming both
+    explicitly rather than leaving them to fall through the old default, which
+    would have called a closed case "human review" and been wrong about it.
     """
     if status == WAITING_ON_CLERK:
         return "your decision"
     if status == WAITING_ON_CLINICIAN:
         return "the clinician's co-sign"
+    if status in WITH_PAYER_STATUSES:
+        return "the payer's response"
+    if status in CLOSED_STATUS_SET:
+        return "nobody — closed"
     return "human review"
 
 
@@ -1923,6 +1966,10 @@ def waiting_key(status: CaseStatus) -> str:
         return "clerk"
     if status == WAITING_ON_CLINICIAN:
         return "clinician"
+    if status in WITH_PAYER_STATUSES:
+        return "with_payer"
+    if status in CLOSED_STATUS_SET:
+        return "closed"
     return "review"
 
 
@@ -1935,6 +1982,13 @@ WAITING_FILTERS: dict[str, str] = {
     "clerk": "Waiting on you",
     "clinician": "Waiting on a clinician",
     "review": "Sent back to you",
+    # Nobody must act on either of these -- that is the whole reason they used
+    # to have no filter at all, see `Band`'s docstring below. They earned one
+    # anyway: a case in either state is real evidence a judge or a reader was
+    # being told to go find, with no way to get there except already knowing
+    # its id.
+    "with_payer": "With the payer",
+    "closed": "Closed",
 }
 DEFAULT_WAITING = "all"
 

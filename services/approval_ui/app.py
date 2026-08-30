@@ -255,14 +255,28 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
         # Marked before the filter, not after: whether two cases share a claim
         # number is a fact about the caseload, and a row that stops saying so
         # because a filter hid its twin is a row that lies when narrowed.
-        rows = view.mark_shared_claims([view.queue_row(c) for c in service.open_cases()])
-        shown = rows if active == "all" else [r for r in rows if r["waiting_key"] == active]
+        open_rows = view.mark_shared_claims([view.queue_row(c) for c in service.open_cases()])
+        # "with_payer" and "closed" are not filters *into* the open worklist --
+        # nobody in either state is waiting on a person, so they were never in
+        # `open_rows` to filter down to. They are their own source, fetched
+        # only when asked for, which is what keeps every other request on this
+        # route as cheap as it always was. `total_open` stays pinned to the
+        # open worklist regardless, because "Show everything waiting on a
+        # person" means that list specifically, not whatever is on screen.
+        if active == "with_payer":
+            shown = view.mark_shared_claims([view.queue_row(c) for c in service.with_payer_cases()])
+        elif active == "closed":
+            shown = view.mark_shared_claims([view.queue_row(c) for c in service.closed_cases()])
+        elif active == "all":
+            shown = open_rows
+        else:
+            shown = [r for r in open_rows if r["waiting_key"] == active]
         return templates.TemplateResponse(
             request,
             "queue.html",
             {
                 "rows": shown,
-                "total_open": len(rows),
+                "total_open": len(open_rows),
                 "active": active,
                 "active_label": view.WAITING_FILTERS[active],
                 "payer": view.one_payer(shown),
