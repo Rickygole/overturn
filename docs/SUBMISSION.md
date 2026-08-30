@@ -148,12 +148,15 @@ in the draft.
       `/case/{case_id}/clinical` — so the earlier blocker ("Approve" only
       reaches `approved`, not `submitted`) is closed. Confirm `VIDEO_SCRIPT.md`'s
       note about this has been resolved there before recording that beat.
-- [ ] If showing the hosted approval UI rather than a local run, confirm the
-      login actually works first: open the `.run.app` URL cold and log in with
-      `northbeck-appeals-2026`. If it 403s instead of showing a login page, the
-      manual step in `docs/RUNBOOK.md` ("The approval UI's login, and what
-      `deploy.sh` doesn't do for it") needs to be reapplied — a redeploy since
-      it was last set reverts it.
+- [ ] If showing the hosted approval UI rather than a local run, confirm two
+      things before recording, not one: the queue itself opens with **no**
+      login prompt (reading is open by design — see "Testing notes for
+      judges" above, and do not film a login screen at `/queue`, there isn't
+      one), and then that approving or rejecting a case *does* ask for
+      `northbeck-appeals-2026` if the session has expired. `infra/deploy.sh`
+      sets the app password itself now, inside the same `gcloud run deploy`
+      call, as long as `overturn-ui-secret` already exists in Secret Manager
+      — there is no separate manual step left to reapply after a redeploy.
 
 Shot list and narration timings are in [`VIDEO_SCRIPT.md`](VIDEO_SCRIPT.md).
 

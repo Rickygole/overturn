@@ -109,9 +109,15 @@ fi
 #
 # Read from Secret Manager, the same secret open_public.sh creates and reuses,
 # so the session signing key stays stable across revisions. If the secret does
-# not exist yet this stays empty and the service deploys closed: with no
-# password configured the app refuses to serve the queue at all, which is the
-# right way to fail.
+# not exist yet this stays empty.
+#
+# Correction to an earlier version of this comment: that does NOT make the
+# app "refuse to serve the queue." AuthConfig.enabled in services/approval_ui/auth.py
+# is False with no password set, which turns off the app-level door entirely --
+# every route, including the three that change a case, would be reachable with
+# no login at all. What actually keeps a fresh deploy closed is the
+# --no-allow-unauthenticated flag below, Cloud Run's own IAM check, which is
+# unconditional and does not depend on whether this secret exists.
 UI_ENV=""
 UI_PASSWORD="${OVERTURN_UI_PASSWORD:-northbeck-appeals-2026}"
 if gcloud secrets describe overturn-ui-secret --project="${PROJECT_ID}" >/dev/null 2>&1; then
@@ -162,12 +168,18 @@ deploy_service overturn-ingest "${ORCHESTRATOR_SA}" "${MAX_INGEST}" false ingest
 echo
 # The service named plainly `overturn` because it serves the whole product: the
 # public site at / and the review queue at /queue, one address, one deployment.
-# The site pages are public (they describe the system and hold no case data);
-# everything that renders a case sits behind the login in services/approval_ui.
+# The site pages are public (they describe the system and hold no case data).
+# Reading a case is public too -- services/approval_ui/auth.py's
+# require_session middleware only gates the three routes that change one
+# (approve, reject, co-sign); GET and HEAD bypass the app-level login
+# entirely. This comment used to claim "everything that renders a case sits
+# behind the login," which stopped being true once reading was opened up.
 #
-# Two gates stack here. This script leaves Cloud Run's IAM check on, which
-# returns 403 in a browser. `infra/open_public.sh` is the deliberate, separate
-# act that removes it and leaves only the app password -- publishing should be
+# Two gates stack here regardless. This script leaves Cloud Run's IAM check
+# on, which returns 403 in a browser for the whole service, reading included.
+# `infra/open_public.sh` is the deliberate, separate act that removes that
+# IAM check and leaves the app-level password as the only remaining gate --
+# and even that only ever gated the three write routes -- so publishing is
 # something someone chose, not a side effect of deploying.
 #
 # min-instances is 1 rather than 0: this is the first thing a visitor sees, and

@@ -45,9 +45,17 @@ class AuthConfig:
         """No password configured means no door.
 
         Local development and the test suite run without one, and adding a login
-        to a store that lives in one process would be ceremony. The deployed
-        service always has one — `infra/deploy.sh` refuses to make the service
-        public without it.
+        to a store that lives in one process would be ceremony.
+
+        Correction to an earlier version of this docstring: `infra/deploy.sh`
+        does *not* refuse to make the service public without a password. If
+        `overturn-ui-secret` is missing it logs a warning and deploys anyway,
+        with `UI_ENV` empty -- `enabled` would be `False` and every route,
+        including the three that change a case, would be ungated. What
+        actually keeps a fresh deployment closed is Cloud Run's own IAM check
+        (`--no-allow-unauthenticated`, set unconditionally in `deploy.sh`),
+        which is a different layer entirely and does not depend on this
+        property at all.
         """
         return bool(self.password)
 
