@@ -98,6 +98,27 @@ class TestDiagram:
     def test_it_is_embedded_in_the_architecture_document(self):
         assert "architecture.svg" in (DOCS / "ARCHITECTURE.md").read_text()
 
+    def test_the_readme_permission_table_is_the_generated_one(self) -> None:
+        """The README says this table "cannot drift from what the code does".
+
+        That claim was prose, not machinery. A find-and-replace pass over the
+        published markdown turned the em dash in Sentinel's Returns cell into a
+        stray ", " and every one of the 765 tests still passed, because nothing
+        compared the shipped table to the generator. It stayed wrong for six
+        days, in the first table a judge reads, under a sentence promising it
+        could not be wrong. So: compare them.
+        """
+        from core.registry import build_catalogue, render_table
+
+        rendered = render_table(build_catalogue())
+        readme = (REPO / "README.md").read_text()
+        for line in rendered.splitlines():
+            assert line in readme, (
+                "README.md no longer contains this row from "
+                f"render_table(build_catalogue()):\n  {line}\n"
+                "Regenerate with: uv run python scripts/seed_registry.py"
+            )
+
 
 class TestReadmeClaims:
     def test_the_payer_is_never_the_real_one(self):

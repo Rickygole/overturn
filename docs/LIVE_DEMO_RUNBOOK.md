@@ -28,7 +28,7 @@ output confirmed, so nothing here should surprise you on camera.
 gcloud run services list --region=us-central1
 ```
 
-Four services, all `True`. Say out loud that `overturn` is the human interface,
+Three services, all `True`. Say out loud that `overturn` is the human interface,
 `overturn-ingest` and `overturn-scheduler` are private — Pub/Sub and Cloud
 Scheduler invoke them, never a browser — and that a 403 from those two in a
 browser is correct rather than broken.

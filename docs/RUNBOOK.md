@@ -183,7 +183,7 @@ number — but the shape of the cost is worth knowing before you turn it on:
 | Firestore (Native mode) | $0 — a demo's read/write volume is far under the free tier | — |
 | Cloud Scheduler (1 job) | $0 — the first 3 jobs per project are free | — |
 | Artifact Registry | Pennies per GB-month for one image | — |
-| **Vertex AI (Gemini calls via ADK)** | $0 idle | **The line item that actually moves.** Each case through the pipeline is roughly 6–10 model calls (screen, extract, retrieve, map, draft, verify ×2, occasional retries). At Flash pricing, expect well under a dollar for a day of iterating and recording a handful of cases. |
+| **Vertex AI (Gemini calls via ADK)** | $0 idle | **The line item that actually moves.** Each case through the pipeline is a handful of model calls (screen, extract, retrieve, map, draft, verify, occasional retries). The measured live run was 44 calls across all eight cases, and four of those eight correctly produced no appeal at all. At Flash pricing, expect well under a dollar for a day of iterating and recording a handful of cases. |
 
 The honest summary: infrastructure is close to free at demo volume because
 everything scales to zero; the money is in how many times you run a case
@@ -371,34 +371,37 @@ and deleting Firestore data is a one-way door this script doesn't open for you.
   `infra/deploy.sh` (see "One-time setup" and the troubleshooting table
   above). Skipping it means the push subscription points at a route that
   doesn't exist and every message ends up in the dead-letter topic.
-- **`services/approval_ui` now has a real login (`services/approval_ui/auth.py`,
-  `templates/login.html`), and `infra/deploy.sh` has not caught up to it.** A
-  shared password (`OVERTURN_UI_PASSWORD`) plus a signed session cookie
-  (`OVERTURN_UI_SECRET`) is the door; unset, `AuthConfig.enabled` is `False`
-  and there is no door at all — local dev and the test suite deliberately run
-  that way. As written today, `infra/deploy.sh` deploys `overturn`
-  with `--no-allow-unauthenticated` and never sets `OVERTURN_UI_PASSWORD` or
-  `OVERTURN_UI_SECRET` in its environment — so a fresh `deploy.sh` run
-  produces a service that is Cloud Run-IAM-gated **and** has no application
-  password configured, and the login page nobody outside the project can
-  reach is moot. Getting to "a judge opens the `.run.app` URL and types a
-  password" — the state the submission checklist assumes — needs one manual
-  step this script does not perform:
+- **Every `infra/deploy.sh` run closes the public door, and only
+  `infra/open_public.sh` opens it again.** This is the single most expensive
+  thing to forget in this repository, so it is written down first. `deploy.sh`
+  deploys `overturn` with `--no-allow-unauthenticated` on purpose: a fresh
+  deploy should not put a service on the open internet as a side effect. It
+  does now carry the login forward, reading `OVERTURN_UI_PASSWORD` and
+  `OVERTURN_UI_SECRET` out of the `overturn-ui-secret` Secret Manager entry and
+  appending them to the service environment, so the password survives a
+  redeploy. What does *not* survive is the `allUsers` invoker binding, because
+  `deploy.sh` re-applies the IAM policy and grants only the account that ran
+  it. The symptom is total: every route, including `/system.html` and
+  `/architecture.svg`, returns a Google Frontend `403` rather than the
+  application's login page. Nothing warns you, and the deploy reports success.
+
+  So after any deploy, run:
   ```bash
-  gcloud run services update overturn --project="$PROJECT_ID" --region="$REGION" \
-    --allow-unauthenticated \
-    --update-env-vars=OVERTURN_UI_PASSWORD='northbeck-appeals-2026',OVERTURN_UI_SECRET="$(openssl rand -hex 32)"
+  bash infra/open_public.sh
   ```
-  Setting `OVERTURN_UI_SECRET` explicitly here matters beyond just surviving a
-  restart: if it's left unset, each Cloud Run instance mints its own random
-  secret at startup, and with `max-instances` above 1 a session issued by one
-  instance can fail validation on another (see the troubleshooting table).
-  **Re-running `infra/deploy.sh` after this reverts it** — the script always
-  redeploys `overturn` with `--no-allow-unauthenticated` and does not
-  carry forward env vars it did not set itself, so the public-with-a-password
-  state has to be reapplied after every subsequent redeploy until the script
-  itself is updated to do this. That fix belongs in `infra/deploy.sh`, which
-  is outside the remit of this document.
+  It reuses the existing signing secret rather than minting a fresh one, which
+  matters above `max-instances=1`: a per-process random secret means a session
+  issued by one instance fails validation on another (see the troubleshooting
+  table). Then verify, because a silent 403 is the failure mode:
+  ```bash
+  for p in / /queue /fleet /system.html /architecture.svg; do
+    printf '%s %s\n' "$p" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$p")"
+  done
+  ```
+  Making `deploy.sh` re-apply the binding itself would remove the footgun, but
+  it would also mean a deploy silently publishes a service, which is the
+  property `open_public.sh` exists to preserve. The trade is deliberate; the
+  verification loop above is the mitigation.
 - **`overturn` and `overturn-ingest` run as `overturn-orchestrator`;
   `overturn-scheduler` runs as `overturn-lifecycle`.** `infra/agents.env` names
   eight agent identities, not eleven, so the three Cloud Run surfaces share

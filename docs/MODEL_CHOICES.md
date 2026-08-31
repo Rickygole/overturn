@@ -31,7 +31,7 @@ and also a disqualification.
 |---|---|---|
 | Sentinel | Model Armor + `gemma-4-26b-a4b-it-maas` + rules | Screening is a classification job. An open-weights model plus deterministic rules is both cheaper and easier to reason about than a frontier model, and Model Armor is the purpose-built layer. Three layers because any one of them alone has a false-negative rate we cannot measure. |
 | Intake | `gemini-3.5-flash` | Multimodal field extraction from a PDF or a fax scan. Structured output does the heavy lifting; the model only has to read. |
-| Retrieval | `gemini-3.5-flash`, called conditionally | Only invoked to reformulate the query when the first vector search scores below the floor. A good first retrieval costs zero model calls. |
+| Retrieval | `gemini-3.5-flash`, called conditionally | Only invoked to reformulate the query when the first lexical search scores below the floor. A good first retrieval costs zero model calls. |
 | Mapping | `gemini-3.5-flash` | The analytical core, and the agent most likely to need escalation. Starting at Flash deliberately; if verdicts prove unstable across runs, this is the one agent that moves up, and the change gets recorded here with the evidence that prompted it. |
 | Drafting | `gemini-3.7-flash` | The one call where output quality is the product. Newest GA model available. |
 | Verification | `gemini-3.5-flash` + deterministic string matching | Citation existence is a set-membership test and is done in Python, not by a model — a model cannot be wrong about it if it is never asked. The model handles only the semantic question of whether source text supports a claim. |

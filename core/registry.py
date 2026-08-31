@@ -232,8 +232,14 @@ def render_table(catalogue: list[RegisteredAgent]) -> str:
     for entry in catalogue:
         account = entry.service_account.split("@")[0]
         lines.append(
-            f"| `{entry.agent_id}` | `{account}` | `{entry.model or '—'}` | "
-            f"`{entry.output_contract or '—'}` | {', '.join(f'`{r}`' for r in entry.reads) or '—'} | "
-            f"{', '.join(f'`{w}`' for w in entry.writes) or '—'} |"
+            # "none" rather than a dash: this table is pasted into README.md and
+            # docs/ARCHITECTURE.md, both of which are kept free of em dashes. A
+            # find-and-replace pass over the markdown once turned the dash in
+            # Sentinel's Returns cell into a stray ", ", and because nothing
+            # asserts the rendered table appears verbatim in README.md, the
+            # "this table cannot drift" claim above it went untrue for six days.
+            f"| `{entry.agent_id}` | `{account}` | `{entry.model or 'none'}` | "
+            f"`{entry.output_contract or 'none'}` | {', '.join(f'`{r}`' for r in entry.reads) or '`none`'} | "
+            f"{', '.join(f'`{w}`' for w in entry.writes) or '`none`'} |"
         )
     return "\n".join(lines)

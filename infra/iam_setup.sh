@@ -138,8 +138,10 @@ grant_bucket  overturn-sentinel "${INTAKE_BUCKET}" "roles/storage.objectViewer"
 grant_project overturn-intake "roles/aiplatform.user"
 grant_bucket  overturn-intake "${INTAKE_BUCKET}" "roles/storage.objectViewer"
 
-# --- Retrieval: the only agent that can read the policy corpus and query the
-#     vector index. It never sees a patient chart.
+# --- Retrieval: the only agent that can read the policy corpus. The
+#     discoveryengine grant below is what makes a managed index reachable;
+#     retrieval currently scores locally (agents/retrieval/lexical.py) and does
+#     not query one. It never sees a patient chart either way.
 grant_project overturn-retrieval "roles/aiplatform.user"
 grant_project overturn-retrieval "roles/discoveryengine.viewer"
 grant_bucket  overturn-retrieval "${POLICY_BUCKET}" "roles/storage.objectViewer"
