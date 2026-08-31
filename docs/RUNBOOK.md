@@ -80,33 +80,35 @@ pass `INGEST_PUSH_PATH=/pubsub/push` explicitly on every `deploy.sh` run — it
 is not persisted between invocations, so a redeploy that forgets it silently
 resets the push endpoint back to the broken default.
 
-## A stale duplicate service exists on this project
+## The duplicate service, and why it is gone
 
-`gcloud run services list` shows **four** services, not three: `overturn`,
-`overturn-ingest`, `overturn-scheduler` — and `overturn-approval`, which is an
-earlier name for the approval surface. It is still deployed, still bound to
-`allUsers`, and still serving a two-day-old image at
+`gcloud run services list` used to show four services, not three. Alongside
+`overturn`, `overturn-ingest` and `overturn-scheduler` there was
+`overturn-approval`, an earlier name for the approval surface, still deployed,
+still bound to `allUsers`, and still serving an image built on 2026-08-28.
 
-    https://overturn-approval-kruy6aauaq-uc.a.run.app
+That mattered because everything corrected on the live site was still standing
+at the old address: the miscited overturn rate, the model-calls figure computed
+on the wrong denominator, "weeks after submission" on a case that escalated in
+the same minute it was transmitted. A judge who found that hostname would have
+read a worse version of this project and had no way to know it was stale. It is
+the exact failure the "there is exactly one URL" rule in `docs/SUBMISSION.md`
+exists to prevent, and the rule had already been broken for days.
 
-That URL was handed to a judge in an earlier version of this project and was
-believed removed. It is not. Anything corrected on the live site is still
-standing there, which makes it a second address publishing claims this project
-has since retracted — the exact failure the "there is exactly one URL" rule in
-`docs/SUBMISSION.md` exists to prevent.
+Deleted on 2026-08-31:
 
-Decide deliberately rather than leaving it: either delete it
+```bash
+gcloud run services delete overturn-approval --region="$REGION" --project="$PROJECT_ID"
+```
 
-    gcloud run services delete overturn-approval --region="$REGION" --project="$PROJECT_ID"
+The hostname now returns 404. Nothing referenced it: the Pub/Sub subscription
+pushes to `overturn-ingest`, Cloud Scheduler targets `overturn-scheduler`, and
+the submission points at `overturn`. `infra/teardown.sh` still names it in its
+loop, which is harmless against a service that no longer exists and correct if
+one is ever recreated under that name.
 
-or, if it is worth keeping around, at minimum drop its public binding
-
-    gcloud run services remove-iam-policy-binding overturn-approval \
-      --region="$REGION" --project="$PROJECT_ID" \
-      --member=allUsers --role=roles/run.invoker
-
-`infra/teardown.sh` now names it alongside `overturn` so a teardown cannot
-remove the old one and leave the live one billing, which is what it did before.
+Three services is now the whole list, and `overturn` is the only one a browser
+should reach. A 403 from the other two is correct rather than broken.
 
 ## One-time setup, in order
 
