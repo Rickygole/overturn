@@ -269,6 +269,23 @@ misses are written up rather than re-run until they went away.
 [`docs/EVALUATION.md`](docs/EVALUATION.md) has both scorecards side by side and
 the full account of what went wrong.
 
+### The same check also fails the other way
+
+Verification catching a real overclaim is the headline above. It also rejects
+restatements that are accurate, and that costs more than a bad letter does. On
+the deployed run a reviewer read CASE-003's rejections line by line and found
+that **two of the three rejections that killed the case are wrong**. One of them
+objected to a sentence that is the criterion verbatim, with "Requires that"
+prefixed to it. The attempt cap then fired on correct work, so a well founded
+cardiac MRI appeal never reached a human for signature at all.
+
+The eight case harness scores outcomes and grounding. It has no measure of how
+often Verification rejects a claim that was true, so the false positive rate
+here is unmeasured rather than low. It is recorded in
+[`docs/EVALUATION.md`](docs/EVALUATION.md) rather than quietly re-run, because a
+safety net whose false positives are invisible is half a result, and the half
+you cannot see is the half that loses somebody their appeal.
+
 | Case | Scenario | Expected | Reached | Fabricated citations | Unlocatable evidence |
 |---|---|---|---|---|---|
 | `CASE-001` | clean win | `awaiting_human_approval` | `awaiting_human_approval` | 0 | 0 |
