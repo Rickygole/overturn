@@ -21,6 +21,7 @@ from core.config import Settings, get_settings
 from core.gateway import GatewayHandle
 from core.idempotency import IdempotencyGuard
 from core.llm import LlmClient, build_llm
+from core.memory import MemoryBank
 from core.schemas.enums import AgentName
 from core.state import CaseRepository
 from core.store import DocumentStore, build_store
@@ -50,6 +51,17 @@ class Fleet:
     @cached_property
     def guard(self) -> IdempotencyGuard:
         return IdempotencyGuard(self.store, GatewayHandle(AgentName.ORCHESTRATOR))
+
+    @cached_property
+    def memory(self) -> MemoryBank:
+        """Cross-case payer memory, under the orchestrator identity.
+
+        The orchestrator, not Lifecycle, holds this handle: both write
+        `case_memory` in `POLICY`, but the actual writes below happen from
+        `agents/orchestrator/pipeline.py`, which already performs every other
+        external effect under this identity (`cases`, `guard`, above).
+        """
+        return MemoryBank(self.store, GatewayHandle(AgentName.ORCHESTRATOR))
 
 
 def build_fleet(

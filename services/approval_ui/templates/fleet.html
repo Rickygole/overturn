@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Agent registry — Overturn{% endblock %}
+{% block eyebrow %}Discovery &amp; lifecycle{% endblock %}
+{% block masthead %}Agent registry{% endblock %}
+{% block pagesub %}{{ catalogue | length }} agent{{ "" if catalogue | length == 1 else "s" }} in the fleet, derived from the running code — not maintained by hand.{% endblock %}
+{% block nav %}
+<a href="/queue">Review queue</a>
+<span aria-current="page">Agent registry</span>
+{% endblock %}
+
+{% block content %}
+
+<section class="section section--lead" aria-labelledby="catalogue-h">
+  <h2 id="catalogue-h">The fleet, as it actually runs today</h2>
+  <div class="section__body">
+    <div class="table-scroll">
+      <table>
+        <caption>
+          One row per agent this system runs. Every cell is computed from the source the running
+          pipeline itself reads — nothing here is typed in a second time.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Agent</th>
+            <th scope="col">Purpose</th>
+            <th scope="col">Version</th>
+            <th scope="col">Definition</th>
+            <th scope="col">Service account</th>
+            <th scope="col">May read</th>
+            <th scope="col">May write</th>
+            <th scope="col">Model</th>
+            <th scope="col">Invocation</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for agent in catalogue %}
+          <tr>
+            <th scope="row">
+              {{ agent.display_name }}
+              {% if agent.handles_untrusted_input %}
+              <br><span class="chip chip--warn">Untrusted input</span>
+              {% endif %}
+            </th>
+            <td class="normal">{{ agent.purpose or "—" }}</td>
+            <td class="mono">{{ agent.version }}</td>
+            <td class="mono">{{ agent.definition_sha256[:12] }}…</td>
+            <td class="mono">{{ agent.service_account }}</td>
+            <td>
+              {% if agent.reads %}
+              {% for c in agent.reads %}<span class="mono">{{ c }}</span>{% if not loop.last %}, {% endif %}{% endfor %}
+              {% else %}
+              <span class="dim">none</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if agent.writes %}
+              {% for c in agent.writes %}<span class="mono">{{ c }}</span>{% if not loop.last %}, {% endif %}{% endfor %}
+              {% else %}
+              <span class="dim">none</span>
+              {% endif %}
+            </td>
+            <td class="mono">{{ agent.model or "—" }}</td>
+            <td>
+              <span class="chip chip--{{ 'warn' if agent.invocation == 'scheduled' else 'neutral' }}">{{ agent.invocation }}</span>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="muted">No agents are registered.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="how-h">
+  <h2 id="how-h">How discovery works here</h2>
+  <div class="section__body">
+    <p class="prose">
+      This page is not a document somebody updates when an agent changes. It calls
+      <span class="mono">core.registry.build_catalogue()</span> on every request, and that function reads the same
+      three sources the running fleet reads: identity and purpose from <span class="mono">infra/agents.env</span>,
+      the file the IAM setup script uses to create these service accounts; model and output contract from the ADK
+      definitions in <span class="mono">agents/adk_fleet.py</span>, the same definitions the pipeline executes;
+      and what each agent may read or write from <span class="mono">core.gateway.POLICY</span>, the dict the
+      gateway actually enforces on every datastore call. The service account column is Agent Identity — a distinct
+      account per agent, not one shared credential. The read and write columns are Agent Gateway — the access
+      matrix a security review would ask for, printed rather than described.
+    </p>
+    <p class="prose">
+      A catalogue that is maintained by hand is a catalogue that drifts the moment somebody forgets to update it,
+      and a wrong catalogue about who may touch patient data is worse than no catalogue at all. This one cannot
+      drift: change what an agent reads or writes and the <span class="mono">definition_sha256</span> column
+      changes with it, because it is a hash of the same fields the row shows. There is no separate publishing
+      step to skip.
+    </p>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="tracing-h">
+  <h2 id="tracing-h">Tracing</h2>
+  <div class="section__body">
+    <p class="prose">
+      Every agent invocation in this fleet runs inside an OpenTelemetry span, and <span class="mono">core/audit.py</span>
+      stamps the trace id and span id onto every audit event it writes — the same events a reader can open on any
+      case page, under its audit trail disclosure. That is what makes an agent's behaviour on one case
+      reconstructable after the fact rather than merely logged.
+    </p>
+    <p class="prose">
+      There is deliberately no Cloud Trace link on this page. Cloud Trace sits behind a Google sign-in and a
+      project a reader here almost certainly cannot see, and a link that returns a permissions error is worse than
+      no link at all — it reads as something hidden rather than something a judge simply is not signed in to view.
+      The trace and span ids are printed instead, on the case pages that carry them, as identifiers a reader can
+      paste into their own tooling rather than a link that fails for everyone but us. The absence is a decision,
+      not a gap.
+    </p>
+  </div>
+</section>
+
+{% endblock %}

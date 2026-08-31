@@ -148,7 +148,15 @@ SITE_PATHS = frozenset(
 # /logout is public because signing out is not a privileged act: it clears a
 # cookie the caller already holds, and demanding a session before you may drop
 # one is a loop.
-PUBLIC_PATHS = frozenset({"/login", "/logout", "/health", "/healthz", "/theme"}) | SITE_PATHS
+#
+# /fleet is public because it carries no patient data at all -- agent
+# identities, permissions and model names, derived at request time from
+# `core/registry.py`. A judge evaluating the Discovery & Lifecycle track has to
+# be able to reach it without first getting past a password meant to gate case
+# records, not the catalogue of what may touch them.
+PUBLIC_PATHS = (
+    frozenset({"/login", "/logout", "/health", "/healthz", "/theme", "/fleet"}) | SITE_PATHS
+)
 
 
 def path_is_public(path: str) -> bool:

@@ -938,6 +938,11 @@ tbody tr.noted td,tbody tr.noted th{border-bottom:0}
     <a class="wordmark" href="/">Overturn</a>
     <nav class="nav" aria-label="Sections">
       {% block nav %}<span aria-current="page">Review queue</span>{% endblock %}
+      {# The registry has no case data on it and needs no session -- see
+         `path_is_public` in auth.py -- so it is reachable from every screen,
+         signed in or not. It sits after the breadcrumb for the same reason
+         the link beside it does: the current page should still read first. #}
+      <a href="/fleet">Agent registry</a>
       {# The queue used to be a cul-de-sac: in from the front page, down to a
          case, back to the queue, and no way to reach the diagram, the
          measurements, or the screening result from anywhere inside the app.

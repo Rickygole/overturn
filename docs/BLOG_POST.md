@@ -1,7 +1,7 @@
 ---
 title: "The Bug That Would Have Sent a Perfect Cardiac Appeal to the Wrong Policy"
-published: false
-description: "Six real bugs from building Overturn, an agent fleet that appeals denied health insurance claims for weeks without a human re-prompting it — written for the Google + Devpost All Things Agentic Hackathon."
+published: true
+description: "Six real bugs — and one honest false positive we found by reading our own agent's rejections by hand — from building Overturn, an agent fleet that appeals denied health insurance claims for weeks without a human re-prompting it. Written for the Google + Devpost All Things Agentic Hackathon."
 tags: ai, agents, python, healthtech
 ---
 
@@ -15,7 +15,7 @@ built" bonus. Everything below happened while building
 A clinic gets a denial letter from an insurer. Appealing it properly means
 finding the payer's own published medical policy, checking the patient's chart
 against that policy line by line, and writing a letter that cites section
-numbers correctly. That's maybe forty minutes of skilled work per claim, which is
+numbers correctly. That's a couple of hours of skilled work per claim, which is
 why most winnable denials never get appealed at all — the labor cost exceeds
 the value of the claim.
 
@@ -157,6 +157,53 @@ back to `gemini-2.5-pro` because it's a better model and nobody demoing the
 video would notice the id in the logs. Writing the actual reasoning down in
 `docs/MODEL_CHOICES.md` — including the rejected candidates — felt more
 useful than a marginally better draft on a disqualifying model.
+
+## 6. The safety net that was wrong twice, and we only found out by reading it
+
+This one isn't a bug in the code. It's a bug in what I was willing to claim.
+
+Verification is the layer that makes the rest of this trustworthy: every
+citation gets checked for existence against the retrieved policy (a Python
+set-membership test — never ask a model a question Python can answer), the
+source text gets checked against the claim made about it, and every clinical
+assertion gets checked against the criteria matrix. Fail any of those and the
+draft goes back with the specific reason as revision instructions. Three
+failures and the case goes to a human with nothing sent. I'd been treating
+that cap as unambiguously good news — a system that refuses to lie is a
+system doing its job.
+
+Then I read CASE-003 by hand. It's a cardiac MRI appeal for an 83-year-old
+whose echocardiogram came back "technically limited... cannot be
+quantified" in her cardiologist's own words, and whose insurer denied the
+MRI anyway, calling the echo adequate. Real `gemini-3.7-flash` wrote three
+drafts. Verification rejected all three, and the case hit its attempt cap:
+`needs_human_review`, nothing sent.
+
+I assumed that was the safety net holding, the same story as CASE-007
+elsewhere in this project. It wasn't. Attempt 1 was rejected over a sentence
+that was *verbatim* the policy criterion with "Requires that" prefixed to
+it — Verification's objection argued the letter required something it never
+required, when the letter just restated a sentence and cited it correctly.
+Attempt 3 was rejected over where a modifier attaches in a sentence — a
+reading disagreement, not a fabrication. Two of the three rejections that
+killed a well-founded appeal for a real (synthetic, but realistically
+constructed) patient were wrong.
+
+The eight-case evaluation harness has never measured this, because scoring
+"did Verification's rejection reason hold up against the policy text" isn't
+something the harness that trusts Verification's own output can check —
+somebody has to read the rejection by hand and decide if it's fair. Nobody
+had, until this pass. So the honest state of the project is: Verification
+demonstrably catches real overclaims (CASE-001, reproduced across two
+separate live runs on two different days, a real model asserting a
+telehealth encounter the chart never describes as one), and it also
+demonstrably rejects accurate work, at a rate this project has not measured
+across a large enough sample to report as a number. Publishing "we caught a
+real problem" and staying quiet about "and our checker also has an
+unmeasured false-positive rate that once cost a well-founded appeal" would
+have been the more flattering post. It would also have been the less useful
+one, for anyone deciding whether to trust a system like this with something
+that matters.
 
 ## The rule that ended up shaping everything
 

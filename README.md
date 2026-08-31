@@ -3,14 +3,17 @@
 **An agent fleet that appeals wrongful health insurance denials, and keeps
 appealing for weeks without being asked twice.**
 
-A clinic billing clerk gets a denial letter. Today they either spend forty minutes
-writing an appeal, or — far more often — they don't, and the claim dies. Marketplace
+A clinic billing clerk gets a denial letter. Today they either spend a couple of
+hours writing an appeal — find the payer's published policy, match the chart
+against it criterion by criterion, cite it by section — or, far more often, they
+don't, and the claim dies. (That figure is an estimate of the task, not a
+measurement; what *is* measured is the other side of the trade, below.) Marketplace
 insurers denied about 85 million in-network claims in 2024. Consumers appealed at
 least 262,982 of them — fewer than one in three hundred — and even then, insurers
 upheld 66% of the appeals they received ([KFF, ACA Marketplace claims data,
 2024][kff]). Almost nobody appeals, and the odds look bad for the few who do.
 The bottleneck is not judgment. It is that the labour cost of one appeal exceeds
-the value of one claim, on odds nobody would spend forty minutes chasing without
+the value of one claim, on odds nobody would spend two hours chasing without
 help.
 
 [kff]: https://www.kff.org/patient-consumer-protections/claims-denials-and-appeals-in-aca-marketplace-plans-in-2024/

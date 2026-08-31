@@ -545,7 +545,7 @@ class Pipeline:
 
         window = APPEAL_LADDER[case.appeal_level].response_window_days
         accel = self.settings.demo_seconds_per_day if self.settings.demo_time_acceleration else None
-        return self._advance(
+        submitted = self._advance(
             case_id,
             CaseStatus.SUBMITTED,
             attach=lambda c: (
@@ -554,6 +554,8 @@ class Pipeline:
             ),
             note=f"confirmation {(outcome.result or {}).get('confirmation', 'unknown')}",
         )
+        self._remember_submission(submitted)
+        return submitted
 
     def retry_transmission(self, case_id: str) -> CaseRecord:
         """The explicit way back for a case ``try_submit`` bounced to a person.
@@ -641,6 +643,13 @@ class Pipeline:
         decision = self.fleet.lifecycle.run(
             case.case_id, LifecycleRequest(case=case), attempt=case.escalation_count + 1
         )
+
+        # Whichever branch below fires, the fact that put this case in front of
+        # Lifecycle at all is already true: the payer's window on the current
+        # rung has elapsed with nothing back. That is a real, derivable
+        # observation about this payer -- see `_remember_escalation` -- whether
+        # the ladder still has a rung left or not.
+        self._remember_escalation(case)
 
         if decision.halts_ladder:
             updated = self._advance(
@@ -750,6 +759,39 @@ class Pipeline:
         return 1 + sum(
             1 for _, row in existing if row.get("action_type") == ActionType.NOTIFY_HUMAN.value
         )
+
+    def _remember_submission(self, case: CaseRecord) -> None:
+        """Note, cross-case, that an appeal went out against this payer.
+
+        Best-effort: a reader losing this line of memory is not a reason to
+        tell a clerk their approval failed to transmit, which is what letting
+        this raise past the point of a real, successful submission would mean.
+        """
+        try:
+            self.fleet.memory.record_submission(case)
+        except Exception:
+            logger.exception(
+                "could not record cross-case memory for %s's submission; the "
+                "appeal itself was still transmitted",
+                case.case_id,
+            )
+
+    def _remember_escalation(self, case: CaseRecord) -> None:
+        """Note, cross-case, that this payer let a response window lapse.
+
+        `outcome="no_response"` is the honest label for every escalation this
+        system ever produces: `services/payer_sim.py` only drives the ladder
+        when told to stay silent, and nothing here ever attaches a genuine
+        `PayerResponse` to a case. Recording "overturned" or "upheld" would be
+        inventing a figure this system has never actually observed.
+        """
+        try:
+            self.fleet.memory.record_resolution(case, outcome="no_response")
+        except Exception:
+            logger.exception(
+                "could not record cross-case memory for %s's escalation; the "
+                "escalation itself still proceeds", case.case_id
+            )
 
     def _fail(self, case_id: str, reason: str) -> CaseRecord:
         logger.error("case %s failed: %s", case_id, reason)

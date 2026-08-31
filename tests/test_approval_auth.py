@@ -52,6 +52,11 @@ class TestTheDoorIsShut:
     def test_reading_a_case_needs_no_password(self, guarded, path):
         assert guarded.get(path).status_code in (200, 404)
 
+    def test_the_agent_registry_needs_no_password(self, guarded):
+        """It carries no patient data, so it sits beside the queue's read paths
+        rather than behind the door with the three routes that change a case."""
+        assert guarded.get("/fleet").status_code == 200
+
     @pytest.mark.parametrize(
         "path",
         ["/case/CASE-001/approve", "/case/CASE-001/reject", "/case/CASE-001/cosign"],
@@ -176,6 +181,7 @@ class TestPublicPaths:
         assert path_is_public("/login")
         assert path_is_public("/health")
         assert path_is_public("/healthz")
+        assert path_is_public("/fleet")
         assert not path_is_public("/queue")
         assert not path_is_public("/case/CASE-001")
 

@@ -10,11 +10,33 @@ code rather than by session. That is the same reasoning `ARCHITECTURE.md`
 gives for running the fleet on Cloud Run instead of the managed Agent Runtime.
 So this implements the same contract directly on Firestore instead.
 
-Say the other half plainly too: this module is implemented and covered by
-`tests/test_memory.py`, but nothing in the running pipeline calls it. No agent
-imports `core.memory`. The write and read grants exist in `core/gateway.py`
-and the collection is named in `core/config.py`, but a grant is not a call
-site, and this is one until an agent actually reaches for it.
+This module is now wired into the pipeline at the two points where a genuine,
+derivable observation exists. `agents/orchestrator/effects.py` and
+`agents/orchestrator/pipeline.py` route every write through the gateway
+handle on `Fleet.memory`, the same way every other datastore consumer in this
+codebase does:
+
+  * **On submission** (`Pipeline.try_submit`, once transmission succeeds):
+    `record_submission` notes that an appeal went out against this
+    payer/policy/reason. Nothing about the outcome is known yet.
+  * **On escalation** (`Pipeline._escalate_one`, the scheduled job): the
+    payer's window on the current rung has elapsed with nothing back, which
+    is what every escalation in this system means -- `services/payer_sim.py`
+    only drives the ladder on `PayerBehaviour.SILENT`, and nothing in this
+    codebase ever attaches a `PayerResponse` to a case. `outcome="no_response"`
+    is recorded, honestly, rather than inventing an "overturned" or "upheld"
+    this system has no way to have observed. The elapsed time against the
+    published window is real: it is computed from `submitted_at`, which is a
+    stored timestamp, not a guess.
+
+What is deliberately *not* wired: a call recording a real payer response with
+a real outcome. No code path in this system ever produces one -- the payer is
+simulated, and the simulation's own docstring says it does not respond.
+Wiring that call site here would mean fabricating the "overturned" and
+"upheld" figures `PayerObservation.summarise()` is capable of showing, and a
+number nobody observed is worse than no number. When a real payer response
+exists to record, `record_resolution(case, outcome=...)` is already the
+function that takes it.
 
 What is worth remembering here is narrow and specific, and getting the scope
 right matters more than the storage:
@@ -119,6 +141,20 @@ def observation_key(payer_name: str, policy_id: str | None, reason_code: str | N
     return "|".join([payer_name, policy_id or "any", reason_code or "any"])
 
 
+def _policy_id(case: CaseRecord) -> str | None:
+    """The one policy this observation is scoped to, when Retrieval found one.
+
+    Shared by every method below that needs it, so ``_update`` and a reader
+    asking "what does the system know about this payer" resolve the same
+    policy for the same case.
+    """
+    return (
+        case.retrieval.sections[0].policy_id
+        if case.retrieval and case.retrieval.sections
+        else None
+    )
+
+
 class MemoryBank:
     """Scoped read and write access to cross-case memory."""
 
@@ -133,6 +169,19 @@ class MemoryBank:
         key = observation_key(payer_name, policy_id, reason_code)
         data = self._store.get(collection, key)
         return PayerObservation.model_validate(data) if data else None
+
+    def recall_for_case(self, case: CaseRecord) -> PayerObservation | None:
+        """What the system has learned about this case's own payer/policy/reason.
+
+        Never an observation about the case itself -- memory is never keyed on
+        a patient -- but the scope a reader most often wants: what has this
+        payer done on every *other* case that shares this policy and reason
+        code. Used by the case page to show what is known before this case's
+        own outcome is.
+        """
+        if case.denial is None:
+            return None
+        return self.recall(case.denial.payer_name, _policy_id(case), case.denial.denial_reason_code)
 
     def record_submission(self, case: CaseRecord) -> PayerObservation | None:
         """Note that an appeal went out. Called once per submission."""
@@ -181,13 +230,7 @@ class MemoryBank:
         """
         if case.denial is None:
             return published_window
-        observed = self.recall(
-            case.denial.payer_name,
-            case.retrieval.sections[0].policy_id
-            if case.retrieval and case.retrieval.sections
-            else None,
-            case.denial.denial_reason_code,
-        )
+        observed = self.recall_for_case(case)
         if observed is None or observed.median_response_days is None:
             return published_window
         return max(published_window, int(observed.median_response_days))
@@ -197,11 +240,7 @@ class MemoryBank:
             return None
 
         collection = self._gateway.authorize(MEMORY_COLLECTION, Access.WRITE)
-        policy_id = (
-            case.retrieval.sections[0].policy_id
-            if case.retrieval and case.retrieval.sections
-            else None
-        )
+        policy_id = _policy_id(case)
         key = observation_key(case.denial.payer_name, policy_id, case.denial.denial_reason_code)
 
         def mutate(current: dict | None) -> dict:

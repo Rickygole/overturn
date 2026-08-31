@@ -34,6 +34,7 @@ from core.idempotency import (
     PayloadMismatch,
     UnsafeToRetry,
 )
+from core.registry import build_catalogue
 from core.state import CaseNotFound
 from core.store import DocumentStore, build_store
 from services.approval_ui import view
@@ -618,6 +619,25 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
     def landing() -> Response:
         """The front door — the same page GitHub Pages serves at the site root."""
         return _site_file("index.html")
+
+    @app.get("/fleet", response_class=HTMLResponse)
+    def fleet(request: Request) -> Response:
+        """The agent registry: what publishes, versions, and discovers the fleet.
+
+        Calls `build_catalogue()` at request time rather than rendering a stored
+        or hand-written table, so this page structurally cannot drift from the
+        code it describes. It holds no patient data — identities, permissions
+        and model names, nothing from a case — so it sits in front of the door
+        with the queue's sign-in, the same reasoning `path_is_public` states for
+        every other route in that set.
+
+        Declared here, before `/{asset}` below, for the same reason `/` is:
+        that catch-all matches any single path segment and would otherwise
+        swallow this one.
+        """
+        return templates.TemplateResponse(
+            request, "fleet.html", {"catalogue": build_catalogue()}
+        )
 
     # Declared last on purpose. `/{asset}` matches any single path segment, so
     # it would swallow `/login` and `/queue` if it came first; FastAPI resolves
