@@ -117,7 +117,7 @@ separate by tenths. Skipping them is irrational.
 | Bonus | Status |
 |---|---|
 | Additional Google AI model — Gemma in Sentinel | ☑ built; must be **named in the submission text** |
-| Blog post, public, on dev.to | ☐ drafted in [`BLOG_POST.md`](BLOG_POST.md); flip `published: true` |
+| Blog post, public, on dev.to | ☑ published — the write-up lives on dev.to, not in this repository |
 | Social post with `#AllThingsAgenticHackathon` | ☐ drafted in [`PITCH.md`](PITCH.md) |
 
 The blog post must contain language stating it was created for the purposes of
