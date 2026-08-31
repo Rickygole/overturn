@@ -15,7 +15,7 @@ __pycache__
 
 # Humans and CI need these; the running container does not.
 tests
-infra
+infra/*
 !infra/agents.env
 scripts
 

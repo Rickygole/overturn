@@ -449,10 +449,24 @@ def test_the_image_ships_the_agent_roster_the_registry_reads():
         "core.registry reads infra/agents.env at request time; if the image "
         "does not copy it, /fleet 500s in production and passes here"
     )
-    ignore = (ROOT / ".dockerignore").read_text()
-    assert "!infra/agents.env" in ignore, (
-        ".dockerignore excludes infra/, so the COPY needs the exception"
-    )
+    # Both ignore files need the exception, and for different reasons: the
+    # .gcloudignore decides what reaches the Cloud Build context at all, and
+    # the .dockerignore decides what the COPY can see once it is there.
+    # Fixing only .dockerignore still fails the build, which is exactly what
+    # happened: "COPY failed: file not found in build context".
+    for name in (".dockerignore", ".gcloudignore"):
+        text = (ROOT / name).read_text()
+        assert "!infra/agents.env" in text, (
+            f"{name} excludes infra/, so the COPY needs the exception there too"
+        )
+        # gitignore semantics: a file cannot be re-included once its *parent
+        # directory* is excluded. A bare `infra` line makes the negation above
+        # dead, and the build fails with "file not found in build context"
+        # while this file still reads as though the exception were in place.
+        assert "\ninfra/*" in text and "\ninfra\n" not in text, (
+            f"{name} must exclude infra/* (contents), not infra (the directory), "
+            "or the !infra/agents.env negation cannot apply"
+        )
 
 
 def test_the_registry_degrades_rather_than_raising_without_the_roster():

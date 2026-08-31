@@ -18,7 +18,12 @@ __pycache__
 .ruff_cache
 
 tests
-infra
+infra/*
+# ...except the fleet's identity roster, which `core.registry` reads at request
+# time to render /fleet. .dockerignore carries the same exception; both are
+# needed, because .gcloudignore decides what reaches the Cloud Build context
+# at all and .dockerignore decides what the COPY can see once it is there.
+!infra/agents.env
 scripts
 
 .DS_Store
