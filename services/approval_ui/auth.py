@@ -9,8 +9,8 @@ door at all would be careless in a way that undermines the point of the project.
 So: one shared password, a signed session cookie, and no user accounts. That is
 the right amount of authentication for a demonstration with no real data and a
 credential printed in the README, and it is deliberately not presented as more
-than that. `docs/SUBMISSION.md` states the limitation plainly rather than
-implying this is how the system would ship.
+than that. It is not how this would ship against real patient data: that needs
+accounts, per-user audit and an identity provider, none of which is here.
 
 The cookie is signed with HMAC rather than encrypted, and it carries nothing but
 an expiry — there is no session state worth stealing. Signing is what stops

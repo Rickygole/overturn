@@ -1499,9 +1499,10 @@ class EscalatedSignpost:
     track's defining claim -- a case Lifecycle moved on its own, unattended,
     the moment its response window lapsed -- was reachable only by already
     knowing which of eleven case ids to open. No duration is claimed here on
-    purpose: the demo compresses the response window (see `docs/SUBMISSION.md`),
-    so a specific figure like "weeks" would be checkable and false on the one
-    artifact this sentence points a reader at.
+    purpose: this deployment compresses the payer response window so the
+    escalation is observable in minutes rather than weeks, so a figure like
+    "weeks" would be checkable and false on the one artifact this sentence
+    points a reader at. The case page says the same thing in `case.html`.
     """
 
     case_id: str

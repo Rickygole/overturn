@@ -91,9 +91,12 @@ That mattered because everything corrected on the live site was still standing
 at the old address: the miscited overturn rate, the model-calls figure computed
 on the wrong denominator, "weeks after submission" on a case that escalated in
 the same minute it was transmitted. A judge who found that hostname would have
-read a worse version of this project and had no way to know it was stale. It is
-the exact failure the "there is exactly one URL" rule in `docs/SUBMISSION.md`
-exists to prevent, and the rule had already been broken for days.
+read a worse version of this project and had no way to know it was stale.
+
+The rule this broke is worth keeping written down now that the file that held
+it is gone: **this project has exactly one address.** The public site and the
+review queue are one Cloud Run service, `overturn`. A second deployment of the
+same code is a second copy of the same claims, and it drifts.
 
 Deleted on 2026-08-31:
 
