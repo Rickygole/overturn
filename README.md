@@ -202,13 +202,22 @@ seen the case reconstructs it from one document and continues.
 in it. Durable state plus a scheduler plus idempotent handlers is how a system
 survives weeks, restarts, and redeliveries.
 
-CASE-006 is the one to open. Its 30 day response window lapsed, a scheduler tick
-found it, and it moved itself to peer to peer review. Nobody asked it to, nothing
-was running in between, and the case page says so in the system's own words:
+CASE-006 is the one to open on the live system. Its 30 day response window
+lapsed, a scheduler tick found it, and it moved itself to peer to peer review.
+Nobody asked it to, nothing was running in between, and the case page says so in
+the system's own words:
 
 ![CASE-006 showing that it escalated itself from first level appeal to peer to
 peer review on a scheduler tick, with no person
 involved](docs/screenshots/escalation.png)
+
+One reconciliation, because the scorecard further down says something different
+about this same case. Offline, CASE-006 correctly **declines**: the chart is
+silent on the criterion the payer denied on, so there is no appeal to send. The
+deployed demonstration carries it past the human gate deliberately, because an
+escalation ladder cannot be shown on a case that never produces a letter. The
+compressed response window is disclosed on the screen itself rather than in a
+footnote here.
 
 **2. The verification layer means it refuses to lie.** Every cited identifier is
 checked for existence against the retrieved set, in Python, as set membership,
@@ -427,12 +436,14 @@ uv run uvicorn services.approval_ui.main:app --port 8080
 The same screen is live at
 [`/queue`](https://overturn-kruy6aauaq-uc.a.run.app/queue). It ships zero
 JavaScript and links nothing off-host, both enforced by tests rather than by
-intention. Note the third row: the system records, on its own review screen, that
-two of its three rejections of that case were wrong.
+intention. Note the first entry: the system records, on its own review screen,
+that Verification rejected two drafts of that letter before one passed, and it
+keeps both rejected drafts on the case page beside the objection that stopped
+each one.
 
 ![The review queue, showing which cases are waiting on a person, and a note
-recording that verification wrongly rejected a sound
-appeal](docs/screenshots/queue.png)
+recording that Verification rejected two drafts of CASE-001 before one
+passed](docs/screenshots/queue.png)
 
 ### Measuring retrieval
 
