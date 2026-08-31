@@ -211,13 +211,17 @@ the system's own words:
 peer review on a scheduler tick, with no person
 involved](docs/screenshots/escalation.png)
 
-One reconciliation, because the scorecard further down says something different
-about this same case. Offline, CASE-006 correctly **declines**: the chart is
-silent on the criterion the payer denied on, so there is no appeal to send. The
-deployed demonstration carries it past the human gate deliberately, because an
-escalation ladder cannot be shown on a case that never produces a letter. The
-compressed response window is disclosed on the screen itself rather than in a
-footnote here.
+One reconciliation, because the scorecard further down reports this same case
+as `declined_no_basis`. That scorecard is the offline run, and offline CASE-006
+declines correctly: the chart is silent on the criterion the payer denied on, so
+there is nothing to argue. Against live models it did produce a letter instead,
+and [`docs/EVALUATION.md`](docs/EVALUATION.md) scores that as one of the two
+misses rather than defending it. The case on the live system is a demonstration
+state, signed through the human gate so that the ladder has a submitted appeal
+to act on, because escalation cannot be shown on a case that never sends one.
+The response window is compressed, which the screen above says itself rather
+than leaving it to a footnote here. What is not compressed is the mechanism:
+nothing was running in between, and a scheduled job moved the case.
 
 **2. The verification layer means it refuses to lie.** Every cited identifier is
 checked for existence against the retrieved set, in Python, as set membership,
