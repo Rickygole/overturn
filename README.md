@@ -3,13 +3,14 @@
 **An agent fleet that appeals wrongful health insurance denials, and keeps
 appealing for weeks without being asked twice.**
 
-A clinic billing clerk gets a denial letter. Today they either spend a couple of
-hours writing an appeal — find the payer's published policy, match the chart
-against it criterion by criterion, cite it by section — or, far more often, they
-don't, and the claim dies. (That figure is an estimate of the task, not a
-measurement; what *is* measured is the other side of the trade, below.) Marketplace
+A clinic billing clerk gets a denial letter. Appealing it properly means finding
+the payer's published policy, matching the chart against it criterion by
+criterion, and citing it back by section number. That is a couple of hours of
+careful work. Far more often nobody has those hours, so the letter never gets
+written and the claim dies. (The two hours is an estimate of the task, not a
+measurement. What *is* measured is the other side of the trade, below.) Marketplace
 insurers denied about 85 million in-network claims in 2024. Consumers appealed at
-least 262,982 of them — fewer than one in three hundred — and even then, insurers
+least 262,982 of them, fewer than one in three hundred, and even then, insurers
 upheld 66% of the appeals they received ([KFF, ACA Marketplace claims data,
 2024][kff]). Almost nobody appeals, and the odds look bad for the few who do.
 The bottleneck is not judgment. It is that the labour cost of one appeal exceeds
@@ -21,7 +22,7 @@ help.
 Overturn reads the denial letter, finds the insurer's own published medical
 policy, checks the patient's chart against that policy criterion by criterion,
 drafts an appeal citing the policy by section number, verifies every citation is
-real before a human ever sees it, and then holds the case for weeks — escalating
+real before a human ever sees it, and then holds the case for weeks, escalating
 on its own when the payer's response deadline passes in silence.
 
 A human approves before anything is transmitted. That gate is a design decision,
@@ -29,15 +30,14 @@ not a limitation.
 
 **Everything here is synthetic.** The patients, the payer ("Northbeck Health
 Plan"), its policies, and every denial letter are invented for this project.
-No real patient data and no real insurer appear anywhere — see "Data sources
+No real patient data and no real insurer appear anywhere, see "Data sources
 and compliance" below.
 
 **Live on Google Cloud:** the human approval interface is hosted at
 [`https://overturn-kruy6aauaq-uc.a.run.app`](https://overturn-kruy6aauaq-uc.a.run.app).
-Reading is open — no sign-in, no password, click straight in from the queue to
+Reading is open, no sign-in, no password, click straight in from the queue to
 any case. Only the three actions that change a case (approve, reject, co-sign)
-are gated by a single shared password rather than a Google account —
-**`northbeck-appeals-2026`** — because those states cost real model calls to
+are gated by a single shared password rather than a Google account, **`northbeck-appeals-2026`**, because those states cost real model calls to
 produce and cannot be undone, and a crawler that followed a form could
 approve or reject its way through all of them in a second. `overturn-ingest`
 and `overturn-scheduler` are also live but deliberately private: Pub/Sub and
@@ -60,16 +60,16 @@ Built for the Google + Devpost **All Things Agentic Hackathon**, track:
 
 | Layer | State |
 |---|---|
-| Typed inter-agent contracts | done — 30 exported models across 40 exported names, strict, round-trip tested |
+| Typed inter-agent contracts | done, 30 exported models across 40 exported names, strict, round-trip tested |
 | Per-agent access gateway | done |
-| Idempotency guard | done — leases, replay, payload-drift detection |
+| Idempotency guard | done, leases, replay, payload-drift detection |
 | Append-only audit log | done |
 | OpenTelemetry tracing | done |
 | Document store (Firestore + offline) | done |
-| Policy corpus | done — 6 policies, 42 sections, 113 citable identifiers |
-| Patient charts | done — Synthea base plus authored encounters |
+| Policy corpus | done, 6 policies, 42 sections, 113 citable identifiers |
+| Patient charts | done. Synthea base plus authored encounters |
 | Seven agents | done |
-| Cloud deployment | done — three Cloud Run services, live (see above) |
+| Cloud deployment | done, three Cloud Run services, live (see above) |
 
 ---
 
@@ -81,7 +81,7 @@ scope. The boundaries are enforced, not described.
 | # | Agent | Does | Notably cannot |
 |---|---|---|---|
 | 1 | **Sentinel** | Screens the inbound document for prompt injection, instruction-like content, and unexpected PII. Can quarantine and halt the pipeline. | Read the policy corpus or any case detail. It handles untrusted bytes and gets the smallest surface in the fleet. |
-| 2 | **Intake** | Extracts structured fields from the letter — payer, claim number, service, denial reason, deadline. Handles PDFs and scanned faxes. | See the policy corpus. Extraction must not be able to consult the answer key. |
+| 2 | **Intake** | Extracts structured fields from the letter, payer, claim number, service, denial reason, deadline. Handles PDFs and scanned faxes. | See the policy corpus. Extraction must not be able to consult the answer key. |
 | 3 | **Retrieval** | Finds the governing policy sections and returns them with stable identifiers and verbatim text. | Write anything but its own result. |
 | 4 | **Mapping** | For each policy criterion, returns satisfied / not satisfied / insufficient documentation, with the chart evidence and a locator pointing at where in the chart it came from. | Draft prose. |
 | 5 | **Drafting** | Writes the appeal from the satisfied criteria only, citing sections by identifier. | **Retrieve anything.** It has no access to the policy corpus, so it cannot go looking for supporting material Mapping did not hand it. |
@@ -90,13 +90,13 @@ scope. The boundaries are enforced, not described.
 
 ### What each identity can actually reach
 
-Generated from `core.gateway.POLICY` — the same dict the gateway enforces at
-runtime — so this table cannot drift from what the code does. Regenerate with
+Generated from `core.gateway.POLICY`, the same dict the gateway enforces at
+runtime, so this table cannot drift from what the code does. Regenerate with
 `uv run python scripts/seed_registry.py`.
 
 | Agent | Service account | Model | Returns | Reads | Writes |
 |---|---|---|---|---|---|
-| `sentinel` | `overturn-sentinel` | `gemma-4-26b-a4b-it-maas` | `—` | `audit_events`, `cases`, `quarantine` | `audit_events`, `quarantine` |
+| `sentinel` | `overturn-sentinel` | `gemma-4-26b-a4b-it-maas` | `, ` | `audit_events`, `cases`, `quarantine` | `audit_events`, `quarantine` |
 | `intake` | `overturn-intake` | `gemini-3.5-flash` | `DenialExtraction` | `audit_events`, `cases` | `audit_events`, `cases` |
 | `retrieval` | `overturn-retrieval` | `gemini-3.5-flash` | `RetrievalResult` | `audit_events`, `cases`, `policy_sections` | `audit_events`, `cases` |
 | `mapping` | `overturn-mapping` | `gemini-3.5-flash` | `CriteriaMatrix` | `audit_events`, `cases` | `audit_events`, `cases` |
@@ -114,7 +114,7 @@ A note on honesty, because it matters more than the table looks good. Buckets,
 Pub/Sub topics and secrets are genuinely scoped per identity by
 `infra/iam_setup.sh`, and an agent without the grant cannot reach them. Firestore
 has no collection-level IAM, so collection scoping is enforced deterministically
-in `core/gateway.py`, which every datastore consumer routes through — agents
+in `core/gateway.py`, which every datastore consumer routes through, agents
 receive a `GatewayHandle`, never a store. Both layers are real; neither is
 claimed to be the other.
 
@@ -154,7 +154,7 @@ in it. Durable state plus a scheduler plus idempotent handlers is how a system
 survives weeks, restarts, and redeliveries.
 
 **2. The verification layer means it refuses to lie.** Every cited identifier is
-checked for existence against the retrieved set — in Python, as set membership,
+checked for existence against the retrieved set, in Python, as set membership,
 because a model cannot be wrong about a question it is never asked. Then the
 cited source text is checked against the claim the letter makes about it, and
 every clinical assertion is checked against the criteria matrix. A failure
@@ -168,7 +168,7 @@ rather than a checkbox.
 ## Does it actually get the right answer?
 
 The failure worth worrying about in a system like this is not a crash. It is a
-confident, well-cited, entirely irrelevant appeal — and nothing that asserts on
+confident, well-cited, entirely irrelevant appeal, and nothing that asserts on
 status codes would notice one.
 
 So correctness is measured, not assumed. `scripts/evaluate.py` runs every case
@@ -184,8 +184,8 @@ uv run python scripts/evaluate.py --live   # real Vertex AI, costs money
 ```
 
 **These numbers are from the offline backend**, and that matters when reading
-them. The deterministic parts are the real thing — Sentinel's rules, the
-citation-existence check, retrieval, the whole orchestration — but the
+them. The deterministic parts are the real thing. Sentinel's rules, the
+citation-existence check, retrieval, the whole orchestration, but the
 generative calls are answered locally, and `mapping.map_section` in particular
 reads verdicts from a fixture. So this table says the pipeline reaches the right
 conclusions given correct clinical judgements; it does not say the model makes
@@ -220,15 +220,14 @@ in the corpus governs, so there is no criterion to argue against.
 
 **CASE-006** and **CASE-008** are the interesting ones. Both have charts that
 document most criteria beautifully and are silent on the one the payer actually
-denied on. No count of satisfied criteria separates those from a real appeal —
-CASE-006 documents seven of nine — so appealability is decided by whether the
+denied on. No count of satisfied criteria separates those from a real appeal. CASE-006 documents seven of nine, so appealability is decided by whether the
 chart answers the criterion the payer's own stated reason turns on. Both decline,
 and both tell the clerk which note to go and get:
 
 > The payer denied on NBH-CARD-014-3.5, and the chart is silent on exactly that.
 > Other criteria are well documented, but none of them answer the question that
 > was actually asked. The gap is in the documentation rather than in the
-> determination — the useful next step is to obtain that note, not to send an
+> determination, the useful next step is to obtain that note, not to send an
 > appeal that argues around it.
 
 ## Recovery, specifically
@@ -345,7 +344,7 @@ uv run python scripts/casectl.py approve CASE-001 --by clerk@clinic.example
 uv run python scripts/casectl.py cosign CASE-001 --clinician "M. Castellanos" --credential MD
 ```
 
-The clerk's approval alone reports `Not transmitted — clerk=yes clinician=no`.
+The clerk's approval alone reports `Not transmitted, clerk=yes clinician=no`.
 The co-sign is what sends it. Either order works; whichever signature lands
 second is what transmits.
 
@@ -382,13 +381,13 @@ java -jar synthea-with-dependencies.jar -p 8 -s 20260822 \
 uv run python scripts/build_charts.py --synthea ~/synthea/output/csv
 ```
 
-The seed `20260822` is recorded deliberately — the same seed reproduces the same
+The seed `20260822` is recorded deliberately, the same seed reproduces the same
 eight patients, so the charts in this repository can be regenerated exactly.
 
 ## Deploying it
 
-Full detail — prerequisites, verification commands, cost breakdown, and a
-troubleshooting table — is in [`docs/RUNBOOK.md`](docs/RUNBOOK.md). This is
+Full detail, prerequisites, verification commands, cost breakdown, and a
+troubleshooting table, is in [`docs/RUNBOOK.md`](docs/RUNBOOK.md). This is
 just the sequence, in order:
 
 ```bash
@@ -399,7 +398,7 @@ bash infra/iam_setup.sh            # creates 8 agent service accounts, least pri
 bash infra/iam_audit.sh            # prints what each identity can actually do. free, read-only.
 
 # Optional, and billed the moment it's created: Sentinel's Model Armor layer.
-# Sentinel runs fine without it — it records the layer as skipped, not clean.
+# Sentinel runs fine without it, it records the layer as skipped, not clean.
 bash infra/model_armor_setup.sh    # optional. creates a billable-ish resource.
 
 bash infra/provision.sh            # buckets, Pub/Sub + DLQ, Firestore, uploads the policy corpus. free at demo volume.
@@ -410,8 +409,7 @@ bash infra/deploy.sh               # builds the image (Dockerfile, via Cloud Bui
 ```
 
 `infra/deploy.sh` is also what you re-run for every subsequent code change.
-`infra/provision.sh` and `infra/deploy.sh` must run after `iam_setup.sh` —
-both grant IAM bindings on resources they create, targeting service accounts
+`infra/provision.sh` and `infra/deploy.sh` must run after `iam_setup.sh`, both grant IAM bindings on resources they create, targeting service accounts
 that have to exist first.
 
 Tear down what costs money while idle with `bash infra/teardown.sh` (add
@@ -436,7 +434,7 @@ consulted.**
 - **Payer policies.** "Northbeck Health Plan" is a fictional insurer invented for
   this project. No real insurer's name, logo, or policy text appears anywhere.
   The documents are authored, modelled on the *structure* that real payers
-  publish openly — a scope statement, numbered coverage criteria, documentation
+  publish openly, a scope statement, numbered coverage criteria, documentation
   requirements, exclusions. See `data/policies/README.md`.
 - **No medical advice.** Stated above and enforced in code.
 
@@ -454,13 +452,13 @@ or binaries rather than as dependencies are called out above: Synthea
 
 ## Documentation
 
-- [`docs/PLATFORM_PROBE.md`](docs/PLATFORM_PROBE.md) — what was actually
+- [`docs/PLATFORM_PROBE.md`](docs/PLATFORM_PROBE.md), what was actually
   available on the project, resolved on day one before anything was designed
-- [`docs/MODEL_CHOICES.md`](docs/MODEL_CHOICES.md) — which agent uses which
+- [`docs/MODEL_CHOICES.md`](docs/MODEL_CHOICES.md), which agent uses which
   model, and the constraint that ruled out every Pro-tier option
-- [`docs/SCREENING_LAYERS.md`](docs/SCREENING_LAYERS.md) — what each of
+- [`docs/SCREENING_LAYERS.md`](docs/SCREENING_LAYERS.md), what each of
   Sentinel's three detection layers actually caught when measured against a
   poisoned letter, including the one that missed
-- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — how the live Cloud Run deployment
+- [`docs/RUNBOOK.md`](docs/RUNBOOK.md), how the live Cloud Run deployment
   above was built, and the non-obvious failures that cost real time getting
   there

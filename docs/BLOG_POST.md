@@ -1,7 +1,7 @@
 ---
 title: "The Bug That Would Have Sent a Perfect Cardiac Appeal to the Wrong Policy"
 published: true
-description: "Six real bugs — and one honest false positive we found by reading our own agent's rejections by hand — from building Overturn, an agent fleet that appeals denied health insurance claims for weeks without a human re-prompting it. Written for the Google + Devpost All Things Agentic Hackathon."
+description: "Six real bugs, plus one honest false positive we found by reading our own agent's rejections by hand, from building Overturn. It's an agent fleet that appeals denied health insurance claims for weeks without a human re-prompting it. Written for the Google + Devpost All Things Agentic Hackathon."
 tags: ai, agents, python, healthtech
 ---
 
@@ -16,13 +16,13 @@ A clinic gets a denial letter from an insurer. Appealing it properly means
 finding the payer's own published medical policy, checking the patient's chart
 against that policy line by line, and writing a letter that cites section
 numbers correctly. That's a couple of hours of skilled work per claim, which is
-why most winnable denials never get appealed at all — the labor cost exceeds
+why most winnable denials never get appealed at all. The labor cost exceeds
 the value of the claim.
 
 Overturn is seven agents that do that work end to end: read the letter,
 retrieve the governing policy, map the chart against its criteria, draft the
-appeal, verify every citation before a human sees it, and then — the part that
-actually matters — sit on the case for weeks and escalate on its own when the
+appeal, verify every citation before a human sees it, and then, the part that
+actually matters, sit on the case for weeks and escalate on its own when the
 payer's response deadline passes in silence. No open connection, no process
 running, no in-memory object holding anything together. A worker that has
 never seen the case wakes up on a schedule, reconstructs it from Firestore, and
@@ -40,12 +40,12 @@ the query that found overdue cases checked for `status == "submitted"`. The
 escalation action itself sets `status = "escalated"`.
 
 Run it once and it works. Run it twice and the second overdue deadline is
-invisible — the case is sitting in `escalated`, past its new deadline, and
+invisible. The case is sitting in `escalated`, past its new deadline, and
 nothing is looking for it anymore. The ladder has four rungs and the code could
 only ever find you on the first one.
 
-This is exactly the failure the product exists to prevent — a case going quiet
-because nobody's watching it — reintroduced by the one component whose entire
+This is exactly the failure the product exists to prevent, a case going quiet
+because nobody's watching it, reintroduced by the one component whose entire
 job is to watch it. It's also invisible in any demo shorter than the appeal
 window, which is weeks. You only find it by asking "what does the query select
 after the first successful run," not by running the pipeline once and watching
@@ -53,7 +53,7 @@ it work.
 
 ## 2. Computed fields that couldn't survive a round trip
 
-Case state is a Pydantic model with a few `@computed_field` properties —
+Case state is a Pydantic model with a few `@computed_field` properties,
 things like "is this overdue" derived from other fields. Convenient to read.
 The problem: `to_firestore()` serializes computed fields into the stored
 document like any other field, and the schema is `extra="forbid"`. Load the
@@ -62,7 +62,7 @@ the wire that isn't a declared input field.
 
 Write, then read, then crash. In a system whose entire premise is "pick this
 case back up in three weeks," a record that can't survive its own round trip
-isn't a record — it's a live variable pretending to be one. The fix was
+isn't a record. It's a live variable pretending to be one. The fix was
 mechanical (exclude computed fields from the stored payload, recompute on
 load), but finding it meant actually writing a case, restarting the process,
 and reading it back, rather than trusting that the schema round-trip tests I'd
@@ -85,7 +85,7 @@ each other:
   carry almost no inverse document frequency. TF-IDF has nothing to grab onto.
 - **Ranking by summed section score is wrong.** Once I added word-pair
   features, the correct policy had the single best-matching section in the
-  whole corpus — and still lost the ranking, because the wrong policy had more
+  whole corpus, and still lost the ranking, because the wrong policy had more
   mediocre-scoring sections inside the top-k and summing rewarded that. Fix:
   rank by the single strongest section, use the sum only as a tiebreak.
 - **Word pairs have to be order-independent.** A CPT descriptor reads
@@ -105,7 +105,7 @@ The part that actually worried me: every downstream agent would have done
 careful, well-cited work on the lumbar spine policy. Mapping would have
 produced a clean criteria matrix. Drafting would have written a well-argued
 letter. Verification checks that every cited section id exists in the
-retrieved set and that quotes match the source text — and all of that would
+retrieved set and that quotes match the source text, and all of that would
 have passed, because the citations are completely correct against the document
 Retrieval handed them. The letter would have been internally consistent and
 entirely irrelevant, and nothing downstream is positioned to catch "this is
@@ -114,7 +114,7 @@ the wrong policy" because no agent downstream ever sees the alternative.
 That's why the calibration script fails loudly instead of picking a threshold
 that merely worked on the cases someone happened to try. And it calls the real
 `TfidfIndex.best_policy` function rather than reimplementing the ranking logic
-for measurement purposes — an earlier version did reimplement it, the two
+for measurement purposes. An earlier version did reimplement it, the two
 copies drifted apart, and the calibration reported success while the actual
 agent kept retrieving the wrong policy. A harness that doesn't exercise the
 real code path measures the harness, not the system.
@@ -125,14 +125,14 @@ Sentinel screens every inbound denial letter for prompt injection before
 anything else touches it, using regex rules that look for instruction-shaped
 language rather than any specific payload. One rule flags an insurer telling
 the reading system to close or drop a case. Early version of that pattern
-matched on `close|drop|abandon` near `this case` — which also matched a
+matched on `close|drop|abandon` near `this case`, which also matched a
 completely ordinary sentence in a real denial letter: *"the plan will not
 close this case until the appeal period has run."*
 
 A false negative here lets an injected instruction through. A false positive
-here quarantines a legitimate denial letter and halts the appeal — which, for
+here quarantines a legitimate denial letter and halts the appeal. For
 a product whose stated purpose is getting winnable appeals filed instead of
-dropped, is close to the worst possible failure mode. The fix was requiring
+dropped, that is close to the worst possible failure mode. The fix was requiring
 imperative mood: the pattern now anchors on sentence-initial or
 clause-initial position (`_IMPERATIVE_START` in `agents/sentinel/rules.py`),
 so it catches *"Close this case"* as an instruction but not *"will not close
@@ -143,9 +143,9 @@ budgeted attention for that going in.
 ## 5. Every Pro-tier model in the catalog was below the hackathon's floor
 
 Small one, but it's the kind of thing that's easy to fudge quietly. The rules
-require Gemini 3.5 or newer. I'd planned one deliberately expensive call —
-drafting the actual appeal letter — on a Pro-tier model, reasoning that output
-quality is the one place in the pipeline where it's worth paying for it.
+require Gemini 3.5 or newer. I'd planned one deliberately expensive call, drafting the actual appeal letter,
+on a Pro-tier model, reasoning that output quality is the one place in the
+pipeline where it's worth paying for it.
 
 Checking the catalog: every 3.x Pro-tier id (`gemini-3-pro-preview`,
 `gemini-3.1-pro-preview`) is in public preview and numbered *below* 3.5.
@@ -155,7 +155,7 @@ qualifies. So "use Pro for the hard call" became "use the newest GA Flash
 model," `gemini-3.7-flash`. The tempting move would have been to quietly fall
 back to `gemini-2.5-pro` because it's a better model and nobody demoing the
 video would notice the id in the logs. Writing the actual reasoning down in
-`docs/MODEL_CHOICES.md` — including the rejected candidates — felt more
+`docs/MODEL_CHOICES.md`, including the rejected candidates, felt more
 useful than a marginally better draft on a disqualifying model.
 
 ## 6. The safety net that was wrong twice, and we only found out by reading it
@@ -164,12 +164,13 @@ This one isn't a bug in the code. It's a bug in what I was willing to claim.
 
 Verification is the layer that makes the rest of this trustworthy: every
 citation gets checked for existence against the retrieved policy (a Python
-set-membership test — never ask a model a question Python can answer), the
+set-membership test, because you never ask a model a question Python can
+answer), the
 source text gets checked against the claim made about it, and every clinical
 assertion gets checked against the criteria matrix. Fail any of those and the
 draft goes back with the specific reason as revision instructions. Three
 failures and the case goes to a human with nothing sent. I'd been treating
-that cap as unambiguously good news — a system that refuses to lie is a
+that cap as unambiguously good news. A system that refuses to lie is a
 system doing its job.
 
 Then I read CASE-003 by hand. It's a cardiac MRI appeal for an 83-year-old
@@ -182,17 +183,17 @@ drafts. Verification rejected all three, and the case hit its attempt cap:
 I assumed that was the safety net holding, the same story as CASE-007
 elsewhere in this project. It wasn't. Attempt 1 was rejected over a sentence
 that was *verbatim* the policy criterion with "Requires that" prefixed to
-it — Verification's objection argued the letter required something it never
+it. Verification's objection argued the letter required something it never
 required, when the letter just restated a sentence and cited it correctly.
-Attempt 3 was rejected over where a modifier attaches in a sentence — a
+Attempt 3 was rejected over where a modifier attaches in a sentence. That is a
 reading disagreement, not a fabrication. Two of the three rejections that
 killed a well-founded appeal for a real (synthetic, but realistically
 constructed) patient were wrong.
 
 The eight-case evaluation harness has never measured this, because scoring
 "did Verification's rejection reason hold up against the policy text" isn't
-something the harness that trusts Verification's own output can check —
-somebody has to read the rejection by hand and decide if it's fair. Nobody
+something the harness that trusts Verification's own output can check.
+Somebody has to read the rejection by hand and decide if it's fair. Nobody
 had, until this pass. So the honest state of the project is: Verification
 demonstrably catches real overclaims (CASE-001, reproduced across two
 separate live runs on two different days, a real model asserting a
@@ -215,7 +216,7 @@ question Python can answer.**
 check. *Has the payer's deadline passed* is a timestamp comparison. *Does this
 evidence quote actually appear at the chart locator it claims* is a substring
 match after normalizing whitespace and smart quotes. None of these can
-hallucinate, because none of them are ever asked to a model — they're plain
+hallucinate, because none of them are ever asked to a model. They're plain
 Python in `agents/mapping/validate.py`, `core/idempotency.py`, and
 `core/gateway.py`. The model's job shrinks to the genuinely semantic
 questions: does this source text support this specific clinical claim, does
