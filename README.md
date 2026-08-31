@@ -3,19 +3,26 @@
 **An agent fleet that appeals wrongful health insurance denials, and keeps
 appealing for weeks without being asked twice.**
 
+[**Four minute demo**](https://www.youtube.com/watch?v=t-V1P6fDssI) &nbsp;·&nbsp;
+[**Live system**](https://overturn-kruy6aauaq-uc.a.run.app) &nbsp;·&nbsp;
+[**How it was measured**](docs/EVALUATION.md) &nbsp;·&nbsp;
+[**Architecture**](docs/ARCHITECTURE.md)
+
 A clinic billing clerk gets a denial letter. Appealing it properly means finding
-the payer's published policy, matching the chart against it criterion by
+the payer's published policy, going through the chart against it criterion by
 criterion, and citing it back by section number. That is a couple of hours of
-careful work. Far more often nobody has those hours, so the letter never gets
-written and the claim dies. (The two hours is an estimate of the task, not a
-measurement. What *is* measured is the other side of the trade, below.) Marketplace
-insurers denied about 85 million in-network claims in 2024. Consumers appealed at
-least 262,982 of them, fewer than one in three hundred, and even then, insurers
-upheld 66% of the appeals they received ([KFF, ACA Marketplace claims data,
+careful work, and the person who would do it has forty other things waiting this
+afternoon. So the letter does not get written, the claim is never denied a second
+time, and it quietly goes away.
+
+Marketplace insurers denied about 85 million in-network claims in 2024. Consumers
+appealed at least 262,982 of them, fewer than one in three hundred, and insurers
+upheld 66% of even those they received ([KFF, ACA Marketplace claims data,
 2024][kff]). Almost nobody appeals, and the odds look bad for the few who do.
-The bottleneck is not judgment. It is that the labour cost of one appeal exceeds
-the value of one claim, on odds nobody would spend two hours chasing without
-help.
+
+The bottleneck is not judgment and it is not merit. It is that the labour cost of
+one appeal exceeds the value of one claim, on odds nobody would spend an
+afternoon chasing without help. Labour is the part a machine can take over.
 
 [kff]: https://www.kff.org/patient-consumer-protections/claims-denials-and-appeals-in-aca-marketplace-plans-in-2024/
 
@@ -28,35 +35,67 @@ on its own when the payer's response deadline passes in silence.
 A human approves before anything is transmitted. That gate is a design decision,
 not a limitation.
 
-**Everything here is synthetic.** The patients, the payer ("Northbeck Health
-Plan"), its policies, and every denial letter are invented for this project.
-No real patient data and no real insurer appear anywhere, see "Data sources
-and compliance" below.
-
-**Live on Google Cloud:** the human approval interface is hosted at
-[`https://overturn-kruy6aauaq-uc.a.run.app`](https://overturn-kruy6aauaq-uc.a.run.app).
-Reading is open, no sign-in, no password, click straight in from the queue to
-any case. Only the three actions that change a case (approve, reject, co-sign)
-are gated by a single shared password rather than a Google account, **`northbeck-appeals-2026`**, because those states cost real model calls to
-produce and cannot be undone, and a crawler that followed a form could
-approve or reject its way through all of them in a second. `overturn-ingest`
-and `overturn-scheduler` are also live but deliberately private: Pub/Sub and
-Cloud Scheduler invoke them, not a browser, so a 403 from either of those two
-`.run.app` URLs is correct, not a broken deployment. See
-[`docs/RUNBOOK.md`](docs/RUNBOOK.md) for how all three were deployed.
-
 > **Overturn does not decide whether care is appropriate.** It determines whether
 > the documentation in a chart matches criteria the payer has already published.
 > That is a documentation-matching problem, not a clinical one, and the
 > distinction is enforced in the code: no agent is permitted to assert a clinical
 > fact that does not trace to a row in the criteria matrix.
 
+**Everything here is synthetic.** The patients, the payer ("Northbeck Health
+Plan"), its policies, and every denial letter are invented for this project. No
+real patient data and no real insurer appears anywhere. See "Data sources and
+compliance" below.
+
+![The seven agents, the Google Cloud services behind them, and which Firestore
+collection each identity may read and write](docs/screenshots/architecture.png)
+
+---
+
+## The one result worth reading first
+
+Everything else in this README is machinery. This is the part that had to be
+true for any of it to matter.
+
+Running live against real models, Drafting asserted that a patient's July 14
+encounter was a **telehealth evaluation**. The chart records that encounter as an
+"interim review" and never says how it was conducted. Verification, a separate
+agent on a separate model with no ability to edit the draft it is judging, caught
+it unprompted:
+
+> The chart does not establish that the evaluation on July 14, 2026 was a
+> telehealth evaluation, nor does it mention the timing of the request to
+> establish it was within six months.
+
+That finding went back to Drafting as revision instructions. Attempt 2 dropped the
+claim and passed. No clinician or clerk ever had to catch it, because the system
+caught itself, on the case its own manifest calls the easy one.
+
+The same pattern recurred on two further cases, which is the reason to believe it
+is not one lucky sample. The full account, including the two cases where the
+system got it **wrong**, is in [`docs/EVALUATION.md`](docs/EVALUATION.md).
+
+---
+
+## Opening the live system
+
+The approval interface is at
+[`https://overturn-kruy6aauaq-uc.a.run.app`](https://overturn-kruy6aauaq-uc.a.run.app).
+Reading is open: no sign-in, click straight through from the queue to any case.
+Only the three actions that change a case (approve, reject, co-sign) ask for a
+password, **`northbeck-appeals-2026`**, because those states cost real model
+calls to produce and cannot be undone.
+
+`overturn-ingest` and `overturn-scheduler` are also live but deliberately
+private, so a 403 from either of those two is correct rather than a broken
+deployment. [`docs/RUNBOOK.md`](docs/RUNBOOK.md) covers how all three were
+deployed, and the one manual step that has to follow every redeploy.
+
 ---
 
 ## Status
 
 Built for the Google + Devpost **All Things Agentic Hackathon**, track:
-*The Fortified Enterprise Fleet*. This section is updated as the build lands.
+*The Fortified Enterprise Fleet*.
 
 | Layer | State |
 |---|---|
@@ -69,6 +108,8 @@ Built for the Google + Devpost **All Things Agentic Hackathon**, track:
 | Policy corpus | done, 6 policies, 42 sections, 113 citable identifiers |
 | Patient charts | done. Synthea base plus authored encounters |
 | Seven agents | done |
+| Agent registry and discovery | done, `core/registry.py`, served live at [`/fleet`](https://overturn-kruy6aauaq-uc.a.run.app/fleet) |
+| Memory Bank | done, `core/memory.py` on Firestore, keyed on payer and denial reason, never on a patient |
 | Cloud deployment | done, three Cloud Run services, live (see above) |
 
 ---
@@ -96,7 +137,7 @@ runtime, so this table cannot drift from what the code does. Regenerate with
 
 | Agent | Service account | Model | Returns | Reads | Writes |
 |---|---|---|---|---|---|
-| `sentinel` | `overturn-sentinel` | `gemma-4-26b-a4b-it-maas` | `, ` | `audit_events`, `cases`, `quarantine` | `audit_events`, `quarantine` |
+| `sentinel` | `overturn-sentinel` | `gemma-4-26b-a4b-it-maas` | `none` | `audit_events`, `cases`, `quarantine` | `audit_events`, `quarantine` |
 | `intake` | `overturn-intake` | `gemini-3.5-flash` | `DenialExtraction` | `audit_events`, `cases` | `audit_events`, `cases` |
 | `retrieval` | `overturn-retrieval` | `gemini-3.5-flash` | `RetrievalResult` | `audit_events`, `cases`, `policy_sections` | `audit_events`, `cases` |
 | `mapping` | `overturn-mapping` | `gemini-3.5-flash` | `CriteriaMatrix` | `audit_events`, `cases` | `audit_events`, `cases` |
@@ -117,6 +158,14 @@ has no collection-level IAM, so collection scoping is enforced deterministically
 in `core/gateway.py`, which every datastore consumer routes through, agents
 receive a `GatewayHandle`, never a store. Both layers are real; neither is
 claimed to be the other.
+
+Every row of this is also served live at
+[`/fleet`](https://overturn-kruy6aauaq-uc.a.run.app/fleet), computed at request
+time from the same source the running pipeline reads, so the page and the code
+cannot disagree:
+
+![The agent registry at /fleet, one row per agent, each with its service account
+and the collections it may read and write](docs/screenshots/registry.png)
 
 ## How a case actually moves
 
@@ -152,6 +201,14 @@ seen the case reconstructs it from one document and continues.
 **1. The multi-week state is the product.** Anyone can write a loop with a sleep
 in it. Durable state plus a scheduler plus idempotent handlers is how a system
 survives weeks, restarts, and redeliveries.
+
+CASE-006 is the one to open. Its 30 day response window lapsed, a scheduler tick
+found it, and it moved itself to peer to peer review. Nobody asked it to, nothing
+was running in between, and the case page says so in the system's own words:
+
+![CASE-006 showing that it escalated itself from first level appeal to peer to
+peer review on a scheduler tick, with no person
+involved](docs/screenshots/escalation.png)
 
 **2. The verification layer means it refuses to lie.** Every cited identifier is
 checked for existence against the retrieved set, in Python, as set membership,
@@ -189,8 +246,15 @@ citation-existence check, retrieval, the whole orchestration, but the
 generative calls are answered locally, and `mapping.map_section` in particular
 reads verdicts from a fixture. So this table says the pipeline reaches the right
 conclusions given correct clinical judgements; it does not say the model makes
-them. `docs/EVALUATION.md` reports the same eight cases against real Gemini,
-which is the number that answers that question.
+them.
+
+The same eight cases were then run against real Gemini on Vertex AI on 28 August
+2026. **Offline: 8/8 outcomes correct, 8/8 fully grounded. Live: 6/8 outcomes
+correct, 8/8 fully grounded, zero fabricated citations reaching a human in either
+run.** The grounding number is the one worth sitting with, and the two live
+misses are written up rather than re-run until they went away.
+[`docs/EVALUATION.md`](docs/EVALUATION.md) has both scorecards side by side and
+the full account of what went wrong.
 
 | Case | Scenario | Expected | Reached | Fabricated citations | Unlocatable evidence |
 |---|---|---|---|---|---|
@@ -220,7 +284,7 @@ in the corpus governs, so there is no criterion to argue against.
 
 **CASE-006** and **CASE-008** are the interesting ones. Both have charts that
 document most criteria beautifully and are silent on the one the payer actually
-denied on. No count of satisfied criteria separates those from a real appeal. CASE-006 documents seven of nine, so appealability is decided by whether the
+denied on. No count of satisfied criteria separates those from a real appeal. CASE-006 satisfies seven of its eleven criteria, so appealability is decided by whether the
 chart answers the criterion the payer's own stated reason turns on. Both decline,
 and both tell the clerk which note to go and get:
 
@@ -285,10 +349,10 @@ the access gateway, the audit trail and the trace spans are all the real thing.
 git clone https://github.com/Rickygole/overturn.git
 cd overturn
 uv sync                # needs uv; see https://docs.astral.sh/uv/
-uv run pytest -q       # 765 tests, a few seconds
+uv run pytest -q       # 766 tests, a few seconds
 ```
 
-Verified from a clean clone on 2026-08-23. If those two commands do not both
+Verified from a clean clone on 2026-08-31. If those two commands do not both
 succeed, that is a bug in this README and not in your machine.
 
 ### Watch it work
@@ -359,6 +423,16 @@ uv run python scripts/casectl.py tick
 ```bash
 uv run uvicorn services.approval_ui.main:app --port 8080
 ```
+
+The same screen is live at
+[`/queue`](https://overturn-kruy6aauaq-uc.a.run.app/queue). It ships zero
+JavaScript and links nothing off-host, both enforced by tests rather than by
+intention. Note the third row: the system records, on its own review screen, that
+two of its three rejections of that case were wrong.
+
+![The review queue, showing which cases are waiting on a person, and a note
+recording that verification wrongly rejected a sound
+appeal](docs/screenshots/queue.png)
 
 ### Measuring retrieval
 
@@ -459,6 +533,12 @@ or binaries rather than as dependencies are called out above: Synthea
 - [`docs/SCREENING_LAYERS.md`](docs/SCREENING_LAYERS.md), what each of
   Sentinel's three detection layers actually caught when measured against a
   poisoned letter, including the one that missed
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), the full system design,
+  including which managed Google surfaces were used, which were deliberately
+  not, and why
+- [`docs/EVALUATION.md`](docs/EVALUATION.md), the offline and live scorecards
+  side by side, the real overclaim Verification caught, and the two cases the
+  system got wrong
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md), how the live Cloud Run deployment
   above was built, and the non-obvious failures that cost real time getting
   there
