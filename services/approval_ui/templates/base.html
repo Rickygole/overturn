@@ -299,6 +299,12 @@ main>:first-child{margin-top:0}
    line, which is less readable than a table you push sideways — so below
    34rem the scroller earns its keep instead of the type collapsing. */
 table{width:100%;min-width:34rem;border-collapse:collapse;font-size:var(--fs-sm);line-height:1.5}
+  /* The registry carries nine columns, several of them unbreakable strings
+     (a service-account email, a definition digest). At the default 34rem
+     minimum the browser satisfied width:100% by crushing the wrappable
+     columns instead, and Purpose set one word per line. A wider floor
+     lets .table-scroll do the job it is already there to do. */
+  .table--wide{min-width:78rem}
 /* The sentence that says what the table is for. It sits inside the sideways
    scroller with the table, so it is pinned to the left of the viewport and
    never wider than it: a caption you have to scroll to read is a caption
@@ -941,8 +947,12 @@ tbody tr.noted td,tbody tr.noted th{border-bottom:0}
       {# The registry has no case data on it and needs no session -- see
          `path_is_public` in auth.py -- so it is reachable from every screen,
          signed in or not. It sits after the breadcrumb for the same reason
-         the link beside it does: the current page should still read first. #}
-      <a href="/fleet">Agent registry</a>
+         the link beside it does: the current page should still read first.
+         It is a block because the registry page itself has to replace it with
+         a current-page marker; when it was unconditional, /fleet rendered
+         "Agent registry" twice, once as its own breadcrumb and once as a link
+         back to the page the reader was already on. #}
+      {% block nav_registry %}<a href="/fleet">Agent registry</a>{% endblock %}
       {# The queue used to be a cul-de-sac: in from the front page, down to a
          case, back to the queue, and no way to reach the diagram, the
          measurements, or the screening result from anywhere inside the app.

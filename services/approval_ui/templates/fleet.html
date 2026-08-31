@@ -3,10 +3,8 @@
 {% block eyebrow %}Discovery &amp; lifecycle{% endblock %}
 {% block masthead %}Agent registry{% endblock %}
 {% block pagesub %}{{ catalogue | length }} agent{{ "" if catalogue | length == 1 else "s" }} in the fleet, derived from the running code — not maintained by hand.{% endblock %}
-{% block nav %}
-<a href="/queue">Review queue</a>
-<span aria-current="page">Agent registry</span>
-{% endblock %}
+{% block nav %}<a href="/queue">Review queue</a>{% endblock %}
+{% block nav_registry %}<span aria-current="page">Agent registry</span>{% endblock %}
 
 {% block content %}
 
@@ -14,7 +12,7 @@
   <h2 id="catalogue-h">The fleet, as it actually runs today</h2>
   <div class="section__body">
     <div class="table-scroll">
-      <table>
+      <table class="table--wide">
         <caption>
           One row per agent this system runs. Every cell is computed from the source the running
           pipeline itself reads — nothing here is typed in a second time.
