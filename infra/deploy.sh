@@ -269,3 +269,36 @@ echo "Approval:   ${APPROVAL_URL}   (IAM-gated — see docs/RUNBOOK.md to open i
 echo "Scheduler:  ${SCHEDULER_URL}   (private — Cloud Scheduler only)"
 echo
 echo "These three URLs are the proof-of-cloud-deployment shot for the demo video."
+
+# --- Is the approval surface actually reachable? -------------------------
+#
+# This check exists because the failure it catches is silent and expensive.
+# `gcloud run deploy --no-allow-unauthenticated` does not merely decline to add
+# the public binding, it REMOVES an existing allUsers one, and the script then
+# grants the caller's own account instead. That binding is useless in a browser
+# (Cloud Run wants a bearer token; Chrome does not send gcloud credentials), so
+# the operator sees exactly the same 403 as the public while the deploy above
+# reports success in green. It has already happened once, hours before a
+# submission deadline, taking /system.html and /architecture.svg down with it.
+#
+# The remedy is deliberately NOT to add the allUsers binding here. A deploy
+# publishing a service as a side effect is the property infra/open_public.sh
+# exists to prevent. So this only looks, and says so loudly.
+echo
+echo "-- Checking whether ${APPROVAL_URL} is reachable without credentials --"
+unreachable=0
+for path in / /queue /fleet /system.html /architecture.svg; do
+  code="$(curl -s -o /dev/null -w '%{http_code}' "${APPROVAL_URL}${path}" || echo 000)"
+  printf '  %-18s %s\n' "${path}" "${code}"
+  [[ "${code}" == "200" ]] || unreachable=1
+done
+if [[ "${unreachable}" -ne 0 ]]; then
+  echo
+  echo "  WARNING: the approval surface is NOT publicly reachable."
+  echo "  A judge, or anyone else without an invoker binding, sees 403 here."
+  echo "  This is the expected state immediately after a deploy. To open it:"
+  echo
+  echo "      bash infra/open_public.sh"
+  echo
+  echo "  Then re-run this check. Do not end a session on a failing check."
+fi
