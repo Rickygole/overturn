@@ -152,6 +152,7 @@ def create_app(store: DocumentStore | None = None, pipeline: Any | None = None) 
             "escalation": view.escalation(case),
             "stalled": view.approved_but_not_sent(case),
             "deadline": view.deadline_view(case.denial.appeal_deadline if case.denial else None),
+            "memory": view.payer_memory(case, service.payer_observation(case)),
             "trail": trail,
             "traces": view.traces(trail),
             "decidable": case.status == REVIEWABLE_STATUS,

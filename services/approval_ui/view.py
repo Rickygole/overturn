@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
 
+from core.memory import PayerObservation
 from core.schemas.case import CaseRecord
 from core.schemas.criteria import CriterionVerdict
 from core.schemas.denial import DenialExtraction, DeniedService
@@ -1389,6 +1390,102 @@ def escalation(case: CaseRecord, now: datetime | None = None) -> Escalation | No
             f"to {LEVEL_LABELS.get(case.appeal_level, case.appeal_level.value).lower()}. "
             f"Nobody asked it to."
         ),
+    )
+
+
+@dataclass(frozen=True)
+class PayerMemory:
+    """What cross-case memory (`core/memory.py`) holds for this case's payer.
+
+    Never about this case, and never about a patient: the observation is keyed
+    on payer, policy and denial reason code, and what renders here is what
+    every *other* case that shares that key has shown about how this payer
+    behaves. ``has_observations`` is ``False`` for a payer/policy/reason this
+    system has never seen before, which is nearly every case on a fresh
+    deployment -- that is a real, sayable answer, not a reason to hide the
+    section.
+    """
+
+    has_observations: bool
+    payer_name: str
+    appeals_submitted: int
+    published_window_days: int
+    median_response_days: float | None
+    overturn_rate: float | None
+    overturned: int
+    upheld: int
+    line: str
+
+
+def payer_memory(case: CaseRecord, observation: PayerObservation | None) -> PayerMemory | None:
+    """Build the case page's memory panel from what the bank actually holds.
+
+    ``observation`` is passed in rather than recalled here so this stays a
+    pure function of its arguments, like every other view builder in this
+    module — the store read belongs to the service layer.
+    """
+    if case.denial is None:
+        return None
+
+    published = APPEAL_LADDER[case.appeal_level].response_window_days
+    payer = case.denial.payer_name
+
+    if observation is None or observation.appeals_submitted == 0:
+        return PayerMemory(
+            has_observations=False,
+            payer_name=payer,
+            appeals_submitted=0,
+            published_window_days=published,
+            median_response_days=None,
+            overturn_rate=None,
+            overturned=0,
+            upheld=0,
+            line=(
+                f"No prior appeals are on record against {payer} on this policy and "
+                f"reason code. This is the first one, or the earliest this system has "
+                f"seen."
+            ),
+        )
+
+    parts = [
+        f"{observation.appeals_submitted} appeal"
+        f"{'' if observation.appeals_submitted == 1 else 's'} on record against {payer} "
+        f"on this policy and reason code"
+    ]
+    if observation.median_response_days is not None:
+        # Every observation this system has ever recorded for this payer is
+        # `outcome="no_response"` (see `core/memory.py`'s module docstring) --
+        # the payer is simulated and nothing here ever attaches a genuine
+        # response, so this is measured time-to-escalation, not a response
+        # time. Worded to say exactly that rather than imply the payer answered.
+        parts.append(
+            f"a median of {observation.median_response_days:.0f} day"
+            f"{'' if round(observation.median_response_days) == 1 else 's'} elapsed "
+            f"before the system escalated, against a published {published}-day window"
+        )
+    if (rate := observation.overturn_rate) is not None:
+        parts.append(
+            f"{observation.overturned} of {observation.overturned + observation.upheld} "
+            f"overturned on appeal ({rate:.0%})"
+        )
+    else:
+        parts.append("no overturn or upheld outcome recorded yet")
+
+    return PayerMemory(
+        has_observations=True,
+        payer_name=payer,
+        appeals_submitted=observation.appeals_submitted,
+        published_window_days=published,
+        median_response_days=observation.median_response_days,
+        overturn_rate=observation.overturn_rate,
+        overturned=observation.overturned,
+        upheld=observation.upheld,
+        # Not `.capitalize()`: that lowercases everything after the first
+        # character, which would turn "Northbeck Health Plan" into
+        # "northbeck health plan" wherever it lands mid-sentence. Every part
+        # above already starts with a digit, so the sentence needs no case
+        # correction at its head.
+        line="; ".join(parts) + ".",
     )
 
 

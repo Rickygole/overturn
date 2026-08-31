@@ -644,14 +644,18 @@ class Pipeline:
             case.case_id, LifecycleRequest(case=case), attempt=case.escalation_count + 1
         )
 
-        # Whichever branch below fires, the fact that put this case in front of
-        # Lifecycle at all is already true: the payer's window on the current
-        # rung has elapsed with nothing back. That is a real, derivable
-        # observation about this payer -- see `_remember_escalation` -- whether
-        # the ladder still has a rung left or not.
-        self._remember_escalation(case)
-
         if decision.halts_ladder:
+            # No idempotency-guarded effect fires on this branch -- there is no
+            # payer call to make when the ladder is exhausted -- so nothing
+            # here distinguishes the winner of an overlapping tick from the
+            # loser the way the guard below does. `test_overlapping_ticks_*` in
+            # tests/test_lifecycle.py exercises the climbing branch, not this
+            # one; a genuine race on the *last* rung could still double-count
+            # one observation. Recorded directly rather than left out, because
+            # that race is narrow (one case, one rung, one moment) and an
+            # occasionally double-counted "no_response" is a smaller honesty
+            # problem than a memory that silently never learns from this branch.
+            self._remember_escalation(case)
             updated = self._advance(
                 case.case_id,
                 CaseStatus.NEEDS_HUMAN_REVIEW,
@@ -661,13 +665,23 @@ class Pipeline:
             self._notify(case.case_id, decision.notify_message)
             return updated
 
-        self._act(
+        action_outcome = self._act(
             case.case_id,
             decision.action,
             {"level": decision.next_level.value if decision.next_level else "closed"},
             lambda: effects.escalate(self.fleet, case.case_id, decision),
             attempt=case.escalation_count + 1,
         )
+        # Gated on the guard's own verdict, not called unconditionally above:
+        # an overlapping tick that loses the claim gets `executed=False` here
+        # (a replay, not a re-run — see `IdempotencyGuard.execute`), and must
+        # not record a second "the window lapsed" observation for one lapse.
+        # `test_overlapping_ticks_escalate_once` and
+        # `test_a_replayed_action_does_not_advance_the_case_twice` in
+        # tests/test_lifecycle.py both call this method twice on one
+        # pre-escalation snapshot, which is exactly the race this guards.
+        if action_outcome.executed:
+            self._remember_escalation(case)
 
         accel = self.settings.demo_seconds_per_day if self.settings.demo_time_acceleration else None
 

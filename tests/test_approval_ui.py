@@ -2750,6 +2750,75 @@ class TestTraces:
 
 
 # --------------------------------------------------------------------------- #
+# Cross-case memory (`core/memory.py`)
+#
+# Wired at two call sites in the pipeline; this is the case page's half. An
+# empty memory has to say so as plainly as a populated one -- there is no
+# third state where the section just is not there.
+# --------------------------------------------------------------------------- #
+
+
+class TestPayerMemoryOnTheCasePage:
+    def test_no_prior_observations_says_so_plainly(self, client, seeded):
+        html = client.get(f"/case/{CASE_ID}").text
+        assert "What this system has learned about Northbeck Health Plan" in html
+        assert "No prior appeals are on record against Northbeck Health Plan" in html
+
+    def test_a_case_with_no_denial_carries_no_memory_section(self, client, repo):
+        """Nothing to key an observation on yet -- Intake has not run."""
+        bare = CaseRecord(
+            case_id="CASE-BARE",
+            status=CaseStatus.RECEIVED,
+            source_document_uri="gs://overturn-intake/CASE-BARE.pdf",
+        )
+        repo.create(bare)
+        html = client.get("/case/CASE-BARE").text
+        assert "What this system has learned about" not in html
+
+    def test_a_prior_observation_renders_the_learned_line(self, client, store, seeded):
+        from core.memory import MemoryBank
+
+        memory = MemoryBank(store, GatewayHandle(AgentName.ORCHESTRATOR))
+        memory.record_submission(seeded)
+
+        html = client.get(f"/case/{CASE_ID}").text
+        assert "1 appeal on record against Northbeck Health Plan" in html
+
+    def test_an_escalated_observation_states_the_elapsed_time_not_a_response(
+        self, client, store, seeded
+    ):
+        """Every observation this system produces is `no_response` -- see
+        `core/memory.py`'s module docstring -- so the sentence must not imply
+        the payer actually answered."""
+        from core.memory import MemoryBank
+
+        memory = MemoryBank(store, GatewayHandle(AgentName.ORCHESTRATOR))
+        aged = seeded.model_copy(
+            update={"submitted_at": datetime.now(UTC) - timedelta(days=34)}
+        )
+        memory.record_submission(aged)
+        memory.record_resolution(aged, outcome="no_response")
+
+        html = client.get(f"/case/{CASE_ID}").text
+        assert "elapsed before the system escalated" in html
+        assert "no overturn or upheld outcome recorded yet" in html
+
+    def test_the_memory_view_builder_is_pure_and_never_fabricates_an_outcome(self):
+        from core.memory import PayerObservation
+
+        case = _case()
+        assert view.payer_memory(case, None) == view.payer_memory(case, None)
+
+        observation = PayerObservation(
+            key="k", payer_name="Northbeck Health Plan", appeals_submitted=2
+        )
+        memory = view.payer_memory(case, observation)
+        assert memory.has_observations is True
+        assert memory.overturn_rate is None
+        assert "no overturn or upheld outcome recorded yet" in memory.line
+
+
+# --------------------------------------------------------------------------- #
 # The money
 #
 # $2,940 on CASE-003, three folds down inside Intake's free-text note. It is

@@ -394,6 +394,22 @@
       </dl>
     </div>
     {% endif %}
+
+    {# Cross-case memory (`core/memory.py`), keyed on payer, policy and reason
+       code -- never on this or any patient. Renders whether or not there is
+       anything to show: an empty memory that says so plainly is more honest
+       than a section that only appears once there is something flattering to
+       print. #}
+    {% if memory %}
+    <div class="card prose stack-5">
+      <h3>What this system has learned about {{ memory.payer_name }}</h3>
+      <p class="muted">{{ memory.line }}</p>
+      {% if not memory.has_observations %}
+      <p class="note">Recorded from every case sharing this payer, policy and denial reason
+      code -- never from this case's own patient data.</p>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 </section>
 

@@ -31,6 +31,7 @@ from typing import Any
 from core.audit import AuditLog
 from core.gateway import GatewayHandle
 from core.idempotency import IdempotencyGuard
+from core.memory import MemoryBank, PayerObservation
 from core.schemas.case import CaseRecord, ClinicianCosign, HumanDecision
 from core.schemas.enums import ActionType, AgentName, CaseStatus
 from core.state import CaseRepository
@@ -114,6 +115,7 @@ class ApprovalService:
         self.cases = CaseRepository(store, self.gateway)
         self.audit = AuditLog(store, self.gateway)
         self.guard = IdempotencyGuard(store, self.gateway)
+        self.memory = MemoryBank(store, self.gateway)
 
     # -- reads ---------------------------------------------------------------- #
 
@@ -181,6 +183,15 @@ class ApprovalService:
         from core.audit import read_case_trail
 
         return read_case_trail(self._store, self.gateway, case_id)
+
+    def payer_observation(self, case: CaseRecord) -> PayerObservation | None:
+        """What cross-case memory holds for this case's payer/policy/reason.
+
+        ``None`` for a case with no denial to key on, or genuinely no prior
+        observations -- the case page renders both honestly rather than
+        hiding the section.
+        """
+        return self.memory.recall_for_case(case)
 
     # -- decisions ------------------------------------------------------------ #
 

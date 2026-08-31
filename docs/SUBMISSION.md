@@ -190,16 +190,22 @@ lose is to overstate something a judge then checks:
 - Agent Registry and Agent Gateway are **our own primitives**, not the managed
   GEAP services — no public REST surface was reachable on this project.
   `docs/PLATFORM_PROBE.md` records the probe and `ARCHITECTURE.md` carries the
-  mapping table.
+  mapping table. The registry now has a runtime surface, `/fleet`, that a judge
+  can open directly: it calls `core/registry.py`'s `build_catalogue()` at
+  request time, so the page cannot drift from the code it describes.
 - Memory Bank is different, and worth stating precisely rather than folding
   into the bullet above: the managed surface *was* reachable on this project
   (same probe, same `200 {}`). `core/memory.py` implements the same contract
   on Firestore anyway, by choice — a managed Memory Bank is scoped to a
   session, and what a payer-behaviour observation needs to survive is weeks
-  of silence, keyed on payer/policy/reason code rather than on a member. It
-  is unit-tested (`tests/test_memory.py`) and **no agent in the running
-  pipeline calls it yet** — the gateway grants and the collection name exist,
-  but a grant is not a call site.
+  of silence, keyed on payer/policy/reason code rather than on a member. It is
+  unit-tested (`tests/test_memory.py`) and now wired into the pipeline at the
+  two honest call sites: `Pipeline.try_submit` records that an appeal went
+  out, and `Pipeline._escalate_one` records that this payer's published
+  window lapsed with nothing back (`outcome="no_response"`, the only outcome
+  this system's simulated payer ever actually produces — no `overturned` or
+  `upheld` figure is fabricated). What has been learned renders on every case
+  page, honestly empty where there is nothing yet.
 - Agent Runtime is not used; the pipeline terminates at a human gate and resumes
   from Firestore, which is not what a managed runtime session is for.
 - The payer endpoint is simulated. Nothing is transmitted to a real insurer.

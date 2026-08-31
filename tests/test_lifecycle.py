@@ -262,6 +262,71 @@ class TestPayerResponses:
         assert case.payer_responses[0].outcome == "upheld"
 
 
+class TestCrossCaseMemory:
+    """`core/memory.py` wired into the two honest call sites.
+
+    Submission and escalation are the only two events this system ever
+    produces about a payer's behaviour -- nothing here ever attaches a real
+    `PayerResponse` to a case, so every escalation this suite can produce is
+    genuinely `outcome="no_response"`, never a fabricated overturn or upheld.
+    """
+
+    def test_submission_is_remembered_against_the_payer(self, pipeline):
+        case = _to_submitted(pipeline)
+        observation = pipeline.fleet.memory.recall_for_case(case)
+        assert observation is not None
+        assert observation.appeals_submitted == 1
+        assert observation.payer_name == case.denial.payer_name
+
+    def test_escalation_is_remembered_with_the_real_elapsed_time(self, pipeline):
+        case = _to_submitted(pipeline)
+        _age(pipeline, "CASE-001")
+        pipeline.escalate_overdue()
+
+        escalated = pipeline.fleet.cases.load("CASE-001")
+        observation = pipeline.fleet.memory.recall_for_case(escalated)
+        assert observation.responses_received == 1
+        # Real, not fabricated -- but this suite runs in milliseconds and
+        # `submitted_at` to "now" is genuinely near-zero days, the same fact
+        # CASE-006 states out loud on the case page: the demo's clock is
+        # compressed, and the mechanism is what is real, not the duration.
+        assert observation.median_response_days is not None
+        assert observation.median_response_days >= 0
+        # No genuine "overturned" or "upheld" was ever observed -- the payer
+        # never actually answers in this simulation -- so nothing is invented
+        # here either.
+        assert observation.overturned == 0
+        assert observation.upheld == 0
+        assert observation.overturn_rate is None
+
+    def test_a_racing_escalation_does_not_double_count_the_observation(self, pipeline):
+        """The same race `TestConcurrentTicks` below holds the case state to."""
+        case = _to_submitted(pipeline)
+        _age(pipeline, "CASE-001")
+
+        pipeline._escalate_one(case)
+        # Re-run from the identical pre-escalation snapshot, exactly what an
+        # overlapping tick holds -- see `test_a_replayed_action_does_not_advance_the_case_twice`.
+        pipeline._escalate_one(case)
+
+        escalated = pipeline.fleet.cases.load("CASE-001")
+        observation = pipeline.fleet.memory.recall_for_case(escalated)
+        assert observation.responses_received == 1, (
+            f"one escalation was remembered {observation.responses_received} times"
+        )
+
+    def test_memory_is_never_keyed_on_the_patient(self, pipeline):
+        from core.memory import contains_no_patient_identifiers
+
+        case = _to_submitted(pipeline)
+        _age(pipeline, "CASE-001")
+        pipeline.escalate_overdue()
+
+        escalated = pipeline.fleet.cases.load("CASE-001")
+        observation = pipeline.fleet.memory.recall_for_case(escalated)
+        assert contains_no_patient_identifiers(observation)
+
+
 class TestConcurrentTicks:
     """Two scheduler instances waking on the same overdue case.
 

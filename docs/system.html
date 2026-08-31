@@ -72,15 +72,21 @@
           lexical scorer caught three real retrieval bugs a managed index would have
           hidden behind a number nobody could reproduce.</td></tr>
       <tr><td>Memory Bank</td><td>Yes</td>
-        <td>No &mdash; implemented on Firestore instead, and not yet called by any agent</td>
+        <td>No &mdash; implemented on Firestore instead</td>
         <td>A managed Memory Bank is scoped to a session; what this needs to survive
           is weeks of silence, queried by payer/policy/reason code rather than by
-          session. <code>core/memory.py</code> is written and unit-tested. Said plainly:
-          nothing in the running pipeline calls it yet.</td></tr>
+          session. <code>core/memory.py</code> is written, unit-tested, and now wired
+          into the pipeline at two points: on submission (an appeal went out against
+          this payer/policy/reason) and on escalation (the payer's published window
+          lapsed with nothing back). Never keyed on a patient. What it has learned
+          renders on every case page, honestly empty where there is nothing yet.</td></tr>
       <tr><td>Agent Registry</td><td><b>No</b> &mdash; no public REST surface found</td>
-        <td>Implemented on a primitive</td>
-        <td><code>core/registry.py</code>, a catalogue derived from the same sources the
-          running code uses, so an entry cannot drift from the agent it describes.</td></tr>
+        <td>Implemented on a primitive, with a runtime surface</td>
+        <td><code>core/registry.py</code> derives a catalogue from the same sources the
+          running code uses, so an entry cannot drift from the agent it describes.
+          Rendered live at <a href="/fleet">/fleet</a> &mdash; identity, permissions,
+          model and invocation for every agent, computed at request time, not a
+          document someone remembers to update.</td></tr>
       <tr><td>Agent Gateway</td><td><b>No</b> &mdash; no public REST surface found</td>
         <td>Implemented on a primitive</td>
         <td><code>core/gateway.py</code>, an access matrix enforced in code and backed
@@ -90,10 +96,13 @@
   </table>
   </div>
   <p>Only two rows above are unreachable-surface findings &mdash; Agent Registry and
-    Agent Gateway. Memory Bank and Agent Runtime were both reachable and are both
-    unused by choice, for the same reason. Conflating those two is exactly the
-    failure this table exists to avoid. Full reasoning per row, with code
-    references: <a href="https://github.com/rickygole/overturn/blob/main/docs/ARCHITECTURE.md">docs/ARCHITECTURE.md</a>.</p>
+    Agent Gateway, both implemented on primitives with no managed REST surface to
+    call instead. Agent Runtime is reachable and unused by choice, for the reason
+    stated in its row. Memory Bank was the same story until today: reachable,
+    implemented on Firestore by choice, and, unlike Agent Runtime, genuinely worth
+    wiring in &mdash; it now is. Conflating an unreachable surface with an unused
+    one is exactly the failure this table exists to avoid. Full reasoning per row,
+    with code references: <a href="https://github.com/rickygole/overturn/blob/main/docs/ARCHITECTURE.md">docs/ARCHITECTURE.md</a>.</p>
 
   <!-- The judge's other core finding: "The track's defining claim is
        asserted and never shown... I click. There is nothing to see." It is

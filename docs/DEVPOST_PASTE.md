@@ -341,7 +341,7 @@ visible proof it runs on Google Cloud.*
   thing; only the generative calls are answered locally:
   ```bash
   git clone https://github.com/Rickygole/overturn.git && cd overturn
-  uv sync && uv run pytest -q     # 747 tests, a few seconds
+  uv sync && uv run pytest -q     # 763 tests, a few seconds
   ```
 - **Correctness is measured, not assumed.** `scripts/evaluate.py` runs every
   case end to end and independently re-derives grounding — it does not trust
