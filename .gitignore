@@ -25,6 +25,6 @@ local_state/
 # Build artifacts
 dist/
 build/
-# Rendered demo videos: build artefacts, rebuilt from docs/VIDEO_NARRATION.md,
-# docs/LIVE_DEMO_RUNBOOK.md and the capture pipeline. Tens of megabytes each.
+# Rendered demo videos: build artefacts, rebuilt from docs/LIVE_DEMO_RUNBOOK.md
+# and the capture pipeline. Tens of megabytes each.
 overturn-*.mp4

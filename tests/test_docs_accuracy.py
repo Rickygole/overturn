@@ -441,18 +441,6 @@ def test_the_reference_page_leads_to_the_architecture_prose():
     assert (DOCS / "ARCHITECTURE.md").is_file()
 
 
-def test_the_video_script_does_not_promise_a_login_that_no_longer_appears():
-    """Reading the queue stopped needing a password; signing still does.
-
-    The script is a checklist for a one-take recording. It told the presenter
-    the queue sat behind the app password, which stopped being true when the
-    queue was opened deliberately, and a presenter waiting for a login wall at
-    /queue is waiting for a screen that will not render.
-    """
-    script = (DOCS / "VIDEO_SCRIPT.md").read_text()
-    assert "review queue at `/queue` behind the app password" not in script
-
-
 # --------------------------------------------------------------------------- #
 # The container has to contain what the running app reads
 # --------------------------------------------------------------------------- #

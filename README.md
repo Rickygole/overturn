@@ -349,7 +349,7 @@ the access gateway, the audit trail and the trace spans are all the real thing.
 git clone https://github.com/Rickygole/overturn.git
 cd overturn
 uv sync                # needs uv; see https://docs.astral.sh/uv/
-uv run pytest -q       # 766 tests, a few seconds
+uv run pytest -q       # 765 tests, a few seconds
 ```
 
 Verified from a clean clone on 2026-08-31. If those two commands do not both

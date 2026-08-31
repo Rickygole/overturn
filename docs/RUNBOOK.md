@@ -299,8 +299,8 @@ for the proxy command) once the case reaches `awaiting_human_approval`.
       gcloud run services update overturn-scheduler --region="$REGION" \
         --update-env-vars=OVERTURN_DEMO_TIME_ACCELERATION=true,OVERTURN_DEMO_SECONDS_PER_DAY=1
       ```
-      This is disclosed on screen in `docs/VIDEO_SCRIPT.md` and in the README —
-      keep that disclosure in the recording, don't quietly drop it.
+      Disclose that acceleration on screen and in the README. The recorded
+      demo does; keep it that way, and don't quietly drop it.
 - [ ] If the sabotage demo (a deliberately fabricated citation, to show
       Verification rejecting it) is part of the cut, set
       `OVERTURN_SABOTAGE_DRAFTING=first` or `=always` on `overturn-ingest`
