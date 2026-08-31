@@ -430,3 +430,41 @@ def test_the_video_script_does_not_promise_a_login_that_no_longer_appears():
     """
     script = (DOCS / "VIDEO_SCRIPT.md").read_text()
     assert "review queue at `/queue` behind the app password" not in script
+
+
+# --------------------------------------------------------------------------- #
+# The container has to contain what the running app reads
+# --------------------------------------------------------------------------- #
+#
+# /fleet passed every test locally and returned 500 in production, with the
+# front door linking straight to it. Cause: `core.registry` reads
+# `infra/agents.env` at request time, and `infra/` is excluded from the image.
+# Nothing in the suite compared "what the app opens at runtime" against "what
+# the Dockerfile copies", so the whole class of error was invisible.
+
+def test_the_image_ships_the_agent_roster_the_registry_reads():
+    """`/fleet` renders the identity column from this file, at request time."""
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    assert "infra/agents.env" in dockerfile, (
+        "core.registry reads infra/agents.env at request time; if the image "
+        "does not copy it, /fleet 500s in production and passes here"
+    )
+    ignore = (ROOT / ".dockerignore").read_text()
+    assert "!infra/agents.env" in ignore, (
+        ".dockerignore excludes infra/, so the COPY needs the exception"
+    )
+
+
+def test_the_registry_degrades_rather_than_raising_without_the_roster():
+    """A missing roster must not take the page down."""
+    from pathlib import Path
+
+    import core.registry as registry
+
+    original = registry.AGENTS_ENV
+    try:
+        registry.AGENTS_ENV = Path("/nonexistent/agents.env")
+        catalogue = registry.build_catalogue()
+    finally:
+        registry.AGENTS_ENV = original
+    assert len(catalogue) == 7, "the catalogue still lists every agent"

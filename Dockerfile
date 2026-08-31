@@ -46,6 +46,13 @@ COPY data ./data
 # single address. Same files GitHub Pages publishes, so that stays an exact
 # mirror rather than a second copy to keep in step. Only the web assets are
 # copied; the markdown beside them is for humans and has no business in here.
+# The fleet's identity manifest. `infra/` is otherwise excluded from the image
+# on purpose -- it holds deploy scripts that have no business in a running
+# container -- but this one file is read at request time by `core.registry`
+# to render /fleet, and without it that page 500s in production while passing
+# every test locally. It is a manifest of agent ids, service-account ids and
+# one-line purposes; it contains no credentials.
+COPY infra/agents.env ./infra/agents.env
 COPY docs/*.html docs/*.css docs/*.js docs/*.svg ./docs/
 COPY README.md LICENSE NOTICE ./
 

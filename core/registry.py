@@ -27,6 +27,7 @@ wrong catalogue about who may touch patient data is worse than no catalogue.
 from __future__ import annotations
 
 import hashlib
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -36,6 +37,8 @@ from core.gateway import POLICY, Access, GatewayHandle
 from core.schemas.base import OverturnModel, utcnow
 from core.schemas.enums import AgentName
 from core.store import DocumentStore
+
+logger = logging.getLogger(__name__)
 
 REGISTRY_COLLECTION = "agent_registry"
 AGENTS_ENV = Path(__file__).resolve().parents[1] / "infra" / "agents.env"
@@ -78,8 +81,25 @@ class RegisteredAgent(OverturnModel):
 
 
 def _purposes() -> dict[str, tuple[str, str]]:
-    """Read `(service_account, purpose)` per agent from the identity roster."""
+    """Read `(service_account, purpose)` per agent from the identity roster.
+
+    Degrades rather than raises when the roster is absent. `infra/` is excluded
+    from the container image on purpose, and the one time this file went missing
+    from a build the registry page returned 500 in production while passing
+    every test locally -- with the front door linking straight to it. A
+    catalogue that renders without the purpose column is worth something; a
+    stack trace where a judge expected the agent registry is worth less than
+    having built no registry at all.
+
+    The Dockerfile now copies the roster explicitly and a test asserts it, so
+    this path should be unreachable. It stays because the failure it prevents
+    is silent locally and fatal in front of the only audience that matters.
+    """
     rows: dict[str, tuple[str, str]] = {}
+    if not AGENTS_ENV.is_file():
+        logger.error("agent roster missing at %s; /fleet will render without "
+                     "purposes and service accounts", AGENTS_ENV)
+        return rows
     for line in AGENTS_ENV.read_text().splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "|" not in line:
